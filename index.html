@@ -429,6 +429,7 @@ function rebuildMemberSelect(){
   if(cur && CONFIG.TEAM.some(m=>m.name===cur)) sel.value=cur; onMember();
 }
 async function addMember(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   const n=($("nmName").value||"").trim(); const role=$("nmRole").value;
   let t=($("nmTitle").value||"").trim();
   if(!n){ alert("Mets un prénom."); return; }
@@ -438,6 +439,7 @@ async function addMember(){
   await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
 }
 async function removeMember(name){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!confirm("Retirer "+name+" de l'équipe ? (ses EOD déjà envoyés restent enregistrés)")) return;
   CONFIG.TEAM=CONFIG.TEAM.filter(m=>m.name!==name);
   await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
