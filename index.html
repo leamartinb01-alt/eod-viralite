@@ -122,6 +122,12 @@
   .xrow{width:34px; flex:0 0 34px; background:rgba(255,90,77,.12); border:1px solid rgba(255,90,77,.3); color:#ff9a90; border-radius:10px; padding:8px 0; cursor:pointer; font-size:13px}
   .addrow{margin-top:10px; font-size:13px; color:#ffb27a; background:none; border:1px dashed rgba(255,139,71,.4); border-radius:12px; padding:9px; width:100%; cursor:pointer; font-weight:600}
   .schedline{display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-top:1px solid var(--line2)}
+  .minimonths{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+  .mm{flex:0 0 auto; min-width:62px; background:rgba(0,0,0,.22); border:1px solid var(--line2); border-radius:11px; padding:7px 9px; text-align:center}
+  .mm .mmm{font-size:9.5px; color:var(--muted); text-transform:capitalize}
+  .mm .mma{font-size:12.5px; font-weight:700; margin-top:2px}
+  .mm.paid{border-color:rgba(52,199,89,.35)} .mm.paid .mma{color:#7ee2a3}
+  .mm.due .mma{color:#ffcf7a}
   .pay{display:flex; align-items:center; gap:12px; margin-bottom:10px}
   .pay .amt{margin-left:auto; text-align:right}
   .pay .amt .big{font-size:20px; font-weight:800}
@@ -279,7 +285,6 @@
 </div>
 
 <script>
-/* ===================== CONFIG ===================== */
 const CONFIG = {
   FIREBASE : {
     apiKey:"AIzaSyB4_Oaw4vnZ6pPUqbuV0gki2SsnMm050fw",
@@ -299,17 +304,13 @@ const CONFIG = {
     { name:"Clément", title:"Coach",    role:"coach"  },
   ],
   COMM : {
-    coachPerClient: 400,
-    closerRate: 0.10,
-    lucasRate: 0.05,
+    coachPerClient: 400, closerRate: 0.10, lucasRate: 0.05,
     lucasBase: { "2026-06":470, default:700 },
     ilyasPerLead: 20, ilyasPerClose: 50,
     palierRdv: [[100,750],[75,400],[50,200]],
     palierClose: [[20,1000],[15,600],[10,300]],
   },
 };
-
-/* ===================== CHAMPS EOD ===================== */
 const MOODS = [
   { e:"🔥", l:"En feu",   v:"🔥 En feu" },{ e:"💪", l:"Motivé·e", v:"💪 Motivé·e" },
   { e:"🙂", l:"Ça va",    v:"🙂 Ça va" },{ e:"😐", l:"Mitigé",   v:"😐 Mitigé" },
@@ -336,6 +337,7 @@ const FORMS = {
     { key:"in_contact",       label:"Personnes en contact (conversations)", type:"number" },
     { key:"calls_booked",     label:"Calls pris (RDV calés)",               type:"number" },
     { key:"confirmed_tomorrow", label:"RDV confirmés pour demain",          type:"number" },
+    { key:"booked_names",     label:"Noms des calls bookés aujourd'hui",    type:"textarea" },
     { key:"need_help",        label:"Un blocage / besoin d'aide ?",         type:"textarea" },
     { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
@@ -357,8 +359,6 @@ const SUIVI = {
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
 };
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
-
-/* ===================== OUTILS ===================== */
 const $ = id => document.getElementById(id);
 const todayStr = () => new Date().toISOString().slice(0,10);
 const monthStr = () => new Date().toISOString().slice(0,7);
@@ -390,16 +390,10 @@ function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow
 function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
   (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
   return o; }
-
-/* ===================== ACCÈS ===================== */
 let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
-
-/* ===================== FIREBASE ===================== */
 let db=null;
 function fbReady(){ return !!(CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
 function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); }
-
-/* ===================== LOGIN ===================== */
 function login(){
   const v=$("pw").value.trim();
   if(v===CONFIG.PASSWORD_ADMIN) ACCESS="admin";
@@ -411,8 +405,6 @@ function login(){
   initApp();
 }
 $("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
-
-/* ===================== INIT ===================== */
 function initApp(){
   $("todayLabel").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
   $("rdate").value = todayStr();
@@ -423,8 +415,6 @@ function initApp(){
   if(!fbReady()) $("cfgWarn").classList.remove("hide");
   onMember();
 }
-
-/* ===================== MON EOD ===================== */
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
@@ -478,8 +468,6 @@ async function submitEod(){
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
-
-/* ===================== NAV (animée) ===================== */
 function show(v){
   ["form","team","clients","finance"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
   ["form","team","clients","finance"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
@@ -488,8 +476,6 @@ function show(v){
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
 }
-
-/* ===================== ÉQUIPE ===================== */
 let EODS=[];
 async function loadTeam(){
   if(!fbReady()){ $("teamGrid").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
@@ -587,8 +573,6 @@ async function deleteEod(id){
   if(!isAdmin()) return; if(!confirm("Supprimer définitivement cet EOD ?")) return;
   try{ await db.collection("eod_reports").doc(id).delete(); await loadTeam(); }catch(e){ alert("Erreur : "+e.message); }
 }
-
-/* ===================== CLIENTS ===================== */
 const PROGRAMMES=["VIRAL PRO","MENTORAT CÉLINE & LOÏC","ÉLITE VIRALE","Autre"];
 const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
@@ -670,7 +654,7 @@ function renderClients(){
     const encC=clientEncaisse(c), reste=(Number(c.montant)||0)-encC;
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
-      .map(s=>`<div class="schedline"><span>${monthLabel(s.month)}</span><span>${eur(s.amount)} ${s.paid?'✅':'⏳'}</span></div>`).join("");
+      .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
     return `<div class="entry">
       <div class="eh"><span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="when">${escapeHtml(c.programme||"")}</span></div>
       <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
@@ -683,13 +667,11 @@ function renderClients(){
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Outil",c.outil)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
-      ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div>${sched}`:""}
+      ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
     </div>`;
   }).join("");
 }
-
-/* ===================== FINANCE & PAIE ===================== */
 let SSTATS={};
 function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
 async function loadFinance(){
@@ -806,7 +788,6 @@ function renderFinTable(){
   const totReste=rows.reduce((s,c)=>s+((Number(c.montant)||0)-clientEncaisse(c)),0);
   $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
 }
-
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
 </script>
 </body>
