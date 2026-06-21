@@ -69,7 +69,6 @@
   .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
   .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
   .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
-  /* NAV animée */
   .nav{position:fixed; bottom:0; left:0; right:0; z-index:50; display:flex;
     background:rgba(11,11,14,.86); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-top:1px solid var(--line)}
   .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11px; font-weight:600; cursor:pointer; position:relative; transition:color .25s}
@@ -379,6 +378,7 @@ function streakOf(dates){
   let s=0; while(set.has(iso(d))){ s++; d.setDate(d.getDate()-1); } return s;
 }
 function pickMood(el,val){ el.parentNode.querySelectorAll(".mood").forEach(b=>b.classList.remove("sel")); el.classList.add("sel"); const h=document.getElementById(el.getAttribute("data-for")); if(h) h.value=val; }
+function callsArr(x){ return (x&&x.payload&&Array.isArray(x.payload.calls))?x.payload.calls:[]; }
 function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; box.insertAdjacentHTML("beforeend",
   `<div class="drow callRow">
     <input class="cP" type="text" placeholder="Prospect" value="${escapeHtml(d.p||'')}" style="flex:1.4">
@@ -388,7 +388,7 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; box.i
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
 function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
-  (eods||[]).forEach(e=>(((e.payload&&e.payload.calls))||[]).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
+  (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
   return o; }
 
 /* ===================== ACCÈS ===================== */
@@ -445,7 +445,7 @@ function fillEodForm(x){
   const role=member(x.member).role;
   FORMS[role].forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
-    if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; ((x.payload&&x.payload.calls)||[]).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
+    if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
@@ -556,7 +556,7 @@ function openMember(name){
   const history = monthList.length ? monthList.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
     const kvs=fields.map(f=>{
-      if(f.type==="calls"){ const cl=(x.payload&&x.payload.calls)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
+      if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
     const del=isAdmin()?`<button class="btn danger sm" style="flex:0 0 auto" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
@@ -771,21 +771,35 @@ async function saveStat(name){
   try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
   catch(e){ alert("Erreur : "+e.message); }
 }
+function startMonth(c){ return (c.date_debut||"").slice(0,7); }
+function paidInMonth(c,M){
+  if((c.schedule||[]).length) return (c.schedule||[]).filter(s=>s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
+  return startMonth(c)===M ? (Number(c.encaisse)||0) : 0;
+}
+function dueInMonth(c,M){
+  if((c.schedule||[]).length) return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
+  return 0;
+}
 function renderFinTable(){
-  let months=new Set();
-  CLIENTS.forEach(c=>(c.schedule||[]).forEach(s=>{ if(s.month) months.add(s.month); }));
-  let ms=[...months].sort(); if(!ms.length) ms=lastMonths(6).reverse();
-  const rows=CLIENTS.filter(c=>(c.schedule||[]).length);
-  if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Renseigne les échéanciers des clients (Clients → Modifier) pour voir le tableau mois par mois.</div>`; return; }
-  const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Total</th></tr>`;
+  const monthsSet=new Set();
+  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); });
+  let ms=[...monthsSet].filter(Boolean).sort();
+  if(!ms.length) ms=lastMonths(4).reverse();
+  const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
+  if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Aucun client pour l'instant.</div>`; return; }
+  const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Encaissé</th><th>Reste</th></tr>`;
   const body=rows.map(c=>{
-    let tot=0;
-    const tds=ms.map(m=>{ const sc=(c.schedule||[]).find(s=>s.month===m); if(!sc||!sc.amount) return `<td>—</td>`; tot+=sc.paid?(Number(sc.amount)||0):0; return `<td class="${sc.paid?'paid':'due'}">${eur(sc.amount)} ${sc.paid?'✅':'⏳'}</td>`; }).join("");
-    return `<tr><td>${escapeHtml(c.nom||"")}</td>${tds}<td>${eur(tot)}</td></tr>`;
+    const enc=clientEncaisse(c), reste=(Number(c.montant)||0)-enc;
+    const tds=ms.map(m=>{ const p=paidInMonth(c,m), d=dueInMonth(c,m);
+      if(p) return `<td class="paid">${eur(p)}</td>`;
+      if(d) return `<td class="due">${eur(d)} ⏳</td>`;
+      return `<td style="color:var(--faint)">—</td>`; }).join("");
+    return `<tr><td><div style="font-weight:700">${escapeHtml(c.nom||"")}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
-  const totals=ms.map(m=>{ let t=0; rows.forEach(c=>{ const sc=(c.schedule||[]).find(s=>s.month===m); if(sc&&sc.paid) t+=Number(sc.amount)||0; }); return `<td>${eur(t)}</td>`; }).join("");
-  const grand=rows.reduce((s,c)=>s+(c.schedule||[]).filter(x=>x.paid).reduce((a,b)=>a+(Number(b.amount)||0),0),0);
-  $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Encaissé</td>${totals}<td>${eur(grand)}</td></tr></tbody></table></div>`;
+  const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
+  const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
+  const totReste=rows.reduce((s,c)=>s+((Number(c.montant)||0)-clientEncaisse(c)),0);
+  $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
