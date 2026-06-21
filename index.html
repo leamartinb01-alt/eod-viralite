@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#0b0b0e" />
-<title>Écosystème Viral · EOD & Clients</title>
+<title>Écosystème Viral · Pilotage</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -23,6 +23,8 @@
   body::before{width:420px; height:420px; top:-140px; right:-120px; background:radial-gradient(circle,#ff7a3d,transparent 70%)}
   body::after{width:480px; height:480px; bottom:-160px; left:-160px; background:radial-gradient(circle,#7f5bc4,transparent 70%)}
   .wrap{max-width:680px; margin:0 auto; padding:14px 16px}
+  @keyframes viewIn{from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:none}}
+  @keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
   .grad-text{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
   header.top{display:flex; align-items:center; gap:12px; padding:16px 16px 6px; max-width:680px; margin:0 auto}
   .logo-eco-sm{width:42px; height:42px; flex:0 0 42px; border-radius:13px; overflow:hidden; display:block; box-shadow:0 0 0 1px var(--line), 0 8px 24px rgba(255,122,61,.18)}
@@ -39,8 +41,8 @@
   textarea{min-height:74px; resize:vertical}
   select{appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%239a98a4' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>"); background-repeat:no-repeat; background-position:right 14px center; padding-right:38px}
   .btn{width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700; letter-spacing:.2px;
-    background:var(--grad); color:#fff; cursor:pointer; margin-top:18px; box-shadow:0 10px 26px rgba(224,76,107,.28)}
-  .btn:active{transform:translateY(1px)}
+    background:var(--grad); color:#fff; cursor:pointer; margin-top:18px; box-shadow:0 10px 26px rgba(224,76,107,.28); transition:transform .1s}
+  .btn:active{transform:scale(.98)}
   .btn.ghost{background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--txt); font-weight:600; box-shadow:none}
   .btn.danger{background:rgba(255,90,77,.14); border:1px solid rgba(255,90,77,.4); color:#ff9a90; box-shadow:none}
   .btn.sm{padding:11px; font-size:14px; margin-top:0}
@@ -57,7 +59,7 @@
   .moods{display:flex; gap:8px; margin-top:6px}
   .mood{flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:10px 4px 8px; font-size:24px; cursor:pointer; transition:transform .1s,border-color .15s,background .15s; line-height:1}
   .mood .ml{display:block; font-size:9.5px; color:var(--muted); margin-top:5px; font-weight:600}
-  .mood:active{transform:scale(.95)}
+  .mood:active{transform:scale(.92)}
   .mood.sel{border-color:#ff8b47; background:rgba(255,139,71,.16); transform:translateY(-2px)}
   .mood.sel .ml{color:#ffb27a}
   .badge{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px}
@@ -67,12 +69,16 @@
   .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
   .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
   .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
+  /* NAV animée */
   .nav{position:fixed; bottom:0; left:0; right:0; z-index:50; display:flex;
-    background:rgba(11,11,14,.82); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--line)}
-  .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11px; font-weight:600; cursor:pointer; position:relative; transition:color .15s}
+    background:rgba(11,11,14,.86); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-top:1px solid var(--line)}
+  .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11px; font-weight:600; cursor:pointer; position:relative; transition:color .25s}
+  .nav button .ic{display:block; font-size:20px; margin-bottom:3px; transition:transform .25s}
   .nav button.active{color:var(--txt)}
-  .nav button.active::after{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:30px; height:3px; border-radius:0 0 4px 4px; background:var(--grad)}
-  .nav .ic{display:block; font-size:20px; margin-bottom:3px}
+  .nav button.active .ic{animation:pop .35s ease}
+  .nav button::after{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%) scaleX(0); width:32px; height:3px; border-radius:0 0 4px 4px; background:var(--grad); transition:transform .28s cubic-bezier(.4,1.3,.5,1)}
+  .nav button.active::after{transform:translateX(-50%) scaleX(1)}
+  .nav button:active .ic{transform:scale(.85)}
   .stat{display:flex; gap:10px; margin:4px 0 6px}
   .stat .box{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line2); border-radius:14px; padding:13px 8px; text-align:center}
   .stat .n{font-size:19px; font-weight:800; line-height:1.1}
@@ -82,11 +88,12 @@
   .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
   .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
   .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
+  .avatar.sm{width:38px;height:38px;flex:0 0 38px;font-size:14px}
   .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
   .member{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; cursor:pointer; text-align:center;
     transition:transform .12s; backdrop-filter:blur(12px); position:relative; overflow:hidden}
-  .member:active{transform:scale(.98)}
+  .member:active{transform:scale(.96)}
   .member .avatar{margin:0 auto 10px}
   .member .mname{font-weight:700; font-size:15px}
   .member .mrole{font-size:12px; color:var(--muted); margin-top:1px}
@@ -98,8 +105,7 @@
   .entry .who{font-weight:700; font-size:14.5px}
   .entry .when{font-size:12px; color:var(--muted); white-space:nowrap}
   .kv{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; padding:6px 0; border-top:1px solid var(--line2)}
-  .kv .k{color:var(--muted)}
-  .kv .v{text-align:right; font-weight:600}
+  .kv .k{color:var(--muted)} .kv .v{text-align:right; font-weight:600}
   .empty{color:var(--faint); text-align:center; padding:34px 16px; font-size:14px}
   .filters{display:flex; gap:8px; margin-bottom:4px}
   .filters select{padding:10px 30px 10px 12px; font-size:14px}
@@ -111,17 +117,31 @@
   .insight{display:flex; gap:9px; align-items:flex-start; font-size:13.5px; padding:7px 0; border-top:1px solid var(--line2)}
   .insight:first-child{border-top:none}
   .drow{display:flex; gap:7px; align-items:center; margin-top:8px}
-  .drow input[type=month]{flex:1.3} .drow input[type=number]{flex:1} .drow input[type=text]{flex:1.3}
+  .drow input[type=month]{flex:1.3} .drow input[type=number]{flex:1}
   .drow .ck{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); white-space:nowrap; margin:0; width:auto}
   .drow .ck input{width:18px; height:18px}
   .xrow{width:34px; flex:0 0 34px; background:rgba(255,90,77,.12); border:1px solid rgba(255,90,77,.3); color:#ff9a90; border-radius:10px; padding:8px 0; cursor:pointer; font-size:13px}
   .addrow{margin-top:10px; font-size:13px; color:#ffb27a; background:none; border:1px dashed rgba(255,139,71,.4); border-radius:12px; padding:9px; width:100%; cursor:pointer; font-weight:600}
   .schedline{display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-top:1px solid var(--line2)}
+  .pay{display:flex; align-items:center; gap:12px; margin-bottom:10px}
+  .pay .amt{margin-left:auto; text-align:right}
+  .pay .amt .big{font-size:20px; font-weight:800}
+  .pay .amt .lb{font-size:10px; color:var(--muted)}
+  .payin{display:flex; gap:8px; margin-top:8px}
+  .payin>div{flex:1}
+  .payin label{margin:0 0 4px}
+  .payin input{padding:10px 12px}
+  .tablewrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:14px}
+  table.mtab{border-collapse:collapse; width:100%; font-size:12.5px; min-width:520px}
+  table.mtab th,table.mtab td{padding:9px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--line2)}
+  table.mtab th:first-child,table.mtab td:first-child{text-align:left; position:sticky; left:0; background:#121216; font-weight:600}
+  table.mtab thead th{color:var(--muted); font-weight:700; text-transform:capitalize; background:#121216}
+  table.mtab td.paid{color:#7ee2a3} table.mtab td.due{color:#ffcf7a}
+  table.mtab tr.tot td{border-top:2px solid var(--line); font-weight:800}
 </style>
 </head>
 <body>
 
-<!-- Logo V -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="logoV" viewBox="0 0 1024 1024">
     <defs>
@@ -150,14 +170,14 @@
   <div style="text-align:center; margin-bottom:20px">
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
-    <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Espace équipe — EOD &amp; suivi clients</div>
+    <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
   </div>
   <div class="card">
     <label>Mot de passe</label>
     <input id="pw" type="password" placeholder="••••••••" autocomplete="off" />
     <button class="btn" onclick="login()">Entrer</button>
     <div id="loginErr" class="msg"></div>
-    <div class="hint" style="text-align:center; margin-top:12px">Accès équipe ou accès admin selon ton mot de passe.</div>
+    <div class="hint" style="text-align:center; margin-top:12px">Accès équipe ou admin selon ton mot de passe.</div>
   </div>
 </div>
 
@@ -165,15 +185,12 @@
 <div id="app" class="hide">
   <header class="top">
     <svg class="logo-eco-sm"><use href="#logoV"/></svg>
-    <div>
-      <h1>Écosystème Viral</h1>
-      <div class="sub" id="todayLabel"></div>
-    </div>
+    <div><h1>Écosystème Viral</h1><div class="sub" id="todayLabel"></div></div>
   </header>
 
   <!-- MON EOD -->
   <div id="view-form" class="wrap">
-    <div id="cfgWarn" class="config-warn hide">⚠️ Backend non connecté — les données ne seront pas sauvegardées.</div>
+    <div id="cfgWarn" class="config-warn hide">⚠️ Backend non connecté.</div>
     <div class="card">
       <h2 id="formTitle">Faire mon EOD</h2>
       <p class="sub2">Le récap de fin de journée — ça prend 2 minutes 💪</p>
@@ -199,11 +216,8 @@
         <p class="sub2" id="teamToday" style="margin-top:8px">—</p>
         <div class="stat" id="teamStats"></div>
       </div>
-      <div id="insightCard" class="card hide">
-        <h2>À noter 👀</h2>
-        <div id="teamInsights"></div>
-      </div>
-      <div class="section-title">Membres · clique pour voir le suivi</div>
+      <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
+      <div class="section-title">Membres · clique pour le suivi</div>
       <div class="grid" id="teamGrid"></div>
     </div>
     <div id="memberDetail" class="hide"></div>
@@ -213,7 +227,7 @@
   <div id="view-clients" class="wrap hide">
     <div class="card">
       <h2>Clients · Écosystème</h2>
-      <p class="sub2">Contrats, échéancier de paiement et commissions.</p>
+      <p class="sub2">Fiches clients & échéancier de paiement.</p>
       <div class="stat" id="clientStats"></div>
       <div class="row2" style="margin-top:6px">
         <button class="btn sm" onclick="newClient()">+ Nouveau client</button>
@@ -223,12 +237,10 @@
     <div id="clientFormCard" class="card hide">
       <h2 id="clientFormTitle">Nouveau client</h2>
       <div id="clientFields"></div>
-      <div class="section-title">Échéancier de paiement</div>
+      <div class="section-title">Échéancier de paiement (par mois)</div>
+      <p class="hint" style="margin:0 0 4px">Coche « payé » dès que l'échéance rentre — c'est ce qui alimente les commissions.</p>
       <div id="schedRows"></div>
       <button type="button" class="addrow" onclick="addSchedRow()">+ Ajouter une échéance</button>
-      <div class="section-title">Commissions (qui reçoit quoi)</div>
-      <div id="commRows"></div>
-      <button type="button" class="addrow" onclick="addCommRow()">+ Ajouter une commission</button>
       <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
@@ -247,17 +259,15 @@
   <div id="view-finance" class="wrap hide">
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
-        <h2 style="margin:0">Finance du mois</h2>
+        <h2 style="margin:0">Finance &amp; paie</h2>
         <select id="finMonth" style="width:auto; min-width:150px" onchange="renderFinance()"></select>
       </div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
     </div>
-    <div class="section-title">Commissions à verser ce mois</div>
-    <div id="finComm"></div>
-    <div class="section-title">Encaissements du mois</div>
-    <div id="finPaid"></div>
-    <div class="section-title">À encaisser ce mois</div>
-    <div id="finDue"></div>
+    <div class="section-title">Fiches de paie du mois</div>
+    <div id="finPay"></div>
+    <div class="section-title">Encaissements par client × mois</div>
+    <div id="finTable"></div>
   </div>
 </div>
 
@@ -285,10 +295,19 @@ const CONFIG = {
   TEAM : [
     { name:"Julie",   title:"Closeuse", role:"closer" },
     { name:"Anthony", title:"Closer",   role:"closer" },
-    { name:"Ilyas",   title:"Setter",   role:"setter" },
-    { name:"Lucas",   title:"Setter",   role:"setter" },
+    { name:"Ilyas",   title:"Setter Insta",    role:"setter" },
+    { name:"Lucas",   title:"Setter LinkedIn", role:"setter" },
     { name:"Clément", title:"Coach",    role:"coach"  },
   ],
+  COMM : {
+    coachPerClient: 400,
+    closerRate: 0.10,
+    lucasRate: 0.05,
+    lucasBase: { "2026-06":470, default:700 },
+    ilyasPerLead: 20, ilyasPerClose: 50,
+    palierRdv: [[100,750],[75,400],[50,200]],
+    palierClose: [[20,1000],[15,600],[10,300]],
+  },
 };
 
 /* ===================== CHAMPS EOD ===================== */
@@ -297,13 +316,12 @@ const MOODS = [
   { e:"🙂", l:"Ça va",    v:"🙂 Ça va" },{ e:"😐", l:"Mitigé",   v:"😐 Mitigé" },
   { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
 ];
+const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
+const CALL_RESULTS = ["Show-up","No-show","Closé"];
+const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
 const FORMS = {
   closer:[
-    { key:"calls",           label:"Calls sur la journée",                  type:"number" },
-    { key:"noshow",          label:"No-show ? (combien)",                   type:"number" },
-    { key:"showup_insta",    label:"Noms des show-up — Instagram",          type:"textarea" },
-    { key:"showup_linkedin", label:"Noms des show-up — LinkedIn",           type:"textarea" },
-    { key:"closed",          label:"Nombre de closé",                       type:"number" },
+    { key:"calls_log",       label:"📞 Tes calls du jour (prospect · source · résultat)", type:"calls" },
     { key:"cash_gen_day",    label:"💰 Cash généré aujourd'hui (€)",        type:"number" },
     { key:"cash_gen_month",  label:"💰 Cash généré depuis le début du mois (€)", type:"number" },
     { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€)",      type:"number" },
@@ -335,7 +353,7 @@ const FORMS = {
 };
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
-  closer:[ {key:"cash_gen_day",label:"Cash généré",money:true}, {key:"cash_day",label:"Cash collecté",money:true}, {key:"closed",label:"Closés"} ],
+  closer:[ {key:"cash_gen_day",label:"Cash généré",money:true}, {key:"cash_day",label:"Cash collecté",money:true} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"calls_booked",label:"Calls pris"}, {key:"confirmed_tomorrow",label:"Confirmés"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
 };
@@ -345,30 +363,36 @@ const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ç
 const $ = id => document.getElementById(id);
 const todayStr = () => new Date().toISOString().slice(0,10);
 const monthStr = () => new Date().toISOString().slice(0,7);
-const eur = n => (Number(n)||0).toLocaleString("fr-FR")+" €";
+const eur = n => (Math.round(Number(n)||0)).toLocaleString("fr-FR")+" €";
 const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
 function monthLabel(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }catch(e){ return ym; } }
+function monthShort(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}); }catch(e){ return ym; } }
 function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
 function fillMonthSelect(sel){ if(!sel||sel.options.length) return; lastMonths(12).forEach(ym=> sel.insertAdjacentHTML("beforeend",`<option value="${ym}">${monthLabel(ym)}</option>`)); }
 function streakOf(dates){
   const set=new Set(dates), iso=d=>d.toISOString().slice(0,10);
   let d=new Date();
   if(!set.has(iso(d))){ d.setDate(d.getDate()-1); if(!set.has(iso(d))) return 0; }
-  let s=0; while(set.has(iso(d))){ s++; d.setDate(d.getDate()-1); }
-  return s;
+  let s=0; while(set.has(iso(d))){ s++; d.setDate(d.getDate()-1); } return s;
 }
-function pickMood(el,val){
-  el.parentNode.querySelectorAll(".mood").forEach(b=>b.classList.remove("sel"));
-  el.classList.add("sel");
-  const hid=document.getElementById(el.getAttribute("data-for")); if(hid) hid.value=val;
-}
+function pickMood(el,val){ el.parentNode.querySelectorAll(".mood").forEach(b=>b.classList.remove("sel")); el.classList.add("sel"); const h=document.getElementById(el.getAttribute("data-for")); if(h) h.value=val; }
+function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; box.insertAdjacentHTML("beforeend",
+  `<div class="drow callRow">
+    <input class="cP" type="text" placeholder="Prospect" value="${escapeHtml(d.p||'')}" style="flex:1.4">
+    <select class="cS" style="flex:1.3">${CALL_SOURCES.map(o=>`<option ${o===d.src?'selected':''}>${o}</option>`).join("")}</select>
+    <select class="cR" style="flex:1.1">${CALL_RESULTS.map(o=>`<option ${o===d.res?'selected':''}>${o}</option>`).join("")}</select>
+    <button type="button" class="xrow" onclick="this.closest('.callRow').remove()">✕</button>
+  </div>`); }
+function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
+function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
+  (eods||[]).forEach(e=>(((e.payload&&e.payload.calls))||[]).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
+  return o; }
 
 /* ===================== ACCÈS ===================== */
-let ACCESS="team";
-const isAdmin=()=>ACCESS==="admin";
+let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -409,19 +433,21 @@ function onMember(){
     if(f.type==="mood"){
       const chips=MOODS.map(mo=>`<button type="button" class="mood" data-for="f_${f.key}" data-v="${mo.v}" onclick="pickMood(this,'${mo.v}')">${mo.e}<span class="ml">${mo.l}</span></button>`).join("");
       inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
+    } else if(f.type==="calls"){
+      inp=`<div id="callRows"></div><button type="button" class="addrow" onclick="addCallRow()">+ Ajouter un call</button>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
+  if($("callRows") && !$("callRows").children.length) addCallRow();
 }
 function fillEodForm(x){
   const role=member(x.member).role;
   FORMS[role].forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
-    if(f.type==="mood"){
-      const hid=$("f_"+f.key); if(hid) hid.value=v||"";
-      document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>{ b.classList.toggle("sel", b.getAttribute("data-v")===v); });
-    } else { const el=$("f_"+f.key); if(el) el.value=v||""; }
+    if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; ((x.payload&&x.payload.calls)||[]).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
+    else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
+    else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
 }
 function editEod(id){
@@ -429,20 +455,13 @@ function editEod(id){
   editingEodId=id; show("form");
   $("member").value=x.member; onMember(); fillEodForm(x);
   $("rdate").value=x.report_date||todayStr();
-  $("formTitle").textContent="Modifier l'EOD";
-  $("eodSubmitBtn").textContent="Mettre à jour ✓";
-  $("eodCancelEdit").classList.remove("hide");
-  $("formMsg").style.display="none";
+  $("formTitle").textContent="Modifier l'EOD"; $("eodSubmitBtn").textContent="Mettre à jour ✓"; $("eodCancelEdit").classList.remove("hide"); $("formMsg").style.display="none";
   window.scrollTo({top:0});
 }
-function cancelEdit(){
-  editingEodId=null; $("formTitle").textContent="Faire mon EOD";
-  $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide");
-  onMember(); $("formMsg").style.display="none";
-}
+function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=> payload[f.key]=($("f_"+f.key).value||"").trim());
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -456,13 +475,15 @@ async function submitEod(){
     }
     FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
+    if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
-/* ===================== NAV ===================== */
+/* ===================== NAV (animée) ===================== */
 function show(v){
   ["form","team","clients","finance"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
-  ["form","team","clients","finance"].forEach(k=> { const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","clients","finance"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
@@ -473,34 +494,30 @@ let EODS=[];
 async function loadTeam(){
   if(!fbReady()){ $("teamGrid").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
-  try{ const snap=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get();
-    EODS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ EODS=[]; }
+  try{ const snap=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ EODS=[]; }
   renderTeam();
 }
 function renderTeam(){
   const selM=$("teamMonth").value||monthStr(), today=todayStr();
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
-  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD remplis aujourd'hui · vue : ${monthLabel(selM)}`;
+  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
   const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
   const gen=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_gen_day)||0),0);
   const col=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
-  const closed=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
+  const closed=aggCalls(mc).close;
   $("teamStats").innerHTML=`
     <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré</div></div>
     <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté</div></div>
     <div class="box"><div class="n">${closed}</div><div class="l">Closés</div></div>`;
   renderInsights(selM, doneSet);
   $("teamGrid").innerHTML=CONFIG.TEAM.map(m=>{
-    const on=doneSet.has(m.name);
-    const list=EODS.filter(x=>x.member===m.name);
+    const on=doneSet.has(m.name); const list=EODS.filter(x=>x.member===m.name);
     const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
     return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
       <span class="dot ${on?'on':'off'}"></span>
       <div class="avatar ${avClass(m.role)}">${initials(m.name)}</div>
-      <div class="mname">${escapeHtml(m.name)}</div>
-      <div class="mrole">${escapeHtml(m.title)}</div>
-      <div class="mlevel">🔥 ${streak} j · ${pts} pts</div>
-    </div>`;
+      <div class="mname">${escapeHtml(m.name)}</div><div class="mrole">${escapeHtml(m.title)}</div>
+      <div class="mlevel">🔥 ${streak} j · ${pts} pts</div></div>`;
   }).join("");
 }
 function renderInsights(selM, doneSet){
@@ -511,17 +528,16 @@ function renderInsights(selM, doneSet){
   EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM).forEach(x=>{ byCloser[x.member]=(byCloser[x.member]||0)+(Number(x.payload&&x.payload.cash_gen_day)||0); });
   const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
   if(top && top[1]>0) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
-  let best=null;
-  CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
-  if(best) ins.push(["🔥",`Plus longue série en cours : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
+  let best=null; CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
+  if(best) ins.push(["🔥",`Plus longue série : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
   const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
   CONFIG.TEAM.filter(m=>m.role==="setter").forEach(m=>{
     const recent=EODS.filter(x=>x.member===m.name && (x.report_date||"")>=weekAgo);
     const booked=recent.reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
-    if(recent.length>=2 && booked===0) ins.push(["📉",`<b>${escapeHtml(m.name)}</b> : 0 call pris sur les 7 derniers jours`]);
+    if(recent.length>=2 && booked===0) ins.push(["📉",`<b>${escapeHtml(m.name)}</b> : 0 call pris sur 7 jours`]);
   });
   const hard=EODS.filter(x=>(x.report_date||"")>=weekAgo && /Dur|Mitigé/.test((x.payload&&x.payload.mood)||"")).length;
-  if(hard>=3) ins.push(["🫶",`Plusieurs ressentis difficiles cette semaine (${hard}) — pense à checker l'équipe`]);
+  if(hard>=3) ins.push(["🫶",`Plusieurs ressentis difficiles cette semaine (${hard}) — check l'équipe`]);
   if(!ins.length){ $("insightCard").classList.add("hide"); return; }
   $("insightCard").classList.remove("hide");
   $("teamInsights").innerHTML=ins.map(i=>`<div class="insight"><span>${i[0]}</span><span>${i[1]}</span></div>`).join("");
@@ -531,15 +547,18 @@ function openMember(name){
   const list=EODS.filter(x=>x.member===name);
   const month=list.filter(x=>(x.report_date||"").slice(0,7)===selM);
   const metrics=SUIVI[m.role]||SUIVI.setter;
-  const stats=metrics.map(mt=>{ const sum=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0);
-    return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`; }).join("");
+  let stats=metrics.map(mt=>{ const sum=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0); return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`; }).join("");
+  if(m.role==="closer") stats+=`<div class="box"><div class="n">${aggCalls(month).close}</div><div class="l">Closés</div></div>`;
   const today=todayStr(), didToday=list.some(x=>x.report_date===today);
   const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
   const fields=FORMS[m.role];
   const monthList=month.sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date)));
   const history = monthList.length ? monthList.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
-    const kvs=fields.map(f=>{ const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:""; }).join("");
+    const kvs=fields.map(f=>{
+      if(f.type==="calls"){ const cl=(x.payload&&x.payload.calls)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
+      const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
+    }).join("");
     const del=isAdmin()?`<button class="btn danger sm" style="flex:0 0 auto" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
     return `<div class="entry"><div class="eh"><span class="who" style="text-transform:capitalize">${dd}</span></div>${kvs}
       <div class="row2" style="margin-top:12px"><button class="btn ghost sm" onclick="editEod('${x.id}')">✎ Modifier</button>${del}</div></div>`;
@@ -556,21 +575,17 @@ function openMember(name){
         </div>
         <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
           <span class="badge streak">🔥 ${streak} jour${streak>1?'s':''} de série</span>
-          <span class="badge pts">⭐ ${pts} pts</span>
-        </div>
+          <span class="badge pts">⭐ ${pts} pts</span></div>
       </div>
     </div>
     <div class="card"><h2>Suivi · ${monthLabel(selM)}</h2><div class="stat" style="margin-top:8px">${stats}</div></div>
-    <div class="section-title">EOD de ${monthLabel(selM)} (${monthList.length})</div>
-    ${history}`;
+    <div class="section-title">EOD de ${monthLabel(selM)} (${monthList.length})</div>${history}`;
   $("teamList").classList.add("hide"); $("memberDetail").classList.remove("hide"); window.scrollTo({top:0});
 }
 function backTeam(){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); }
 async function deleteEod(id){
-  if(!isAdmin()) return;
-  if(!confirm("Supprimer définitivement cet EOD ?")) return;
-  try{ await db.collection("eod_reports").doc(id).delete(); await loadTeam(); }
-  catch(e){ alert("Erreur : "+e.message); }
+  if(!isAdmin()) return; if(!confirm("Supprimer définitivement cet EOD ?")) return;
+  try{ await db.collection("eod_reports").doc(id).delete(); await loadTeam(); }catch(e){ alert("Erreur : "+e.message); }
 }
 
 /* ===================== CLIENTS ===================== */
@@ -580,10 +595,11 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select",options:PROGRAMMES },
   { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
-  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé (€)",type:"number" },
+  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé global (€)",type:"number" },
   { key:"cgv",label:"CGV signé",type:"select",options:["OUI","NON"] },
   { key:"outil",label:"Outil de suivi",type:"select",options:["WHOP","JOTFORM","Autre"] },
-  { key:"setter",label:"Setter",type:"text" },{ key:"closer",label:"Closer",type:"text" },
+  { key:"setter",label:"Setter (qui a sourcé)",type:"select",options:["","Ilyas","Lucas","N/A"] },
+  { key:"closer",label:"Closer",type:"select",options:["","Julie","Anthony","Loïc","Loïc et Céline","Céline"] },
   { key:"statut",label:"Statut",type:"select",options:["Actif","Terminé","Annulé / Litige"] },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
@@ -593,13 +609,12 @@ function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
-    if(f.type==="select"){ inp=`<select id="cf_${f.key}"><option value=""></option>${f.options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`; }
+    if(f.type==="select"){ inp=`<select id="cf_${f.key}">${f.options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
     else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
-  $("commRows").innerHTML=""; (data.comm||[]).forEach(addCommRow);
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   `<div class="drow schedRow">
@@ -608,23 +623,15 @@ function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
     <label class="ck"><input class="sPaid" type="checkbox" ${d.paid?'checked':''}>payé</label>
     <button type="button" class="xrow" onclick="this.closest('.schedRow').remove()">✕</button>
   </div>`); }
-function addCommRow(d){ d=d||{}; $("commRows").insertAdjacentHTML("beforeend",
-  `<div class="drow commRow">
-    <input class="cWho" type="text" placeholder="Qui (ex: Céline)" value="${escapeHtml(d.who||'')}">
-    <input class="cAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}">
-    <input class="cMonth" type="month" value="${d.month||''}">
-    <button type="button" class="xrow" onclick="this.closest('.commRow').remove()">✕</button>
-  </div>`); }
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif",cgv:"OUI"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
 function gatherSchedule(){ return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>({ month:r.querySelector(".sMonth").value, amount:Number(r.querySelector(".sAmt").value)||0, paid:r.querySelector(".sPaid").checked })).filter(x=>x.month||x.amount); }
-function gatherComm(){ return [...document.querySelectorAll("#commRows .commRow")].map(r=>({ who:r.querySelector(".cWho").value.trim(), amount:Number(r.querySelector(".cAmt").value)||0, month:r.querySelector(".cMonth").value })).filter(x=>x.who||x.amount); }
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
-  obj.schedule=gatherSchedule(); obj.comm=gatherComm();
+  obj.schedule=gatherSchedule();
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
   m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -641,18 +648,17 @@ async function loadClients(){
   initFirebase();
   if($("cfProg").options.length<=1) PROGRAMMES.forEach(p=>$("cfProg").insertAdjacentHTML("beforeend",`<option>${p}</option>`));
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
-  try{ const snap=await db.collection("clients").get();
-    CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
-    CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||"")));
-    renderClients();
+  try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
+    CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); renderClients();
   }catch(err){ wrap.innerHTML=`<div class="empty">Erreur : ${err.message}</div>`; }
 }
+function clientEncaisse(c){ return (c.schedule||[]).filter(s=>s.paid).reduce((s,x)=>s+(Number(x.amount)||0), Number(c.encaisse)&&!(c.schedule||[]).length?Number(c.encaisse):0); }
 function renderClients(){
   const fp=$("cfProg").value, fs=$("cfStatut").value;
   let rows=CLIENTS.slice();
   if(fp) rows=rows.filter(x=>x.programme===fp);
   if(fs) rows=rows.filter(x=>x.statut===fs);
-  const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+(Number(x.encaisse)||0),0);
+  const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+clientEncaisse(x),0);
   $("clientStats").innerHTML=`
     <div class="box"><div class="n">${rows.length}</div><div class="l">Clients</div></div>
     <div class="box"><div class="n grad-text">${eur(enc)}</div><div class="l">Encaissé</div></div>
@@ -661,16 +667,15 @@ function renderClients(){
   if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client.</div>`; return; }
   wrap.innerHTML=rows.map(c=>{
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
-    const reste=(Number(c.montant)||0)-(Number(c.encaisse)||0);
+    const encC=clientEncaisse(c), reste=(Number(c.montant)||0)-encC;
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
       .map(s=>`<div class="schedline"><span>${monthLabel(s.month)}</span><span>${eur(s.amount)} ${s.paid?'✅':'⏳'}</span></div>`).join("");
-    const comm=(c.comm||[]).map(k=>`<div class="schedline"><span>${escapeHtml(k.who)} · ${k.month?monthLabel(k.month):'—'}</span><span>${eur(k.amount)}</span></div>`).join("");
     return `<div class="entry">
       <div class="eh"><span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="when">${escapeHtml(c.programme||"")}</span></div>
       <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
         ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
-        <span class="pill gold">${eur(c.encaisse)} / ${eur(c.montant)}</span>
+        <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
         ${reste>0?`<span class="pill">reste ${eur(reste)}</span>`:""}
       </div>
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
@@ -679,37 +684,108 @@ function renderClients(){
       ${line("CGV",c.cgv)}${line("Outil",c.outil)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div>${sched}`:""}
-      ${comm?`<div class="section-title" style="margin:12px 2px 2px">Commissions</div>${comm}`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
     </div>`;
   }).join("");
 }
 
-/* ===================== FINANCE ===================== */
-async function loadFinance(){ if(!CLIENTS.length){ await loadClients(); } renderFinance(); }
+/* ===================== FINANCE & PAIE ===================== */
+let SSTATS={};
+function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
+async function loadFinance(){
+  if(!fbReady()){ $("finPay").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
+  initFirebase();
+  if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  if(!EODS.length){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; s.docs.forEach(d=>{ const x=d.data(); SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  renderFinance();
+}
+function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
+function palier(n,table){ for(const [seuil,prime] of table){ if(n>=seuil) return prime; } return 0; }
+function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBase[M]:(M>="2026-07"?CONFIG.COMM.lucasBase.default:0); }
 function renderFinance(){
-  const sel=$("finMonth").value||monthStr();
-  let paid=[], due=[], comms={};
+  const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
+  let encTot=0, dueTot=0, byCloser={Julie:0,Anthony:0}, lucasCA=0, coachTot=0, nbCoachClients=0;
   CLIENTS.forEach(c=>{
-    (c.schedule||[]).forEach(s=>{ if(s.month===sel){ (s.paid?paid:due).push({nom:(c.nom||"")+" "+(c.prenom||""), amount:s.amount}); } });
-    (c.comm||[]).forEach(k=>{ if(k.month===sel){ comms[k.who]=(comms[k.who]||0)+(Number(k.amount)||0); } });
+    const e=encaisseMonth(c,M); if(e>0){ encTot+=e;
+      if(byCloser[c.closer]!=null) byCloser[c.closer]+=e;
+      if(c.setter==="Lucas") lucasCA+=e;
+      const mt=Number(c.montant)||e; coachTot += C.coachPerClient*(e/mt); nbCoachClients++;
+    }
+    (c.schedule||[]).forEach(s=>{ if(s.month===M && !s.paid) dueTot+=Number(s.amount)||0; });
   });
-  const totPaid=paid.reduce((s,x)=>s+x.amount,0), totDue=due.reduce((s,x)=>s+x.amount,0);
-  const totComm=Object.values(comms).reduce((s,x)=>s+x,0);
+  const agg=aggCalls(EODS.filter(x=>(x.report_date||"").slice(0,7)===M));
+  const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
+  const has=v=>v!=null&&v!=="";
+  const ilRdv = has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
+  const ilClose = has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
+  const luClose = has(stLu.closes)?Number(stLu.closes):agg.bySetter.Lucas.close;
+  const ilPrimeR=palier(ilRdv,C.palierRdv), ilPrimeC=palier(ilClose,C.palierClose);
+  const ilAmount=C.ilyasPerLead*ilRdv + C.ilyasPerClose*ilClose + ilPrimeR + ilPrimeC;
+  const luBase=lucasBase(M), lu5=lucasCA*C.lucasRate, luAmount=luBase+lu5;
+  const autoTag=k=>has(k)?"":" · auto";
+  const pay=[
+    {m:"Clément", amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]]},
+    {m:"Julie",   amount:byCloser.Julie*C.closerRate, rows:[["CA encaissé", eur(byCloser.Julie)],["Commission","10 %"]]},
+    {m:"Anthony", amount:byCloser.Anthony*C.closerRate, rows:[["CA encaissé", eur(byCloser.Anthony)],["Commission","10 %"]]},
+    {m:"Lucas", amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]]},
+    {m:"Ilyas", amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]},
+  ];
+  const totalPaie=pay.reduce((s,p)=>s+p.amount,0);
   $("finStats").innerHTML=`
-    <div class="box"><div class="n grad-text">${eur(totPaid)}</div><div class="l">Encaissé</div></div>
-    <div class="box"><div class="n">${eur(totDue)}</div><div class="l">À encaisser</div></div>
-    <div class="box"><div class="n" style="color:#d39be6">${eur(totComm)}</div><div class="l">Commissions</div></div>`;
-  const commArr=Object.entries(comms).sort((a,b)=>b[1]-a[1]);
-  $("finComm").innerHTML = commArr.length
-    ? `<div class="entry">${commArr.map(([w,a])=>`<div class="kv"><span class="k">${escapeHtml(w)}</span><span class="v">${eur(a)}</span></div>`).join("")}<div class="kv" style="border-top:2px solid var(--line)"><span class="k"><b>Total à verser</b></span><span class="v"><b>${eur(totComm)}</b></span></div></div>`
-    : `<div class="empty">Aucune commission notée pour ${monthLabel(sel)}.</div>`;
-  $("finPaid").innerHTML = paid.length
-    ? `<div class="entry">${paid.map(p=>`<div class="kv"><span class="k">${escapeHtml(p.nom)}</span><span class="v">${eur(p.amount)} ✅</span></div>`).join("")}</div>`
-    : `<div class="empty">Aucun encaissement noté pour ${monthLabel(sel)}.</div>`;
-  $("finDue").innerHTML = due.length
-    ? `<div class="entry">${due.map(p=>`<div class="kv"><span class="k">${escapeHtml(p.nom)}</span><span class="v">${eur(p.amount)} ⏳</span></div>`).join("")}</div>`
-    : `<div class="empty">Rien en attente pour ${monthLabel(sel)}.</div>`;
+    <div class="box"><div class="n grad-text">${eur(encTot)}</div><div class="l">Encaissé</div></div>
+    <div class="box"><div class="n">${eur(dueTot)}</div><div class="l">À encaisser</div></div>
+    <div class="box"><div class="n" style="color:#d39be6">${eur(totalPaie)}</div><div class="l">Paie totale</div></div>`;
+  $("finPay").innerHTML = pay.map(p=>{
+    const mb=member(p.m);
+    const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+    let editor="";
+    if(p.edit==="ilyas") editor=`<div class="payin">
+        <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_Ilyas_rdv" value="${ilRdv||''}"></div>
+        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_Ilyas_closes" value="${ilClose||''}"></div>
+      </div><div class="hint">Pré-rempli auto depuis les calls des closers. Modifie + enregistre pour forcer une valeur (rattrapage).</div>
+      <button class="btn ghost sm" style="margin-top:10px" onclick="saveStat('Ilyas')">💾 Enregistrer Ilyas</button>`;
+    if(p.edit==="lucas") editor=`<div class="payin">
+        <div><label>Nb posts LinkedIn</label><input type="number" inputmode="numeric" id="st_Lucas_posts" value="${Number(stLu.posts)||''}"></div>
+        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_Lucas_closes" value="${luClose||''}"></div>
+      </div><div class="hint">Closes pré-remplis auto depuis les calls. Modifie + enregistre si besoin.</div>
+      <button class="btn ghost sm" style="margin-top:10px" onclick="saveStat('Lucas')">💾 Enregistrer Lucas</button>`;
+    return `<div class="entry">
+      <div class="pay">
+        <div class="avatar sm ${avClass(mb.role)}">${initials(p.m)}</div>
+        <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${mb.title}</div></div>
+        <div class="amt"><div class="big grad-text">${eur(p.amount)}</div><div class="lb">à verser</div></div>
+      </div>
+      ${kvs}${editor}
+    </div>`;
+  }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
+  renderFinTable();
+}
+async function saveStat(name){
+  const M=$("finMonth").value||monthStr();
+  const obj={member:name, month:M};
+  const r=$("st_"+name+"_rdv"), cl=$("st_"+name+"_closes"), po=$("st_"+name+"_posts");
+  if(r) obj.rdv=Number(r.value)||0;
+  if(cl) obj.closes=Number(cl.value)||0;
+  if(po) obj.posts=Number(po.value)||0;
+  try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
+  catch(e){ alert("Erreur : "+e.message); }
+}
+function renderFinTable(){
+  let months=new Set();
+  CLIENTS.forEach(c=>(c.schedule||[]).forEach(s=>{ if(s.month) months.add(s.month); }));
+  let ms=[...months].sort(); if(!ms.length) ms=lastMonths(6).reverse();
+  const rows=CLIENTS.filter(c=>(c.schedule||[]).length);
+  if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Renseigne les échéanciers des clients (Clients → Modifier) pour voir le tableau mois par mois.</div>`; return; }
+  const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Total</th></tr>`;
+  const body=rows.map(c=>{
+    let tot=0;
+    const tds=ms.map(m=>{ const sc=(c.schedule||[]).find(s=>s.month===m); if(!sc||!sc.amount) return `<td>—</td>`; tot+=sc.paid?(Number(sc.amount)||0):0; return `<td class="${sc.paid?'paid':'due'}">${eur(sc.amount)} ${sc.paid?'✅':'⏳'}</td>`; }).join("");
+    return `<tr><td>${escapeHtml(c.nom||"")}</td>${tds}<td>${eur(tot)}</td></tr>`;
+  }).join("");
+  const totals=ms.map(m=>{ let t=0; rows.forEach(c=>{ const sc=(c.schedule||[]).find(s=>s.month===m); if(sc&&sc.paid) t+=Number(sc.amount)||0; }); return `<td>${eur(t)}</td>`; }).join("");
+  const grand=rows.reduce((s,c)=>s+(c.schedule||[]).filter(x=>x.paid).reduce((a,b)=>a+(Number(b.amount)||0),0),0);
+  $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Encaissé</td>${totals}<td>${eur(grand)}</td></tr></tbody></table></div>`;
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
