@@ -74,6 +74,19 @@
   .pill.gold{color:#ffcf7a; border-color:rgba(255,180,71,.45); background:rgba(255,180,71,.08)}
   .pill.warn{color:#ff8f85; border-color:rgba(255,90,77,.4); background:rgba(255,90,77,.08)}
 
+  /* mood picker (gamifié) */
+  .moods{display:flex; gap:8px; margin-top:6px}
+  .mood{flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:10px 4px 8px; font-size:24px; cursor:pointer; transition:transform .1s,border-color .15s,background .15s; line-height:1}
+  .mood .ml{display:block; font-size:9.5px; color:var(--muted); margin-top:5px; font-weight:600}
+  .mood:active{transform:scale(.95)}
+  .mood.sel{border-color:#ff8b47; background:rgba(255,139,71,.16); transform:translateY(-2px)}
+  .mood.sel .ml{color:#ffb27a}
+  /* badges gamification */
+  .badge{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px}
+  .badge.streak{background:rgba(255,139,71,.14); border:1px solid rgba(255,139,71,.35); color:#ffb27a}
+  .badge.pts{background:rgba(157,77,176,.16); border:1px solid rgba(157,77,176,.4); color:#d39be6}
+  .mlevel{font-size:10.5px; color:var(--faint); margin-top:4px; font-weight:600}
+
   .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
   .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
   .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
@@ -281,24 +294,36 @@ const CONFIG = {
 };
 
 /* ---- Champs EOD par rôle ---- */
+/* énergie du jour (gamifié) */
+const MOODS = [
+  { e:"🔥", l:"En feu",   v:"🔥 En feu" },
+  { e:"💪", l:"Motivé·e", v:"💪 Motivé·e" },
+  { e:"🙂", l:"Ça va",    v:"🙂 Ça va" },
+  { e:"😐", l:"Mitigé",   v:"😐 Mitigé" },
+  { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
+];
 const SETTER_FIELDS = [
   { key:"contacted",   label:"Personnes contactées",        type:"number" },
   { key:"in_contact",  label:"Personnes en contact",        type:"number" },
   { key:"calls_booked",label:"Calls pris",                  type:"number" },
-  { key:"feeling",     label:"Ressenti & remarque",         type:"textarea" },
+  { key:"mood",        label:"Ton énergie du jour ⚡️",      type:"mood" },
+  { key:"feeling",     label:"Un mot sur ta journée ? (optionnel)", type:"textarea" },
 ];
 const FORMS = {
   closer:[
-    { key:"calls",           label:"Calls sur la journée",                 type:"number" },
-    { key:"noshow",          label:"No-show ? (combien)",                  type:"number" },
-    { key:"showup_insta",    label:"Noms des show-up — Instagram",         type:"textarea" },
-    { key:"showup_linkedin", label:"Noms des show-up — LinkedIn",          type:"textarea" },
-    { key:"closed",          label:"Nombre de closé",                      type:"number" },
-    { key:"cash_day",        label:"Cash collecté (€) — aujourd'hui",      type:"number" },
-    { key:"cash_month",      label:"Cash collecté (€) — début du mois",    type:"number" },
-    { key:"followup_next",   label:"Nb & noms follow-up prochains jours",  type:"textarea" },
-    { key:"followup_update", label:"Update follow-up du jour",             type:"textarea" },
-    { key:"feeling",         label:"Ressenti de la journée — remarque",    type:"textarea" },
+    { key:"calls",           label:"Calls sur la journée",                  type:"number" },
+    { key:"noshow",          label:"No-show ? (combien)",                   type:"number" },
+    { key:"showup_insta",    label:"Noms des show-up — Instagram",          type:"textarea" },
+    { key:"showup_linkedin", label:"Noms des show-up — LinkedIn",           type:"textarea" },
+    { key:"closed",          label:"Nombre de closé",                       type:"number" },
+    { key:"cash_gen_day",    label:"💰 Cash généré aujourd'hui (€)",        type:"number" },
+    { key:"cash_gen_month",  label:"💰 Cash généré depuis le début du mois (€)", type:"number" },
+    { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€)",      type:"number" },
+    { key:"cash_month",      label:"🏦 Cash collecté depuis le début du mois (€)", type:"number" },
+    { key:"followup_next",   label:"Nb & noms follow-up prochains jours",   type:"textarea" },
+    { key:"followup_update", label:"Update follow-up du jour",              type:"textarea" },
+    { key:"mood",            label:"Ton énergie du jour ⚡️",               type:"mood" },
+    { key:"feeling",         label:"Un mot sur ta journée ? (optionnel)",   type:"textarea" },
   ],
   setter:SETTER_FIELDS,
   coach:SETTER_FIELDS,
@@ -306,10 +331,12 @@ const FORMS = {
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 /* métriques de suivi (sommes du mois en cours) */
 const SUIVI = {
-  closer:[ {key:"calls",label:"Calls"}, {key:"closed",label:"Closés"}, {key:"cash_day",label:"Cash",money:true} ],
+  closer:[ {key:"cash_gen_day",label:"Cash généré",money:true}, {key:"cash_day",label:"Cash collecté",money:true}, {key:"closed",label:"Closés"} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
 };
+/* messages fun à l'envoi */
+const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
 
 /* =====================================================================
    OUTILS
@@ -322,6 +349,20 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
+
+/* gamification */
+function streakOf(dates){
+  const set=new Set(dates), iso=d=>d.toISOString().slice(0,10);
+  let d=new Date();
+  if(!set.has(iso(d))){ d.setDate(d.getDate()-1); if(!set.has(iso(d))) return 0; }
+  let s=0; while(set.has(iso(d))){ s++; d.setDate(d.getDate()-1); }
+  return s;
+}
+function pickMood(el,val){
+  el.parentNode.querySelectorAll(".mood").forEach(b=>b.classList.remove("sel"));
+  el.classList.add("sel");
+  const hid=document.getElementById(el.getAttribute("data-for")); if(hid) hid.value=val;
+}
 
 /* ---- Firebase ---- */
 let db=null;
@@ -354,9 +395,15 @@ function initApp(){
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
   FORMS[role].forEach(f=>{
-    const inp = f.type==="textarea"
-      ? `<textarea id="f_${f.key}" placeholder="..."></textarea>`
-      : `<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`;
+    let inp;
+    if(f.type==="mood"){
+      const chips=MOODS.map(mo=>`<button type="button" class="mood" data-for="f_${f.key}" onclick="pickMood(this,'${mo.v}')">${mo.e}<span class="ml">${mo.l}</span></button>`).join("");
+      inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
+    } else if(f.type==="textarea"){
+      inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`;
+    } else {
+      inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`;
+    }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
 }
@@ -368,8 +415,9 @@ async function submitEod(){
   try{
     await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload,
       created_at:firebase.firestore.FieldValue.serverTimestamp() });
-    msg.className="msg ok"; msg.textContent="EOD envoyé ✓ Merci 🙏";
-    FORMS[role].forEach(f=> $("f_"+f.key).value="");
+    msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
+    FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
+    document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
@@ -404,21 +452,25 @@ function renderTeam(){
   const today=todayStr();
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
   $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD remplis aujourd'hui`;
-  const cash = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr())
-                   .reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
-  const closed = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr())
-                   .reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
+  const monthCloser = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr());
+  const gen = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_gen_day)||0),0);
+  const col = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
+  const closed = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
   $("teamStats").innerHTML = `
-    <div class="box"><div class="n grad-text">${eur(cash)}</div><div class="l">Cash · ce mois</div></div>
-    <div class="box"><div class="n">${closed}</div><div class="l">Closés · ce mois</div></div>
-    <div class="box"><div class="n">${EODS.length}</div><div class="l">EOD au total</div></div>`;
+    <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré · ce mois</div></div>
+    <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté · ce mois</div></div>
+    <div class="box"><div class="n">${closed}</div><div class="l">Closés · ce mois</div></div>`;
   $("teamGrid").innerHTML = CONFIG.TEAM.map(m=>{
     const on=doneSet.has(m.name);
+    const list=EODS.filter(x=>x.member===m.name);
+    const streak=streakOf(list.map(x=>x.report_date).filter(Boolean));
+    const pts=list.length*10;
     return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
       <span class="dot ${on?'on':'off'}"></span>
       <div class="avatar ${avClass(m.role)}">${initials(m.name)}</div>
       <div class="mname">${escapeHtml(m.name)}</div>
       <div class="mrole">${escapeHtml(m.title)}</div>
+      <div class="mlevel">🔥 ${streak} j · ${pts} pts</div>
     </div>`;
   }).join("");
 }
@@ -432,6 +484,7 @@ function openMember(name){
     return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`;
   }).join("");
   const today=todayStr(), didToday=list.some(x=>x.report_date===today);
+  const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
   const fields=FORMS[m.role];
   const history = list.length ? list.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
@@ -445,8 +498,14 @@ function openMember(name){
       <div class="avatar lg ${avClass(m.role)}">${initials(name)}</div>
       <div>
         <div style="font-size:20px; font-weight:800">${escapeHtml(name)}</div>
-        <div style="margin-top:4px"><span class="pill ${m.role}">${escapeHtml(m.title)}</span>
-          ${didToday?'<span class="pill coach">EOD du jour ✓</span>':'<span class="pill warn">EOD du jour ✗</span>'}</div>
+        <div style="margin-top:5px; display:flex; gap:6px; flex-wrap:wrap; align-items:center">
+          <span class="pill ${m.role}">${escapeHtml(m.title)}</span>
+          ${didToday?'<span class="pill coach">EOD du jour ✓</span>':'<span class="pill warn">EOD du jour ✗</span>'}
+        </div>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+          <span class="badge streak">🔥 ${streak} jour${streak>1?'s':''} de série</span>
+          <span class="badge pts">⭐ ${pts} pts</span>
+        </div>
       </div>
     </div>
     <div class="card">
