@@ -9,115 +9,83 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
-    --bg:#0b0b0e;
-    --c1:#ff7a3d; --c2:#e04c6b; --c3:#9d4db0; --c4:#7f5bc4;
-    --txt:#f4f2ee; --muted:#9a98a4; --faint:#6c6a76;
-    --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
-    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.05);
+    --bg:#0b0b0e; --txt:#f4f2ee; --muted:#9a98a4; --faint:#6c6a76;
+    --card:rgba(255,255,255,.045); --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.05);
     --green:#34c759; --red:#ff5a4d;
     --grad:linear-gradient(135deg,#ff8b47,#e04c6b 55%,#9d4db0);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; padding:0}
-  body{
-    background:var(--bg); color:var(--txt); position:relative; min-height:100vh;
+  body{background:var(--bg); color:var(--txt); position:relative; min-height:100vh;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    line-height:1.45; padding-bottom:96px; overflow-x:hidden;
-  }
-  /* halos d'ambiance (charte logo) */
+    line-height:1.45; padding-bottom:96px; overflow-x:hidden}
   body::before,body::after{content:""; position:fixed; z-index:-1; border-radius:50%; filter:blur(80px); opacity:.5; pointer-events:none}
   body::before{width:420px; height:420px; top:-140px; right:-120px; background:radial-gradient(circle,#ff7a3d,transparent 70%)}
   body::after{width:480px; height:480px; bottom:-160px; left:-160px; background:radial-gradient(circle,#7f5bc4,transparent 70%)}
-
   .wrap{max-width:680px; margin:0 auto; padding:14px 16px}
   .grad-text{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
-
-  /* header */
   header.top{display:flex; align-items:center; gap:12px; padding:16px 16px 6px; max-width:680px; margin:0 auto}
   .logo-eco-sm{width:42px; height:42px; flex:0 0 42px; border-radius:13px; overflow:hidden; display:block; box-shadow:0 0 0 1px var(--line), 0 8px 24px rgba(255,122,61,.18)}
   header.top h1{font-size:17px; margin:0; letter-spacing:.2px; font-weight:700}
   header.top .sub{font-size:12px; color:var(--muted); text-transform:capitalize}
-
-  /* cards */
-  .card{
-    background:var(--card); border:1px solid var(--line); border-radius:20px; padding:18px;
-    margin:14px 0; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 40px rgba(0,0,0,.35);
-  }
+  .card{background:var(--card); border:1px solid var(--line); border-radius:20px; padding:18px; margin:14px 0;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 40px rgba(0,0,0,.35)}
   h2{font-size:15px; margin:0 0 4px; font-weight:700; letter-spacing:.2px}
   .sub2{font-size:12.5px; color:var(--muted); margin:0 0 12px}
   label{display:block; font-size:12.5px; color:var(--muted); margin:15px 0 6px; font-weight:500}
-  input,select,textarea{
-    width:100%; background:rgba(0,0,0,.25); border:1px solid var(--line); color:var(--txt);
-    border-radius:13px; padding:13px 14px; font-size:16px; outline:none; font-family:inherit; transition:border-color .15s,box-shadow .15s;
-  }
+  input,select,textarea{width:100%; background:rgba(0,0,0,.25); border:1px solid var(--line); color:var(--txt);
+    border-radius:13px; padding:13px 14px; font-size:16px; outline:none; font-family:inherit; transition:border-color .15s,box-shadow .15s}
   input:focus,select:focus,textarea:focus{border-color:#ff8b47; box-shadow:0 0 0 3px rgba(255,122,61,.15)}
-  textarea{min-height:78px; resize:vertical}
+  textarea{min-height:74px; resize:vertical}
   select{appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%239a98a4' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>"); background-repeat:no-repeat; background-position:right 14px center; padding-right:38px}
-
-  .btn{
-    width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700; letter-spacing:.2px;
-    background:var(--grad); color:#fff; cursor:pointer; margin-top:18px; box-shadow:0 10px 26px rgba(224,76,107,.28);
-  }
+  .btn{width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700; letter-spacing:.2px;
+    background:var(--grad); color:#fff; cursor:pointer; margin-top:18px; box-shadow:0 10px 26px rgba(224,76,107,.28)}
   .btn:active{transform:translateY(1px)}
   .btn.ghost{background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--txt); font-weight:600; box-shadow:none}
+  .btn.danger{background:rgba(255,90,77,.14); border:1px solid rgba(255,90,77,.4); color:#ff9a90; box-shadow:none}
   .btn.sm{padding:11px; font-size:14px; margin-top:0}
   .row2{display:flex; gap:10px}
   .row2>*{flex:1}
   .hint{font-size:12px; color:var(--faint); margin-top:6px}
-
-  /* pills */
   .pill{display:inline-block; font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-weight:600; vertical-align:middle}
   .pill.closer{color:#ffb27a; border-color:rgba(255,139,71,.4); background:rgba(255,139,71,.08)}
   .pill.setter{color:#8fc4ff; border-color:rgba(90,169,255,.4); background:rgba(90,169,255,.08)}
   .pill.coach{color:#62e29a; border-color:rgba(52,199,89,.4); background:rgba(52,199,89,.08)}
   .pill.gold{color:#ffcf7a; border-color:rgba(255,180,71,.45); background:rgba(255,180,71,.08)}
   .pill.warn{color:#ff8f85; border-color:rgba(255,90,77,.4); background:rgba(255,90,77,.08)}
-
-  /* mood picker (gamifié) */
+  .pill.ok{color:#7ee2a3; border-color:rgba(52,199,89,.4); background:rgba(52,199,89,.1)}
   .moods{display:flex; gap:8px; margin-top:6px}
   .mood{flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:10px 4px 8px; font-size:24px; cursor:pointer; transition:transform .1s,border-color .15s,background .15s; line-height:1}
   .mood .ml{display:block; font-size:9.5px; color:var(--muted); margin-top:5px; font-weight:600}
   .mood:active{transform:scale(.95)}
   .mood.sel{border-color:#ff8b47; background:rgba(255,139,71,.16); transform:translateY(-2px)}
   .mood.sel .ml{color:#ffb27a}
-  /* badges gamification */
   .badge{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px}
   .badge.streak{background:rgba(255,139,71,.14); border:1px solid rgba(255,139,71,.35); color:#ffb27a}
   .badge.pts{background:rgba(157,77,176,.16); border:1px solid rgba(157,77,176,.4); color:#d39be6}
   .mlevel{font-size:10.5px; color:var(--faint); margin-top:4px; font-weight:600}
-
   .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
   .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
   .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
-
-  /* nav */
   .nav{position:fixed; bottom:0; left:0; right:0; z-index:50; display:flex;
     background:rgba(11,11,14,.82); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--line)}
-  .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11.5px; font-weight:600; cursor:pointer; position:relative; transition:color .15s}
+  .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11px; font-weight:600; cursor:pointer; position:relative; transition:color .15s}
   .nav button.active{color:var(--txt)}
   .nav button.active::after{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:30px; height:3px; border-radius:0 0 4px 4px; background:var(--grad)}
   .nav .ic{display:block; font-size:20px; margin-bottom:3px}
-
-  /* stats */
   .stat{display:flex; gap:10px; margin:4px 0 6px}
   .stat .box{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line2); border-radius:14px; padding:13px 8px; text-align:center}
-  .stat .n{font-size:20px; font-weight:800; line-height:1.1}
+  .stat .n{font-size:19px; font-weight:800; line-height:1.1}
   .stat .l{font-size:10.5px; color:var(--muted); margin-top:3px; letter-spacing:.2px}
-
-  /* avatars */
   .avatar{width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-weight:800; font-size:18px; color:#fff; flex:0 0 52px; letter-spacing:.5px;
-    box-shadow:0 6px 18px rgba(0,0,0,.35)}
+    font-weight:800; font-size:18px; color:#fff; flex:0 0 52px; letter-spacing:.5px; box-shadow:0 6px 18px rgba(0,0,0,.35)}
   .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
   .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
   .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
-  .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px; border-radius:50%}
-
-  /* team grid */
+  .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
   .member{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; cursor:pointer; text-align:center;
-    transition:transform .12s, border-color .15s; backdrop-filter:blur(12px); position:relative; overflow:hidden}
+    transition:transform .12s; backdrop-filter:blur(12px); position:relative; overflow:hidden}
   .member:active{transform:scale(.98)}
   .member .avatar{margin:0 auto 10px}
   .member .mname{font-weight:700; font-size:15px}
@@ -125,8 +93,6 @@
   .member .dot{position:absolute; top:12px; right:12px; width:9px; height:9px; border-radius:50%}
   .dot.on{background:var(--green); box-shadow:0 0 0 3px rgba(52,199,89,.2)}
   .dot.off{background:#3a3a42}
-
-  /* entry / list */
   .entry{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px; margin:11px 0; backdrop-filter:blur(10px)}
   .entry .eh{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px}
   .entry .who{font-weight:700; font-size:14.5px}
@@ -135,20 +101,27 @@
   .kv .k{color:var(--muted)}
   .kv .v{text-align:right; font-weight:600}
   .empty{color:var(--faint); text-align:center; padding:34px 16px; font-size:14px}
-
   .filters{display:flex; gap:8px; margin-bottom:4px}
   .filters select{padding:10px 30px 10px 12px; font-size:14px}
-
   .back{display:inline-flex; align-items:center; gap:7px; background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:6px; font-weight:600}
   .center{min-height:82vh; display:flex; flex-direction:column; justify-content:center}
   .hide{display:none !important}
   .config-warn{background:rgba(255,180,71,.1); border:1px solid rgba(255,180,71,.35); color:#ffcf7a; font-size:13px; padding:12px 14px; border-radius:13px; margin:0 0 4px}
   .section-title{font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--faint); margin:18px 2px 8px; font-weight:700}
+  .insight{display:flex; gap:9px; align-items:flex-start; font-size:13.5px; padding:7px 0; border-top:1px solid var(--line2)}
+  .insight:first-child{border-top:none}
+  .drow{display:flex; gap:7px; align-items:center; margin-top:8px}
+  .drow input[type=month]{flex:1.3} .drow input[type=number]{flex:1} .drow input[type=text]{flex:1.3}
+  .drow .ck{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); white-space:nowrap; margin:0; width:auto}
+  .drow .ck input{width:18px; height:18px}
+  .xrow{width:34px; flex:0 0 34px; background:rgba(255,90,77,.12); border:1px solid rgba(255,90,77,.3); color:#ff9a90; border-radius:10px; padding:8px 0; cursor:pointer; font-size:13px}
+  .addrow{margin-top:10px; font-size:13px; color:#ffb27a; background:none; border:1px dashed rgba(255,139,71,.4); border-radius:12px; padding:9px; width:100%; cursor:pointer; font-weight:600}
+  .schedline{display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-top:1px solid var(--line2)}
 </style>
 </head>
 <body>
 
-<!-- ===== Logo V (charte Écosystème Viral) ===== -->
+<!-- Logo V -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="logoV" viewBox="0 0 1024 1024">
     <defs>
@@ -172,7 +145,7 @@
   </symbol>
 </svg>
 
-<!-- ===== LOGIN ===== -->
+<!-- LOGIN -->
 <div id="login" class="wrap center">
   <div style="text-align:center; margin-bottom:20px">
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
@@ -180,14 +153,15 @@
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Espace équipe — EOD &amp; suivi clients</div>
   </div>
   <div class="card">
-    <label>Mot de passe d'équipe</label>
+    <label>Mot de passe</label>
     <input id="pw" type="password" placeholder="••••••••" autocomplete="off" />
-    <button class="btn" onclick="login()">Entrer dans l'espace</button>
+    <button class="btn" onclick="login()">Entrer</button>
     <div id="loginErr" class="msg"></div>
+    <div class="hint" style="text-align:center; margin-top:12px">Accès équipe ou accès admin selon ton mot de passe.</div>
   </div>
 </div>
 
-<!-- ===== APP ===== -->
+<!-- APP -->
 <div id="app" class="hide">
   <header class="top">
     <svg class="logo-eco-sm"><use href="#logoV"/></svg>
@@ -197,93 +171,117 @@
     </div>
   </header>
 
-  <!-- VIEW: MON EOD -->
+  <!-- MON EOD -->
   <div id="view-form" class="wrap">
-    <div id="cfgWarn" class="config-warn hide">⚠️ Backend non connecté — les données ne seront pas sauvegardées (voir guide).</div>
+    <div id="cfgWarn" class="config-warn hide">⚠️ Backend non connecté — les données ne seront pas sauvegardées.</div>
     <div class="card">
-      <h2>Faire mon EOD</h2>
-      <p class="sub2">Le récap de fin de journée — ça prend 2 minutes.</p>
+      <h2 id="formTitle">Faire mon EOD</h2>
+      <p class="sub2">Le récap de fin de journée — ça prend 2 minutes 💪</p>
       <label>Qui es-tu ?</label>
       <select id="member" onchange="onMember()"></select>
       <label>Date de l'EOD</label>
       <input id="rdate" type="date" />
       <div id="fields"></div>
-      <button class="btn" onclick="submitEod()">Envoyer mon EOD ✓</button>
+      <button class="btn" id="eodSubmitBtn" onclick="submitEod()">Envoyer mon EOD ✓</button>
+      <button class="btn ghost hide" id="eodCancelEdit" onclick="cancelEdit()">Annuler la modification</button>
       <div id="formMsg" class="msg"></div>
     </div>
   </div>
 
-  <!-- VIEW: ÉQUIPE -->
+  <!-- ÉQUIPE -->
   <div id="view-team" class="wrap hide">
-    <!-- liste -->
     <div id="teamList">
       <div class="card" style="margin-top:6px">
-        <h2>L'équipe aujourd'hui</h2>
-        <p class="sub2" id="teamToday">—</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
+          <h2 style="margin:0">L'équipe</h2>
+          <select id="teamMonth" style="width:auto; min-width:150px" onchange="renderTeam()"></select>
+        </div>
+        <p class="sub2" id="teamToday" style="margin-top:8px">—</p>
         <div class="stat" id="teamStats"></div>
+      </div>
+      <div id="insightCard" class="card hide">
+        <h2>À noter 👀</h2>
+        <div id="teamInsights"></div>
       </div>
       <div class="section-title">Membres · clique pour voir le suivi</div>
       <div class="grid" id="teamGrid"></div>
     </div>
-    <!-- détail membre -->
     <div id="memberDetail" class="hide"></div>
   </div>
 
-  <!-- VIEW: CLIENTS -->
+  <!-- CLIENTS -->
   <div id="view-clients" class="wrap hide">
     <div class="card">
       <h2>Clients · Écosystème</h2>
-      <p class="sub2">Suivi des contrats, paiements et commissions.</p>
+      <p class="sub2">Contrats, échéancier de paiement et commissions.</p>
       <div class="stat" id="clientStats"></div>
       <div class="row2" style="margin-top:6px">
         <button class="btn sm" onclick="newClient()">+ Nouveau client</button>
         <button class="btn ghost sm" onclick="loadClients()">↻ Rafraîchir</button>
       </div>
     </div>
-
     <div id="clientFormCard" class="card hide">
       <h2 id="clientFormTitle">Nouveau client</h2>
       <div id="clientFields"></div>
+      <div class="section-title">Échéancier de paiement</div>
+      <div id="schedRows"></div>
+      <button type="button" class="addrow" onclick="addSchedRow()">+ Ajouter une échéance</button>
+      <div class="section-title">Commissions (qui reçoit quoi)</div>
+      <div id="commRows"></div>
+      <button type="button" class="addrow" onclick="addCommRow()">+ Ajouter une commission</button>
       <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
     </div>
-
     <div class="filters" style="margin:14px 2px 0">
       <select id="cfProg"><option value="">Tous les programmes</option></select>
       <select id="cfStatut">
         <option value="">Tous les statuts</option>
-        <option value="Actif">Actif</option>
-        <option value="Terminé">Terminé</option>
-        <option value="Annulé / Litige">Annulé / Litige</option>
+        <option value="Actif">Actif</option><option value="Terminé">Terminé</option><option value="Annulé / Litige">Annulé / Litige</option>
       </select>
     </div>
     <div id="clientList"></div>
   </div>
+
+  <!-- FINANCE -->
+  <div id="view-finance" class="wrap hide">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
+        <h2 style="margin:0">Finance du mois</h2>
+        <select id="finMonth" style="width:auto; min-width:150px" onchange="renderFinance()"></select>
+      </div>
+      <div class="stat" id="finStats" style="margin-top:12px"></div>
+    </div>
+    <div class="section-title">Commissions à verser ce mois</div>
+    <div id="finComm"></div>
+    <div class="section-title">Encaissements du mois</div>
+    <div id="finPaid"></div>
+    <div class="section-title">À encaisser ce mois</div>
+    <div id="finDue"></div>
+  </div>
 </div>
 
-<!-- ===== NAV ===== -->
+<!-- NAV -->
 <div id="nav" class="nav hide">
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
-  <button id="nav-clients" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
+  <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
+  <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
 </div>
 
 <script>
-/* =====================================================================
-   CONFIGURATION
-   ===================================================================== */
+/* ===================== CONFIG ===================== */
 const CONFIG = {
   FIREBASE : {
-    apiKey:            "AIzaSyB4_Oaw4vnZ6pPUqbuV0gki2SsnMm050fw",
-    authDomain:        "ecosysteme-viral.firebaseapp.com",
-    projectId:         "ecosysteme-viral",
-    storageBucket:     "ecosysteme-viral.firebasestorage.app",
-    messagingSenderId: "605349501477",
-    appId:             "1:605349501477:web:8659ddb89f1f512d92fdcc",
+    apiKey:"AIzaSyB4_Oaw4vnZ6pPUqbuV0gki2SsnMm050fw",
+    authDomain:"ecosysteme-viral.firebaseapp.com",
+    projectId:"ecosysteme-viral",
+    storageBucket:"ecosysteme-viral.firebasestorage.app",
+    messagingSenderId:"605349501477",
+    appId:"1:605349501477:web:8659ddb89f1f512d92fdcc",
   },
-  PASSWORD : "VIRALITE2026@01",
-  // role = closer | setter | coach   ·   title = libellé affiché
+  PASSWORD_TEAM : "VIRALITE2026@01",
+  PASSWORD_ADMIN: "ADMIN-VIRALITE2026@01",
   TEAM : [
     { name:"Julie",   title:"Closeuse", role:"closer" },
     { name:"Anthony", title:"Closer",   role:"closer" },
@@ -293,21 +291,11 @@ const CONFIG = {
   ],
 };
 
-/* ---- Champs EOD par rôle ---- */
-/* énergie du jour (gamifié) */
+/* ===================== CHAMPS EOD ===================== */
 const MOODS = [
-  { e:"🔥", l:"En feu",   v:"🔥 En feu" },
-  { e:"💪", l:"Motivé·e", v:"💪 Motivé·e" },
-  { e:"🙂", l:"Ça va",    v:"🙂 Ça va" },
-  { e:"😐", l:"Mitigé",   v:"😐 Mitigé" },
+  { e:"🔥", l:"En feu",   v:"🔥 En feu" },{ e:"💪", l:"Motivé·e", v:"💪 Motivé·e" },
+  { e:"🙂", l:"Ça va",    v:"🙂 Ça va" },{ e:"😐", l:"Mitigé",   v:"😐 Mitigé" },
   { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
-];
-const SETTER_FIELDS = [
-  { key:"contacted",   label:"Personnes contactées",        type:"number" },
-  { key:"in_contact",  label:"Personnes en contact",        type:"number" },
-  { key:"calls_booked",label:"Calls pris",                  type:"number" },
-  { key:"mood",        label:"Ton énergie du jour ⚡️",      type:"mood" },
-  { key:"feeling",     label:"Un mot sur ta journée ? (optionnel)", type:"textarea" },
 ];
 const FORMS = {
   closer:[
@@ -320,27 +308,40 @@ const FORMS = {
     { key:"cash_gen_month",  label:"💰 Cash généré depuis le début du mois (€)", type:"number" },
     { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€)",      type:"number" },
     { key:"cash_month",      label:"🏦 Cash collecté depuis le début du mois (€)", type:"number" },
-    { key:"followup_next",   label:"Nb & noms follow-up prochains jours",   type:"textarea" },
+    { key:"objections",      label:"Objections / blocages rencontrés",      type:"textarea" },
+    { key:"followup_next",   label:"Nb & noms follow-up des prochains jours", type:"textarea" },
     { key:"followup_update", label:"Update follow-up du jour",              type:"textarea" },
     { key:"mood",            label:"Ton énergie du jour ⚡️",               type:"mood" },
     { key:"feeling",         label:"Un mot sur ta journée ? (optionnel)",   type:"textarea" },
   ],
-  setter:SETTER_FIELDS,
-  coach:SETTER_FIELDS,
+  setter:[
+    { key:"contacted",        label:"Personnes contactées",                 type:"number" },
+    { key:"in_contact",       label:"Personnes en contact (conversations)", type:"number" },
+    { key:"calls_booked",     label:"Calls pris (RDV calés)",               type:"number" },
+    { key:"confirmed_tomorrow", label:"RDV confirmés pour demain",          type:"number" },
+    { key:"need_help",        label:"Un blocage / besoin d'aide ?",         type:"textarea" },
+    { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
+    { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
+  ],
+  coach:[
+    { key:"sessions",  label:"Sessions de coaching (semaine)",        type:"number" },
+    { key:"people",    label:"Personnes coachées",                    type:"number" },
+    { key:"wins",      label:"Wins de la semaine 🏆",                 type:"textarea" },
+    { key:"axes",      label:"Axes à travailler avec l'équipe",       type:"textarea" },
+    { key:"blockers",  label:"Blocages remontés par l'équipe",        type:"textarea" },
+    { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
+    { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
+  ],
 };
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
-/* métriques de suivi (sommes du mois en cours) */
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré",money:true}, {key:"cash_day",label:"Cash collecté",money:true}, {key:"closed",label:"Closés"} ],
-  setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
-  coach: [ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
+  setter:[ {key:"contacted",label:"Contactées"}, {key:"calls_booked",label:"Calls pris"}, {key:"confirmed_tomorrow",label:"Confirmés"} ],
+  coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
 };
-/* messages fun à l'envoi */
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
 
-/* =====================================================================
-   OUTILS
-   ===================================================================== */
+/* ===================== OUTILS ===================== */
 const $ = id => document.getElementById(id);
 const todayStr = () => new Date().toISOString().slice(0,10);
 const monthStr = () => new Date().toISOString().slice(0,7);
@@ -349,8 +350,9 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
-
-/* gamification */
+function monthLabel(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }catch(e){ return ym; } }
+function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
+function fillMonthSelect(sel){ if(!sel||sel.options.length) return; lastMonths(12).forEach(ym=> sel.insertAdjacentHTML("beforeend",`<option value="${ym}">${monthLabel(ym)}</option>`)); }
 function streakOf(dates){
   const set=new Set(dates), iso=d=>d.toISOString().slice(0,10);
   let d=new Date();
@@ -364,48 +366,79 @@ function pickMood(el,val){
   const hid=document.getElementById(el.getAttribute("data-for")); if(hid) hid.value=val;
 }
 
-/* ---- Firebase ---- */
+/* ===================== ACCÈS ===================== */
+let ACCESS="team";
+const isAdmin=()=>ACCESS==="admin";
+
+/* ===================== FIREBASE ===================== */
 let db=null;
 function fbReady(){ return !!(CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
 function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); }
 
-/* ---- Login ---- */
+/* ===================== LOGIN ===================== */
 function login(){
-  if($("pw").value.trim()===CONFIG.PASSWORD){
-    $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
-    initApp();
-  } else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; }
+  const v=$("pw").value.trim();
+  if(v===CONFIG.PASSWORD_ADMIN) ACCESS="admin";
+  else if(v===CONFIG.PASSWORD_TEAM) ACCESS="team";
+  else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; return; }
+  $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
+  $("nav-clients").classList.toggle("hide", !isAdmin());
+  $("nav-finance").classList.toggle("hide", !isAdmin());
+  initApp();
 }
 $("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
 
-/* ---- Init ---- */
+/* ===================== INIT ===================== */
 function initApp(){
   $("todayLabel").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
   $("rdate").value = todayStr();
   const sel=$("member"); sel.innerHTML="";
   CONFIG.TEAM.forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
+  fillMonthSelect($("teamMonth")); fillMonthSelect($("finMonth"));
   initFirebase();
   if(!fbReady()) $("cfgWarn").classList.remove("hide");
   onMember();
 }
 
-/* =====================================================================
-   MON EOD
-   ===================================================================== */
+/* ===================== MON EOD ===================== */
+let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
   FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="mood"){
-      const chips=MOODS.map(mo=>`<button type="button" class="mood" data-for="f_${f.key}" onclick="pickMood(this,'${mo.v}')">${mo.e}<span class="ml">${mo.l}</span></button>`).join("");
+      const chips=MOODS.map(mo=>`<button type="button" class="mood" data-for="f_${f.key}" data-v="${mo.v}" onclick="pickMood(this,'${mo.v}')">${mo.e}<span class="ml">${mo.l}</span></button>`).join("");
       inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
-    } else if(f.type==="textarea"){
-      inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`;
-    } else {
-      inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`;
-    }
+    } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
+    else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
+}
+function fillEodForm(x){
+  const role=member(x.member).role;
+  FORMS[role].forEach(f=>{
+    const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
+    if(f.type==="mood"){
+      const hid=$("f_"+f.key); if(hid) hid.value=v||"";
+      document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>{ b.classList.toggle("sel", b.getAttribute("data-v")===v); });
+    } else { const el=$("f_"+f.key); if(el) el.value=v||""; }
+  });
+}
+function editEod(id){
+  const x=EODS.find(e=>e.id===id); if(!x) return;
+  editingEodId=id; show("form");
+  $("member").value=x.member; onMember(); fillEodForm(x);
+  $("rdate").value=x.report_date||todayStr();
+  $("formTitle").textContent="Modifier l'EOD";
+  $("eodSubmitBtn").textContent="Mettre à jour ✓";
+  $("eodCancelEdit").classList.remove("hide");
+  $("formMsg").style.display="none";
+  window.scrollTo({top:0});
+}
+function cancelEdit(){
+  editingEodId=null; $("formTitle").textContent="Faire mon EOD";
+  $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide");
+  onMember(); $("formMsg").style.display="none";
 }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
@@ -413,58 +446,54 @@ async function submitEod(){
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
-    await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload,
-      created_at:firebase.firestore.FieldValue.serverTimestamp() });
-    msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
+    if(editingEodId){
+      await db.collection("eod_reports").doc(editingEodId).update({ report_date:rdate, member:name, role:role, payload:payload });
+      msg.className="msg ok"; msg.textContent="EOD mis à jour ✓";
+      editingEodId=null; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); $("formTitle").textContent="Faire mon EOD";
+    } else {
+      await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload, created_at:firebase.firestore.FieldValue.serverTimestamp() });
+      msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
+    }
     FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
-/* =====================================================================
-   NAV
-   ===================================================================== */
+/* ===================== NAV ===================== */
 function show(v){
-  $("view-form").classList.toggle("hide",v!=="form");
-  $("view-team").classList.toggle("hide",v!=="team");
-  $("view-clients").classList.toggle("hide",v!=="clients");
-  $("nav-form").classList.toggle("active",v==="form");
-  $("nav-team").classList.toggle("active",v==="team");
-  $("nav-clients").classList.toggle("active",v==="clients");
+  ["form","team","clients","finance"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
+  ["form","team","clients","finance"].forEach(k=> { const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="clients") loadClients();
+  if(v==="finance") loadFinance();
 }
 
-/* =====================================================================
-   ÉQUIPE
-   ===================================================================== */
+/* ===================== ÉQUIPE ===================== */
 let EODS=[];
 async function loadTeam(){
   if(!fbReady()){ $("teamGrid").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
-  try{
-    const snap = await db.collection("eod_reports").orderBy("created_at","desc").limit(800).get();
-    EODS = snap.docs.map(d=>d.data());
-  }catch(e){ EODS=[]; }
+  try{ const snap=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get();
+    EODS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ EODS=[]; }
   renderTeam();
 }
 function renderTeam(){
-  const today=todayStr();
+  const selM=$("teamMonth").value||monthStr(), today=todayStr();
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
-  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD remplis aujourd'hui`;
-  const monthCloser = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr());
-  const gen = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_gen_day)||0),0);
-  const col = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
-  const closed = monthCloser.reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
-  $("teamStats").innerHTML = `
-    <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré · ce mois</div></div>
-    <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté · ce mois</div></div>
-    <div class="box"><div class="n">${closed}</div><div class="l">Closés · ce mois</div></div>`;
-  $("teamGrid").innerHTML = CONFIG.TEAM.map(m=>{
+  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD remplis aujourd'hui · vue : ${monthLabel(selM)}`;
+  const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
+  const gen=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_gen_day)||0),0);
+  const col=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
+  const closed=mc.reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
+  $("teamStats").innerHTML=`
+    <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré</div></div>
+    <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté</div></div>
+    <div class="box"><div class="n">${closed}</div><div class="l">Closés</div></div>`;
+  renderInsights(selM, doneSet);
+  $("teamGrid").innerHTML=CONFIG.TEAM.map(m=>{
     const on=doneSet.has(m.name);
     const list=EODS.filter(x=>x.member===m.name);
-    const streak=streakOf(list.map(x=>x.report_date).filter(Boolean));
-    const pts=list.length*10;
+    const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
     return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
       <span class="dot ${on?'on':'off'}"></span>
       <div class="avatar ${avClass(m.role)}">${initials(m.name)}</div>
@@ -474,25 +503,48 @@ function renderTeam(){
     </div>`;
   }).join("");
 }
+function renderInsights(selM, doneSet){
+  const ins=[];
+  const missing=CONFIG.TEAM.filter(m=>!doneSet.has(m.name)).map(m=>m.name);
+  if(missing.length && missing.length<CONFIG.TEAM.length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
+  const byCloser={};
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM).forEach(x=>{ byCloser[x.member]=(byCloser[x.member]||0)+(Number(x.payload&&x.payload.cash_gen_day)||0); });
+  const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
+  if(top && top[1]>0) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
+  let best=null;
+  CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
+  if(best) ins.push(["🔥",`Plus longue série en cours : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
+  const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  CONFIG.TEAM.filter(m=>m.role==="setter").forEach(m=>{
+    const recent=EODS.filter(x=>x.member===m.name && (x.report_date||"")>=weekAgo);
+    const booked=recent.reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
+    if(recent.length>=2 && booked===0) ins.push(["📉",`<b>${escapeHtml(m.name)}</b> : 0 call pris sur les 7 derniers jours`]);
+  });
+  const hard=EODS.filter(x=>(x.report_date||"")>=weekAgo && /Dur|Mitigé/.test((x.payload&&x.payload.mood)||"")).length;
+  if(hard>=3) ins.push(["🫶",`Plusieurs ressentis difficiles cette semaine (${hard}) — pense à checker l'équipe`]);
+  if(!ins.length){ $("insightCard").classList.add("hide"); return; }
+  $("insightCard").classList.remove("hide");
+  $("teamInsights").innerHTML=ins.map(i=>`<div class="insight"><span>${i[0]}</span><span>${i[1]}</span></div>`).join("");
+}
 function openMember(name){
-  const m=member(name);
+  const m=member(name), selM=$("teamMonth").value||monthStr();
   const list=EODS.filter(x=>x.member===name);
-  const month=list.filter(x=>(x.report_date||"").slice(0,7)===monthStr());
+  const month=list.filter(x=>(x.report_date||"").slice(0,7)===selM);
   const metrics=SUIVI[m.role]||SUIVI.setter;
-  const stats=metrics.map(mt=>{
-    const sum=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0);
-    return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`;
-  }).join("");
+  const stats=metrics.map(mt=>{ const sum=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0);
+    return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`; }).join("");
   const today=todayStr(), didToday=list.some(x=>x.report_date===today);
   const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
   const fields=FORMS[m.role];
-  const history = list.length ? list.map(x=>{
+  const monthList=month.sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date)));
+  const history = monthList.length ? monthList.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
     const kvs=fields.map(f=>{ const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:""; }).join("");
-    return `<div class="entry"><div class="eh"><span class="who" style="text-transform:capitalize">${dd}</span></div>${kvs||'<div class="kv"><span class="k">—</span><span class="v"></span></div>'}</div>`;
-  }).join("") : `<div class="empty">Aucun EOD pour ${escapeHtml(name)} pour l'instant.</div>`;
-
-  $("memberDetail").innerHTML = `
+    const del=isAdmin()?`<button class="btn danger sm" style="flex:0 0 auto" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
+    return `<div class="entry"><div class="eh"><span class="who" style="text-transform:capitalize">${dd}</span></div>${kvs}
+      <div class="row2" style="margin-top:12px"><button class="btn ghost sm" onclick="editEod('${x.id}')">✎ Modifier</button>${del}</div></div>`;
+  }).join("") : `<div class="empty">Aucun EOD en ${monthLabel(selM)}.</div>`;
+  $("memberDetail").innerHTML=`
     <button class="back" onclick="backTeam()">‹ Retour à l'équipe</button>
     <div class="card" style="display:flex; align-items:center; gap:14px">
       <div class="avatar lg ${avClass(m.role)}">${initials(name)}</div>
@@ -500,7 +552,7 @@ function openMember(name){
         <div style="font-size:20px; font-weight:800">${escapeHtml(name)}</div>
         <div style="margin-top:5px; display:flex; gap:6px; flex-wrap:wrap; align-items:center">
           <span class="pill ${m.role}">${escapeHtml(m.title)}</span>
-          ${didToday?'<span class="pill coach">EOD du jour ✓</span>':'<span class="pill warn">EOD du jour ✗</span>'}
+          ${didToday?'<span class="pill ok">EOD du jour ✓</span>':'<span class="pill warn">EOD du jour ✗</span>'}
         </div>
         <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
           <span class="badge streak">🔥 ${streak} jour${streak>1?'s':''} de série</span>
@@ -508,57 +560,71 @@ function openMember(name){
         </div>
       </div>
     </div>
-    <div class="card">
-      <h2>Suivi du mois</h2>
-      <div class="stat" style="margin-top:8px">${stats}</div>
-    </div>
-    <div class="section-title">Historique des EOD (${list.length})</div>
+    <div class="card"><h2>Suivi · ${monthLabel(selM)}</h2><div class="stat" style="margin-top:8px">${stats}</div></div>
+    <div class="section-title">EOD de ${monthLabel(selM)} (${monthList.length})</div>
     ${history}`;
-  $("teamList").classList.add("hide");
-  $("memberDetail").classList.remove("hide");
-  window.scrollTo({top:0});
+  $("teamList").classList.add("hide"); $("memberDetail").classList.remove("hide"); window.scrollTo({top:0});
 }
 function backTeam(){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); }
+async function deleteEod(id){
+  if(!isAdmin()) return;
+  if(!confirm("Supprimer définitivement cet EOD ?")) return;
+  try{ await db.collection("eod_reports").doc(id).delete(); await loadTeam(); }
+  catch(e){ alert("Erreur : "+e.message); }
+}
 
-/* =====================================================================
-   CLIENTS
-   ===================================================================== */
+/* ===================== CLIENTS ===================== */
 const PROGRAMMES=["VIRAL PRO","MENTORAT CÉLINE & LOÏC","ÉLITE VIRALE","Autre"];
 const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select",options:PROGRAMMES },
   { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
-  { key:"montant",label:"Montant total (€)",type:"number" },{ key:"encaisse",label:"Montant encaissé (€)",type:"number" },
+  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé (€)",type:"number" },
   { key:"cgv",label:"CGV signé",type:"select",options:["OUI","NON"] },
   { key:"outil",label:"Outil de suivi",type:"select",options:["WHOP","JOTFORM","Autre"] },
   { key:"setter",label:"Setter",type:"text" },{ key:"closer",label:"Closer",type:"text" },
   { key:"statut",label:"Statut",type:"select",options:["Actif","Terminé","Annulé / Litige"] },
   { key:"adresse",label:"Adresse",type:"textarea" },
-  { key:"paiement",label:"Échéancier / suivi paiement",type:"textarea" },
-  { key:"commissions",label:"Commissions",type:"textarea" },
+  { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
 ];
 let CLIENTS=[], currentClientId=null;
-
 function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
-    const v=data[f.key]!=null?String(data[f.key]):"";
-    let inp;
-    if(f.type==="select"){
-      inp=`<select id="cf_${f.key}"><option value=""></option>${f.options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
-    } else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
+    const v=data[f.key]!=null?String(data[f.key]):""; let inp;
+    if(f.type==="select"){ inp=`<select id="cf_${f.key}"><option value=""></option>${f.options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`; }
+    else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
     else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
+  $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
+  $("commRows").innerHTML=""; (data.comm||[]).forEach(addCommRow);
 }
+function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
+  `<div class="drow schedRow">
+    <input class="sMonth" type="month" value="${d.month||''}">
+    <input class="sAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}">
+    <label class="ck"><input class="sPaid" type="checkbox" ${d.paid?'checked':''}>payé</label>
+    <button type="button" class="xrow" onclick="this.closest('.schedRow').remove()">✕</button>
+  </div>`); }
+function addCommRow(d){ d=d||{}; $("commRows").insertAdjacentHTML("beforeend",
+  `<div class="drow commRow">
+    <input class="cWho" type="text" placeholder="Qui (ex: Céline)" value="${escapeHtml(d.who||'')}">
+    <input class="cAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}">
+    <input class="cMonth" type="month" value="${d.month||''}">
+    <button type="button" class="xrow" onclick="this.closest('.commRow').remove()">✕</button>
+  </div>`); }
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif",cgv:"OUI"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
+function gatherSchedule(){ return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>({ month:r.querySelector(".sMonth").value, amount:Number(r.querySelector(".sAmt").value)||0, paid:r.querySelector(".sPaid").checked })).filter(x=>x.month||x.amount); }
+function gatherComm(){ return [...document.querySelectorAll("#commRows .commRow")].map(r=>({ who:r.querySelector(".cWho").value.trim(), amount:Number(r.querySelector(".cAmt").value)||0, month:r.querySelector(".cMonth").value })).filter(x=>x.who||x.amount); }
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
+  obj.schedule=gatherSchedule(); obj.comm=gatherComm();
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
   m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -575,8 +641,7 @@ async function loadClients(){
   initFirebase();
   if($("cfProg").options.length<=1) PROGRAMMES.forEach(p=>$("cfProg").insertAdjacentHTML("beforeend",`<option>${p}</option>`));
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
-  try{
-    const snap=await db.collection("clients").get();
+  try{ const snap=await db.collection("clients").get();
     CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
     CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||"")));
     renderClients();
@@ -598,11 +663,11 @@ function renderClients(){
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const reste=(Number(c.montant)||0)-(Number(c.encaisse)||0);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
+    const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
+      .map(s=>`<div class="schedline"><span>${monthLabel(s.month)}</span><span>${eur(s.amount)} ${s.paid?'✅':'⏳'}</span></div>`).join("");
+    const comm=(c.comm||[]).map(k=>`<div class="schedline"><span>${escapeHtml(k.who)} · ${k.month?monthLabel(k.month):'—'}</span><span>${eur(k.amount)}</span></div>`).join("");
     return `<div class="entry">
-      <div class="eh">
-        <span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
-        <span class="when">${escapeHtml(c.programme||"")}</span>
-      </div>
+      <div class="eh"><span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="when">${escapeHtml(c.programme||"")}</span></div>
       <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
         ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
         <span class="pill gold">${eur(c.encaisse)} / ${eur(c.montant)}</span>
@@ -612,10 +677,39 @@ function renderClients(){
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Outil",c.outil)}${line("Adresse",c.adresse)}
-      ${line("Paiement",c.paiement)}${line("Commissions",c.commissions)}
+      ${line("Note paiement",c.paiement)}
+      ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div>${sched}`:""}
+      ${comm?`<div class="section-title" style="margin:12px 2px 2px">Commissions</div>${comm}`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
     </div>`;
   }).join("");
+}
+
+/* ===================== FINANCE ===================== */
+async function loadFinance(){ if(!CLIENTS.length){ await loadClients(); } renderFinance(); }
+function renderFinance(){
+  const sel=$("finMonth").value||monthStr();
+  let paid=[], due=[], comms={};
+  CLIENTS.forEach(c=>{
+    (c.schedule||[]).forEach(s=>{ if(s.month===sel){ (s.paid?paid:due).push({nom:(c.nom||"")+" "+(c.prenom||""), amount:s.amount}); } });
+    (c.comm||[]).forEach(k=>{ if(k.month===sel){ comms[k.who]=(comms[k.who]||0)+(Number(k.amount)||0); } });
+  });
+  const totPaid=paid.reduce((s,x)=>s+x.amount,0), totDue=due.reduce((s,x)=>s+x.amount,0);
+  const totComm=Object.values(comms).reduce((s,x)=>s+x,0);
+  $("finStats").innerHTML=`
+    <div class="box"><div class="n grad-text">${eur(totPaid)}</div><div class="l">Encaissé</div></div>
+    <div class="box"><div class="n">${eur(totDue)}</div><div class="l">À encaisser</div></div>
+    <div class="box"><div class="n" style="color:#d39be6">${eur(totComm)}</div><div class="l">Commissions</div></div>`;
+  const commArr=Object.entries(comms).sort((a,b)=>b[1]-a[1]);
+  $("finComm").innerHTML = commArr.length
+    ? `<div class="entry">${commArr.map(([w,a])=>`<div class="kv"><span class="k">${escapeHtml(w)}</span><span class="v">${eur(a)}</span></div>`).join("")}<div class="kv" style="border-top:2px solid var(--line)"><span class="k"><b>Total à verser</b></span><span class="v"><b>${eur(totComm)}</b></span></div></div>`
+    : `<div class="empty">Aucune commission notée pour ${monthLabel(sel)}.</div>`;
+  $("finPaid").innerHTML = paid.length
+    ? `<div class="entry">${paid.map(p=>`<div class="kv"><span class="k">${escapeHtml(p.nom)}</span><span class="v">${eur(p.amount)} ✅</span></div>`).join("")}</div>`
+    : `<div class="empty">Aucun encaissement noté pour ${monthLabel(sel)}.</div>`;
+  $("finDue").innerHTML = due.length
+    ? `<div class="entry">${due.map(p=>`<div class="kv"><span class="k">${escapeHtml(p.nom)}</span><span class="v">${eur(p.amount)} ⏳</span></div>`).join("")}</div>`
+    : `<div class="empty">Rien en attente pour ${monthLabel(sel)}.</div>`;
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
