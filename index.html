@@ -3,118 +3,148 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<meta name="theme-color" content="#0e0e10" />
-<title>EOD · Viralité</title>
+<meta name="theme-color" content="#0b0b0e" />
+<title>Écosystème Viral · EOD & Clients</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
-    --bg:#0e0e10; --card:#17171b; --card2:#1f1f25; --line:#2b2b33;
-    --gold:#d4af37; --gold-soft:#e8cf7e; --txt:#f3f1ea; --muted:#9b9aa3;
-    --green:#34c759; --red:#ff453a;
+    --bg:#0b0b0e;
+    --c1:#ff7a3d; --c2:#e04c6b; --c3:#9d4db0; --c4:#7f5bc4;
+    --txt:#f4f2ee; --muted:#9a98a4; --faint:#6c6a76;
+    --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.05);
+    --green:#34c759; --red:#ff5a4d;
+    --grad:linear-gradient(135deg,#ff8b47,#e04c6b 55%,#9d4db0);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; padding:0}
   body{
-    background:var(--bg); color:var(--txt);
+    background:var(--bg); color:var(--txt); position:relative; min-height:100vh;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    line-height:1.45; padding-bottom:90px;
+    line-height:1.45; padding-bottom:96px; overflow-x:hidden;
   }
-  a{color:var(--gold)}
-  .wrap{max-width:680px; margin:0 auto; padding:18px 16px}
-  header.top{display:flex; align-items:center; gap:12px; padding:18px 16px 8px; max-width:680px; margin:0 auto}
-  .logoV{
-    width:40px; height:40px; border-radius:10px; flex:0 0 40px;
-    background:linear-gradient(145deg,#1d1d22,#101013);
-    border:1px solid var(--gold); display:flex; align-items:center; justify-content:center;
-    color:var(--gold); font-weight:800; font-size:22px; font-family:Georgia,serif;
-  }
-  .logo-eco-sm{width:40px; height:40px; flex:0 0 40px; border-radius:10px; overflow:hidden; display:block; box-shadow:0 0 0 1px var(--line)}
-  .logo-eco-big{width:96px; height:96px; border-radius:24px; overflow:hidden; display:block; margin:0 auto 14px; box-shadow:0 0 0 1px var(--line)}
-  header.top h1{font-size:18px; margin:0; letter-spacing:.5px}
-  header.top .sub{font-size:12px; color:var(--muted)}
+  /* halos d'ambiance (charte logo) */
+  body::before,body::after{content:""; position:fixed; z-index:-1; border-radius:50%; filter:blur(80px); opacity:.5; pointer-events:none}
+  body::before{width:420px; height:420px; top:-140px; right:-120px; background:radial-gradient(circle,#ff7a3d,transparent 70%)}
+  body::after{width:480px; height:480px; bottom:-160px; left:-160px; background:radial-gradient(circle,#7f5bc4,transparent 70%)}
 
-  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin:14px 0}
-  h2{font-size:16px; margin:0 0 12px}
-  label{display:block; font-size:13px; color:var(--muted); margin:14px 0 6px}
-  input,select,textarea{
-    width:100%; background:var(--card2); border:1px solid var(--line); color:var(--txt);
-    border-radius:12px; padding:13px 14px; font-size:16px; outline:none; font-family:inherit;
+  .wrap{max-width:680px; margin:0 auto; padding:14px 16px}
+  .grad-text{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+
+  /* header */
+  header.top{display:flex; align-items:center; gap:12px; padding:16px 16px 6px; max-width:680px; margin:0 auto}
+  .logo-eco-sm{width:42px; height:42px; flex:0 0 42px; border-radius:13px; overflow:hidden; display:block; box-shadow:0 0 0 1px var(--line), 0 8px 24px rgba(255,122,61,.18)}
+  header.top h1{font-size:17px; margin:0; letter-spacing:.2px; font-weight:700}
+  header.top .sub{font-size:12px; color:var(--muted); text-transform:capitalize}
+
+  /* cards */
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:20px; padding:18px;
+    margin:14px 0; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 40px rgba(0,0,0,.35);
   }
-  input:focus,select:focus,textarea:focus{border-color:var(--gold)}
-  textarea{min-height:80px; resize:vertical}
+  h2{font-size:15px; margin:0 0 4px; font-weight:700; letter-spacing:.2px}
+  .sub2{font-size:12.5px; color:var(--muted); margin:0 0 12px}
+  label{display:block; font-size:12.5px; color:var(--muted); margin:15px 0 6px; font-weight:500}
+  input,select,textarea{
+    width:100%; background:rgba(0,0,0,.25); border:1px solid var(--line); color:var(--txt);
+    border-radius:13px; padding:13px 14px; font-size:16px; outline:none; font-family:inherit; transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:#ff8b47; box-shadow:0 0 0 3px rgba(255,122,61,.15)}
+  textarea{min-height:78px; resize:vertical}
+  select{appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%239a98a4' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>"); background-repeat:no-repeat; background-position:right 14px center; padding-right:38px}
+
   .btn{
-    width:100%; border:none; border-radius:14px; padding:15px; font-size:16px; font-weight:700;
-    background:linear-gradient(145deg,var(--gold),var(--gold-soft)); color:#1a1500; cursor:pointer; margin-top:18px;
+    width:100%; border:none; border-radius:14px; padding:15px; font-size:15.5px; font-weight:700; letter-spacing:.2px;
+    background:var(--grad); color:#fff; cursor:pointer; margin-top:18px; box-shadow:0 10px 26px rgba(224,76,107,.28);
   }
   .btn:active{transform:translateY(1px)}
-  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--txt); font-weight:600}
+  .btn.ghost{background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--txt); font-weight:600; box-shadow:none}
+  .btn.sm{padding:11px; font-size:14px; margin-top:0}
   .row2{display:flex; gap:10px}
-  .row2>div{flex:1}
-  .hint{font-size:12px; color:var(--muted); margin-top:6px}
-  .pill{display:inline-block; font-size:11px; padding:3px 9px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
-  .pill.closer{color:var(--gold); border-color:var(--gold)}
-  .pill.setter_insta{color:#ff8fd0; border-color:#ff8fd0}
-  .pill.setter_linkedin{color:#5aa9ff; border-color:#5aa9ff}
-  .pill.coach{color:var(--green); border-color:var(--green)}
-  .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:12px; display:none}
-  .msg.ok{background:rgba(52,199,89,.12); color:var(--green); display:block}
-  .msg.err{background:rgba(255,69,58,.12); color:var(--red); display:block}
+  .row2>*{flex:1}
+  .hint{font-size:12px; color:var(--faint); margin-top:6px}
 
-  /* bottom nav */
-  .nav{
-    position:fixed; bottom:0; left:0; right:0; background:rgba(14,14,16,.92);
-    backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; z-index:50;
-  }
-  .nav button{flex:1; background:none; border:none; color:var(--muted); padding:12px 4px 18px; font-size:12px; cursor:pointer}
-  .nav button.active{color:var(--gold)}
-  .nav .ic{display:block; font-size:20px; margin-bottom:2px}
+  /* pills */
+  .pill{display:inline-block; font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-weight:600; vertical-align:middle}
+  .pill.closer{color:#ffb27a; border-color:rgba(255,139,71,.4); background:rgba(255,139,71,.08)}
+  .pill.setter{color:#8fc4ff; border-color:rgba(90,169,255,.4); background:rgba(90,169,255,.08)}
+  .pill.coach{color:#62e29a; border-color:rgba(52,199,89,.4); background:rgba(52,199,89,.08)}
+  .pill.gold{color:#ffcf7a; border-color:rgba(255,180,71,.45); background:rgba(255,180,71,.08)}
+  .pill.warn{color:#ff8f85; border-color:rgba(255,90,77,.4); background:rgba(255,90,77,.08)}
 
-  /* dashboard */
-  .filters{display:flex; gap:8px; margin-bottom:10px}
-  .filters select{padding:10px}
-  .entry{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:10px 0}
-  .entry .eh{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
-  .entry .who{font-weight:700}
-  .entry .when{font-size:12px; color:var(--muted)}
-  .kv{display:flex; justify-content:space-between; font-size:14px; padding:5px 0; border-top:1px dashed var(--line)}
-  .kv .k{color:var(--muted); padding-right:10px}
+  .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
+  .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
+  .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
+
+  /* nav */
+  .nav{position:fixed; bottom:0; left:0; right:0; z-index:50; display:flex;
+    background:rgba(11,11,14,.82); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--line)}
+  .nav button{flex:1; background:none; border:none; color:var(--faint); padding:11px 4px 20px; font-size:11.5px; font-weight:600; cursor:pointer; position:relative; transition:color .15s}
+  .nav button.active{color:var(--txt)}
+  .nav button.active::after{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:30px; height:3px; border-radius:0 0 4px 4px; background:var(--grad)}
+  .nav .ic{display:block; font-size:20px; margin-bottom:3px}
+
+  /* stats */
+  .stat{display:flex; gap:10px; margin:4px 0 6px}
+  .stat .box{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line2); border-radius:14px; padding:13px 8px; text-align:center}
+  .stat .n{font-size:20px; font-weight:800; line-height:1.1}
+  .stat .l{font-size:10.5px; color:var(--muted); margin-top:3px; letter-spacing:.2px}
+
+  /* avatars */
+  .avatar{width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:18px; color:#fff; flex:0 0 52px; letter-spacing:.5px;
+    box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
+  .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
+  .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
+  .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px; border-radius:50%}
+
+  /* team grid */
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .member{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; cursor:pointer; text-align:center;
+    transition:transform .12s, border-color .15s; backdrop-filter:blur(12px); position:relative; overflow:hidden}
+  .member:active{transform:scale(.98)}
+  .member .avatar{margin:0 auto 10px}
+  .member .mname{font-weight:700; font-size:15px}
+  .member .mrole{font-size:12px; color:var(--muted); margin-top:1px}
+  .member .dot{position:absolute; top:12px; right:12px; width:9px; height:9px; border-radius:50%}
+  .dot.on{background:var(--green); box-shadow:0 0 0 3px rgba(52,199,89,.2)}
+  .dot.off{background:#3a3a42}
+
+  /* entry / list */
+  .entry{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px; margin:11px 0; backdrop-filter:blur(10px)}
+  .entry .eh{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px}
+  .entry .who{font-weight:700; font-size:14.5px}
+  .entry .when{font-size:12px; color:var(--muted); white-space:nowrap}
+  .kv{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; padding:6px 0; border-top:1px solid var(--line2)}
+  .kv .k{color:var(--muted)}
   .kv .v{text-align:right; font-weight:600}
-  .stat{display:flex; gap:10px; margin:6px 0 16px}
-  .stat .box{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center}
-  .stat .n{font-size:22px; font-weight:800; color:var(--gold)}
-  .stat .l{font-size:11px; color:var(--muted)}
-  .empty{color:var(--muted); text-align:center; padding:30px 0; font-size:14px}
-  .center{min-height:80vh; display:flex; flex-direction:column; justify-content:center}
+  .empty{color:var(--faint); text-align:center; padding:34px 16px; font-size:14px}
+
+  .filters{display:flex; gap:8px; margin-bottom:4px}
+  .filters select{padding:10px 30px 10px 12px; font-size:14px}
+
+  .back{display:inline-flex; align-items:center; gap:7px; background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:6px; font-weight:600}
+  .center{min-height:82vh; display:flex; flex-direction:column; justify-content:center}
   .hide{display:none !important}
-  .config-warn{background:rgba(212,175,55,.1); border:1px solid var(--gold); color:var(--gold-soft); font-size:13px; padding:12px; border-radius:12px; margin:10px 0}
+  .config-warn{background:rgba(255,180,71,.1); border:1px solid rgba(255,180,71,.35); color:#ffcf7a; font-size:13px; padding:12px 14px; border-radius:13px; margin:0 0 4px}
+  .section-title{font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--faint); margin:18px 2px 8px; font-weight:700}
 </style>
 </head>
 <body>
 
-<!-- ============ LOGO V Viralité (même charte que logo_E / logo_M) ============ -->
+<!-- ===== Logo V (charte Écosystème Viral) ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="logoV" viewBox="0 0 1024 1024">
     <defs>
-      <radialGradient id="v_glow1" cx="80%" cy="22%" r="55%">
-        <stop offset="0%" stop-color="#ff7a3d" stop-opacity="0.60"/>
-        <stop offset="30%" stop-color="#ff7a3d" stop-opacity="0.18"/>
-        <stop offset="60%" stop-color="#ff7a3d" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="v_glow2" cx="15%" cy="82%" r="62%">
-        <stop offset="0%" stop-color="#7f5bc4" stop-opacity="0.55"/>
-        <stop offset="32%" stop-color="#7f5bc4" stop-opacity="0.12"/>
-        <stop offset="65%" stop-color="#7f5bc4" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="v_centerGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="#ff7a3d" stop-opacity="0.32"/>
-        <stop offset="60%" stop-color="#ff7a3d" stop-opacity="0.18"/>
-        <stop offset="100%" stop-color="#ff7a3d" stop-opacity="0"/>
-      </radialGradient>
+      <radialGradient id="v_g1" cx="80%" cy="22%" r="55%"><stop offset="0%" stop-color="#ff7a3d" stop-opacity=".6"/><stop offset="30%" stop-color="#ff7a3d" stop-opacity=".18"/><stop offset="60%" stop-color="#ff7a3d" stop-opacity="0"/></radialGradient>
+      <radialGradient id="v_g2" cx="15%" cy="82%" r="62%"><stop offset="0%" stop-color="#7f5bc4" stop-opacity=".55"/><stop offset="32%" stop-color="#7f5bc4" stop-opacity=".12"/><stop offset="65%" stop-color="#7f5bc4" stop-opacity="0"/></radialGradient>
+      <radialGradient id="v_gc" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff7a3d" stop-opacity=".32"/><stop offset="60%" stop-color="#ff7a3d" stop-opacity=".18"/><stop offset="100%" stop-color="#ff7a3d" stop-opacity="0"/></radialGradient>
     </defs>
     <rect width="1024" height="1024" fill="#1a1410"/>
-    <rect width="1024" height="1024" fill="url(#v_glow1)"/>
-    <rect width="1024" height="1024" fill="url(#v_glow2)"/>
+    <rect width="1024" height="1024" fill="url(#v_g1)"/><rect width="1024" height="1024" fill="url(#v_g2)"/>
     <g transform="rotate(-90 512 512)">
       <circle cx="512" cy="512" r="380" fill="none" stroke="#ff7a3d" stroke-width="68" stroke-dasharray="336 2052"/>
       <circle cx="512" cy="512" r="380" fill="none" stroke="#ff8b47" stroke-width="68" stroke-dasharray="336 2052" stroke-dashoffset="-341.1"/>
@@ -124,90 +154,113 @@
       <circle cx="512" cy="512" r="380" fill="none" stroke="#9d4db0" stroke-width="68" stroke-dasharray="336 2052" stroke-dashoffset="-1705.7"/>
       <circle cx="512" cy="512" r="380" fill="none" stroke="#7f5bc4" stroke-width="68" stroke-dasharray="336 2052" stroke-dashoffset="-2046.9"/>
     </g>
-    <circle cx="512" cy="512" r="250" fill="url(#v_centerGlow)"/>
-    <text x="512" y="638" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="900" font-size="320" fill="#ffffff" letter-spacing="-8">V</text>
+    <circle cx="512" cy="512" r="250" fill="url(#v_gc)"/>
+    <text x="512" y="638" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="900" font-size="320" fill="#fff" letter-spacing="-8">V</text>
   </symbol>
 </svg>
 
-<!-- ============ LOGIN ============ -->
+<!-- ===== LOGIN ===== -->
 <div id="login" class="wrap center">
-  <div style="text-align:center; margin-bottom:18px">
-    <svg class="logo-eco-big"><use href="#logoV"/></svg>
-    <h1 style="margin:0; font-size:22px">EOD Viralité</h1>
-    <div style="color:var(--muted); font-size:13px; margin-top:4px">Le récap de fin de journée de la team</div>
+  <div style="text-align:center; margin-bottom:20px">
+    <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
+    <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
+    <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Espace équipe — EOD &amp; suivi clients</div>
   </div>
   <div class="card">
     <label>Mot de passe d'équipe</label>
-    <input id="pw" type="password" placeholder="••••••" autocomplete="off" />
-    <button class="btn" onclick="login()">Entrer</button>
+    <input id="pw" type="password" placeholder="••••••••" autocomplete="off" />
+    <button class="btn" onclick="login()">Entrer dans l'espace</button>
     <div id="loginErr" class="msg"></div>
   </div>
 </div>
 
-<!-- ============ APP ============ -->
+<!-- ===== APP ===== -->
 <div id="app" class="hide">
   <header class="top">
     <svg class="logo-eco-sm"><use href="#logoV"/></svg>
     <div>
-      <h1>EOD Viralité</h1>
+      <h1>Écosystème Viral</h1>
       <div class="sub" id="todayLabel"></div>
     </div>
   </header>
 
-  <!-- ---- VIEW: FORM ---- -->
+  <!-- VIEW: MON EOD -->
   <div id="view-form" class="wrap">
-    <div id="cfgWarn" class="config-warn hide">
-      ⚠️ Backend pas encore configuré — les EOD ne seront pas sauvegardés tant que la connexion Firebase n'est pas renseignée (voir le guide d'installation).
-    </div>
+    <div id="cfgWarn" class="config-warn hide">⚠️ Backend non connecté — les données ne seront pas sauvegardées (voir guide).</div>
     <div class="card">
       <h2>Faire mon EOD</h2>
+      <p class="sub2">Le récap de fin de journée — ça prend 2 minutes.</p>
       <label>Qui es-tu ?</label>
       <select id="member" onchange="onMember()"></select>
-
       <label>Date de l'EOD</label>
       <input id="rdate" type="date" />
-
       <div id="fields"></div>
-
       <button class="btn" onclick="submitEod()">Envoyer mon EOD ✓</button>
       <div id="formMsg" class="msg"></div>
-      <div class="hint" style="text-align:center; margin-top:14px">Ça prend 2 min. Merci 🙏</div>
     </div>
   </div>
 
-  <!-- ---- VIEW: DASHBOARD ---- -->
-  <div id="view-dash" class="wrap hide">
-    <div class="card">
-      <h2>Suivi de la team</h2>
-      <div class="filters">
-        <select id="fMember"><option value="">Tout le monde</option></select>
-        <select id="fDate">
-          <option value="today">Aujourd'hui</option>
-          <option value="7">7 derniers jours</option>
-          <option value="30">30 derniers jours</option>
-          <option value="all">Tout</option>
-        </select>
+  <!-- VIEW: ÉQUIPE -->
+  <div id="view-team" class="wrap hide">
+    <!-- liste -->
+    <div id="teamList">
+      <div class="card" style="margin-top:6px">
+        <h2>L'équipe aujourd'hui</h2>
+        <p class="sub2" id="teamToday">—</p>
+        <div class="stat" id="teamStats"></div>
       </div>
-      <div class="stat" id="stats"></div>
-      <button class="btn ghost" onclick="loadDash()">↻ Rafraîchir</button>
+      <div class="section-title">Membres · clique pour voir le suivi</div>
+      <div class="grid" id="teamGrid"></div>
     </div>
-    <div id="entries"></div>
+    <!-- détail membre -->
+    <div id="memberDetail" class="hide"></div>
+  </div>
+
+  <!-- VIEW: CLIENTS -->
+  <div id="view-clients" class="wrap hide">
+    <div class="card">
+      <h2>Clients · Écosystème</h2>
+      <p class="sub2">Suivi des contrats, paiements et commissions.</p>
+      <div class="stat" id="clientStats"></div>
+      <div class="row2" style="margin-top:6px">
+        <button class="btn sm" onclick="newClient()">+ Nouveau client</button>
+        <button class="btn ghost sm" onclick="loadClients()">↻ Rafraîchir</button>
+      </div>
+    </div>
+
+    <div id="clientFormCard" class="card hide">
+      <h2 id="clientFormTitle">Nouveau client</h2>
+      <div id="clientFields"></div>
+      <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
+      <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
+      <div id="clientMsg" class="msg"></div>
+    </div>
+
+    <div class="filters" style="margin:14px 2px 0">
+      <select id="cfProg"><option value="">Tous les programmes</option></select>
+      <select id="cfStatut">
+        <option value="">Tous les statuts</option>
+        <option value="Actif">Actif</option>
+        <option value="Terminé">Terminé</option>
+        <option value="Annulé / Litige">Annulé / Litige</option>
+      </select>
+    </div>
+    <div id="clientList"></div>
   </div>
 </div>
 
-<!-- ============ NAV ============ -->
+<!-- ===== NAV ===== -->
 <div id="nav" class="nav hide">
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
-  <button id="nav-dash" onclick="show('dash')"><span class="ic">📊</span>Suivi</button>
+  <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
+  <button id="nav-clients" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
 </div>
 
 <script>
-/* ====================================================================
-   CONFIGURATION  —  À REMPLIR (voir GUIDE_INSTALLATION.md)
-   ==================================================================== */
+/* =====================================================================
+   CONFIGURATION
+   ===================================================================== */
 const CONFIG = {
-  // 1) Backend Firebase (gratuit). Copie/colle l'objet de config Firebase ici.
-  //    (Console Firebase > Paramètres du projet > tes apps > SDK config)
   FIREBASE : {
     apiKey:            "AIzaSyB4_Oaw4vnZ6pPUqbuV0gki2SsnMm050fw",
     authDomain:        "ecosysteme-viral.firebaseapp.com",
@@ -216,198 +269,297 @@ const CONFIG = {
     messagingSenderId: "605349501477",
     appId:             "1:605349501477:web:8659ddb89f1f512d92fdcc",
   },
-
-  // 2) Mot de passe d'équipe (le "mot de passe bidon")
   PASSWORD : "VIRALITE2026@01",
-
-  // 3) La team. role = closer | setter_insta | setter_linkedin | coach
+  // role = closer | setter | coach   ·   title = libellé affiché
   TEAM : [
-    { name:"Julie LB",       role:"closer" },
-    { name:"Anthony LB",     role:"closer" },
-    { name:"Ilyas",          role:"setter_insta" },
-    { name:"Lucas Reverdy",  role:"setter_linkedin" },
-    // { name:"Nom du coach", role:"coach" },
+    { name:"Julie",   title:"Closeuse", role:"closer" },
+    { name:"Anthony", title:"Closer",   role:"closer" },
+    { name:"Ilyas",   title:"Setter",   role:"setter" },
+    { name:"Lucas",   title:"Setter",   role:"setter" },
+    { name:"Clément", title:"Coach",    role:"coach"  },
   ],
 };
 
-/* ---- Définition des champs par rôle ---- */
-const ROLE_LABEL = {
-  closer:"Closer", setter_insta:"Setter Instagram",
-  setter_linkedin:"Setter LinkedIn", coach:"Coach",
-};
+/* ---- Champs EOD par rôle ---- */
 const SETTER_FIELDS = [
-  { key:"contacted",   label:"Nombre de personnes contactées", type:"number" },
-  { key:"in_contact",  label:"Nombre de personnes en contact", type:"number" },
-  { key:"calls_booked",label:"Nombre de calls pris",           type:"number" },
-  { key:"feeling",     label:"Ressenti & remarque si besoin",  type:"textarea" },
+  { key:"contacted",   label:"Personnes contactées",        type:"number" },
+  { key:"in_contact",  label:"Personnes en contact",        type:"number" },
+  { key:"calls_booked",label:"Calls pris",                  type:"number" },
+  { key:"feeling",     label:"Ressenti & remarque",         type:"textarea" },
 ];
 const FORMS = {
   closer:[
-    { key:"calls",            label:"Nombre de calls sur la journée", type:"number" },
-    { key:"noshow",           label:"No-show ? (combien)",            type:"number" },
-    { key:"showup_insta",     label:"Noms des calls show-up — Instagram", type:"textarea" },
-    { key:"showup_linkedin",  label:"Noms des calls show-up — LinkedIn",  type:"textarea" },
-    { key:"closed",           label:"Nombre de closé",                type:"number" },
-    { key:"cash_day",         label:"Cash collecté (€) — aujourd'hui",type:"number" },
-    { key:"cash_month",       label:"Cash collecté (€) — depuis début du mois", type:"number" },
-    { key:"followup_next",    label:"Nb & noms des follow-up des prochains jours", type:"textarea" },
-    { key:"followup_update",  label:"Update sur les follow-up du jour", type:"textarea" },
-    { key:"feeling",          label:"Ressenti de la journée — remarque si besoin", type:"textarea" },
+    { key:"calls",           label:"Calls sur la journée",                 type:"number" },
+    { key:"noshow",          label:"No-show ? (combien)",                  type:"number" },
+    { key:"showup_insta",    label:"Noms des show-up — Instagram",         type:"textarea" },
+    { key:"showup_linkedin", label:"Noms des show-up — LinkedIn",          type:"textarea" },
+    { key:"closed",          label:"Nombre de closé",                      type:"number" },
+    { key:"cash_day",        label:"Cash collecté (€) — aujourd'hui",      type:"number" },
+    { key:"cash_month",      label:"Cash collecté (€) — début du mois",    type:"number" },
+    { key:"followup_next",   label:"Nb & noms follow-up prochains jours",  type:"textarea" },
+    { key:"followup_update", label:"Update follow-up du jour",             type:"textarea" },
+    { key:"feeling",         label:"Ressenti de la journée — remarque",    type:"textarea" },
   ],
-  setter_insta:SETTER_FIELDS,
-  setter_linkedin:SETTER_FIELDS,
+  setter:SETTER_FIELDS,
   coach:SETTER_FIELDS,
 };
+const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
+/* métriques de suivi (sommes du mois en cours) */
+const SUIVI = {
+  closer:[ {key:"calls",label:"Calls"}, {key:"closed",label:"Closés"}, {key:"cash_day",label:"Cash",money:true} ],
+  setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
+  coach: [ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
+};
 
-/* ==================================================================== */
+/* =====================================================================
+   OUTILS
+   ===================================================================== */
 const $ = id => document.getElementById(id);
 const todayStr = () => new Date().toISOString().slice(0,10);
+const monthStr = () => new Date().toISOString().slice(0,7);
+const eur = n => (Number(n)||0).toLocaleString("fr-FR")+" €";
+const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
+function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
 
-/* ---------- Firebase ---------- */
-let db = null;
-function fbReady(){ return !!(CONFIG.FIREBASE && CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
-function initFirebase(){
-  if(db || !fbReady()) return;
-  firebase.initializeApp(CONFIG.FIREBASE);
-  db = firebase.firestore();
-}
+/* ---- Firebase ---- */
+let db=null;
+function fbReady(){ return !!(CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
+function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); }
 
-/* ---------- LOGIN ---------- */
+/* ---- Login ---- */
 function login(){
-  const v = $("pw").value.trim();
-  if(v === CONFIG.PASSWORD){
-    $("login").classList.add("hide");
-    $("app").classList.remove("hide");
-    $("nav").classList.remove("hide");
+  if($("pw").value.trim()===CONFIG.PASSWORD){
+    $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
     initApp();
-  } else {
-    const e = $("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect.";
-  }
+  } else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; }
 }
-$("pw").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
+$("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
 
-/* ---------- INIT ---------- */
+/* ---- Init ---- */
 function initApp(){
-  const d = new Date();
-  $("todayLabel").textContent = d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+  $("todayLabel").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
   $("rdate").value = todayStr();
-  // membres
-  const sel = $("member"), fil = $("fMember");
-  CONFIG.TEAM.forEach(m=>{
-    sel.insertAdjacentHTML("beforeend", `<option value="${m.name}">${m.name}</option>`);
-    fil.insertAdjacentHTML("beforeend", `<option value="${m.name}">${m.name}</option>`);
-  });
+  const sel=$("member"); sel.innerHTML="";
+  CONFIG.TEAM.forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
   initFirebase();
   if(!fbReady()) $("cfgWarn").classList.remove("hide");
   onMember();
 }
 
-function memberRole(name){ const m = CONFIG.TEAM.find(x=>x.name===name); return m? m.role : "setter_insta"; }
-
+/* =====================================================================
+   MON EOD
+   ===================================================================== */
 function onMember(){
-  const role = memberRole($("member").value);
-  const box = $("fields"); box.innerHTML = "";
-  box.insertAdjacentHTML("beforeend",
-    `<div style="margin-top:14px"><span class="pill ${role}">${ROLE_LABEL[role]}</span></div>`);
+  const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
   FORMS[role].forEach(f=>{
     const inp = f.type==="textarea"
       ? `<textarea id="f_${f.key}" placeholder="..."></textarea>`
       : `<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`;
-    box.insertAdjacentHTML("beforeend", `<label>${f.label}</label>${inp}`);
+    box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
 }
-
-/* ---------- SUBMIT ---------- */
 async function submitEod(){
-  const name = $("member").value, role = memberRole(name), rdate = $("rdate").value;
-  const payload = {};
-  FORMS[role].forEach(f=>{ payload[f.key] = ($("f_"+f.key).value || "").trim(); });
-  const msg = $("formMsg");
-
-  if(!fbReady()){
-    msg.className="msg err"; msg.textContent="Backend non configuré : impossible d'enregistrer (voir guide d'installation).";
-    return;
-  }
-  initFirebase();
-  msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
+  const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
+  const payload={}; FORMS[role].forEach(f=> payload[f.key]=($("f_"+f.key).value||"").trim());
+  if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
+  initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
-    await db.collection("eod_reports").add({
-      report_date: rdate,
-      member: name,
-      role: role,
-      payload: payload,
-      created_at: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    msg.className="msg ok"; msg.textContent="EOD envoyé ✓ Merci !";
-    FORMS[role].forEach(f=>{ $("f_"+f.key).value=""; });
-  }catch(err){
-    msg.className="msg err"; msg.textContent="Erreur d'envoi : "+err.message;
-  }
+    await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload,
+      created_at:firebase.firestore.FieldValue.serverTimestamp() });
+    msg.className="msg ok"; msg.textContent="EOD envoyé ✓ Merci 🙏";
+    FORMS[role].forEach(f=> $("f_"+f.key).value="");
+  }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
-/* ---------- NAV ---------- */
+/* =====================================================================
+   NAV
+   ===================================================================== */
 function show(v){
-  $("view-form").classList.toggle("hide", v!=="form");
-  $("view-dash").classList.toggle("hide", v!=="dash");
-  $("nav-form").classList.toggle("active", v==="form");
-  $("nav-dash").classList.toggle("active", v==="dash");
-  if(v==="dash") loadDash();
+  $("view-form").classList.toggle("hide",v!=="form");
+  $("view-team").classList.toggle("hide",v!=="team");
+  $("view-clients").classList.toggle("hide",v!=="clients");
+  $("nav-form").classList.toggle("active",v==="form");
+  $("nav-team").classList.toggle("active",v==="team");
+  $("nav-clients").classList.toggle("active",v==="clients");
+  if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
+  if(v==="clients") loadClients();
 }
 
-/* ---------- DASHBOARD ---------- */
-let CACHE = [];
-async function loadDash(){
-  const wrap = $("entries");
-  if(!fbReady()){
-    wrap.innerHTML = `<div class="empty">Backend non configuré.<br>Renseigne Firebase pour voir les EOD.</div>`;
-    $("stats").innerHTML=""; return;
-  }
+/* =====================================================================
+   ÉQUIPE
+   ===================================================================== */
+let EODS=[];
+async function loadTeam(){
+  if(!fbReady()){ $("teamGrid").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
-  wrap.innerHTML = `<div class="empty">Chargement…</div>`;
   try{
-    const snap = await db.collection("eod_reports").orderBy("created_at","desc").limit(500).get();
-    CACHE = snap.docs.map(d=>d.data());
-    renderDash();
-  }catch(err){
-    wrap.innerHTML = `<div class="empty">Erreur de chargement : ${err.message}</div>`;
-  }
+    const snap = await db.collection("eod_reports").orderBy("created_at","desc").limit(800).get();
+    EODS = snap.docs.map(d=>d.data());
+  }catch(e){ EODS=[]; }
+  renderTeam();
 }
-function renderDash(){
-  const fm = $("fMember").value, fd = $("fDate").value;
-  let rows = CACHE.slice();
-  if(fm) rows = rows.filter(x=>x.member===fm);
-  if(fd==="today") rows = rows.filter(x=>x.report_date===todayStr());
-  else if(fd==="7"||fd==="30"){
-    const lim = new Date(Date.now()-(+fd)*864e5).toISOString().slice(0,10);
-    rows = rows.filter(x=>x.report_date>=lim);
-  }
-  // stats (jour courant, sur le filtre)
-  const today = rows.filter(x=>x.report_date===todayStr());
-  const expected = CONFIG.TEAM.length;
-  const doneToday = new Set(CACHE.filter(x=>x.report_date===todayStr()).map(x=>x.member)).size;
-  $("stats").innerHTML = `
-    <div class="box"><div class="n">${doneToday}/${expected}</div><div class="l">EOD du jour</div></div>
-    <div class="box"><div class="n">${rows.length}</div><div class="l">EOD affichés</div></div>`;
-
-  const wrap = $("entries");
-  if(!rows.length){ wrap.innerHTML = `<div class="empty">Aucun EOD pour ce filtre.</div>`; return; }
-  wrap.innerHTML = rows.map(x=>{
-    const fields = FORMS[x.role]||SETTER_FIELDS;
-    const kvs = fields.map(f=>{
-      const val = (x.payload&&x.payload[f.key]) ? x.payload[f.key] : "—";
-      return `<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(val)}</span></div>`;
-    }).join("");
-    const dd = new Date(x.report_date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"});
-    return `<div class="entry">
-      <div class="eh">
-        <span class="who">${escapeHtml(x.member)} <span class="pill ${x.role}">${ROLE_LABEL[x.role]||x.role}</span></span>
-        <span class="when">${dd}</span>
-      </div>${kvs}</div>`;
+function renderTeam(){
+  const today=todayStr();
+  const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
+  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD remplis aujourd'hui`;
+  const cash = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr())
+                   .reduce((s,x)=>s+(Number(x.payload&&x.payload.cash_day)||0),0);
+  const closed = EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===monthStr())
+                   .reduce((s,x)=>s+(Number(x.payload&&x.payload.closed)||0),0);
+  $("teamStats").innerHTML = `
+    <div class="box"><div class="n grad-text">${eur(cash)}</div><div class="l">Cash · ce mois</div></div>
+    <div class="box"><div class="n">${closed}</div><div class="l">Closés · ce mois</div></div>
+    <div class="box"><div class="n">${EODS.length}</div><div class="l">EOD au total</div></div>`;
+  $("teamGrid").innerHTML = CONFIG.TEAM.map(m=>{
+    const on=doneSet.has(m.name);
+    return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
+      <span class="dot ${on?'on':'off'}"></span>
+      <div class="avatar ${avClass(m.role)}">${initials(m.name)}</div>
+      <div class="mname">${escapeHtml(m.name)}</div>
+      <div class="mrole">${escapeHtml(m.title)}</div>
+    </div>`;
   }).join("");
 }
-$("fMember").addEventListener?.("change",renderDash);
-function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-document.addEventListener("change",e=>{ if(e.target.id==="fMember"||e.target.id==="fDate") renderDash(); });
+function openMember(name){
+  const m=member(name);
+  const list=EODS.filter(x=>x.member===name);
+  const month=list.filter(x=>(x.report_date||"").slice(0,7)===monthStr());
+  const metrics=SUIVI[m.role]||SUIVI.setter;
+  const stats=metrics.map(mt=>{
+    const sum=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0);
+    return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(sum):sum}</div><div class="l">${mt.label}</div></div>`;
+  }).join("");
+  const today=todayStr(), didToday=list.some(x=>x.report_date===today);
+  const fields=FORMS[m.role];
+  const history = list.length ? list.map(x=>{
+    const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+    const kvs=fields.map(f=>{ const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:""; }).join("");
+    return `<div class="entry"><div class="eh"><span class="who" style="text-transform:capitalize">${dd}</span></div>${kvs||'<div class="kv"><span class="k">—</span><span class="v"></span></div>'}</div>`;
+  }).join("") : `<div class="empty">Aucun EOD pour ${escapeHtml(name)} pour l'instant.</div>`;
+
+  $("memberDetail").innerHTML = `
+    <button class="back" onclick="backTeam()">‹ Retour à l'équipe</button>
+    <div class="card" style="display:flex; align-items:center; gap:14px">
+      <div class="avatar lg ${avClass(m.role)}">${initials(name)}</div>
+      <div>
+        <div style="font-size:20px; font-weight:800">${escapeHtml(name)}</div>
+        <div style="margin-top:4px"><span class="pill ${m.role}">${escapeHtml(m.title)}</span>
+          ${didToday?'<span class="pill coach">EOD du jour ✓</span>':'<span class="pill warn">EOD du jour ✗</span>'}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Suivi du mois</h2>
+      <div class="stat" style="margin-top:8px">${stats}</div>
+    </div>
+    <div class="section-title">Historique des EOD (${list.length})</div>
+    ${history}`;
+  $("teamList").classList.add("hide");
+  $("memberDetail").classList.remove("hide");
+  window.scrollTo({top:0});
+}
+function backTeam(){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); }
+
+/* =====================================================================
+   CLIENTS
+   ===================================================================== */
+const PROGRAMMES=["VIRAL PRO","MENTORAT CÉLINE & LOÏC","ÉLITE VIRALE","Autre"];
+const CLIENT_FIELDS=[
+  { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
+  { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
+  { key:"programme",label:"Programme",type:"select",options:PROGRAMMES },
+  { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
+  { key:"montant",label:"Montant total (€)",type:"number" },{ key:"encaisse",label:"Montant encaissé (€)",type:"number" },
+  { key:"cgv",label:"CGV signé",type:"select",options:["OUI","NON"] },
+  { key:"outil",label:"Outil de suivi",type:"select",options:["WHOP","JOTFORM","Autre"] },
+  { key:"setter",label:"Setter",type:"text" },{ key:"closer",label:"Closer",type:"text" },
+  { key:"statut",label:"Statut",type:"select",options:["Actif","Terminé","Annulé / Litige"] },
+  { key:"adresse",label:"Adresse",type:"textarea" },
+  { key:"paiement",label:"Échéancier / suivi paiement",type:"textarea" },
+  { key:"commissions",label:"Commissions",type:"textarea" },
+];
+let CLIENTS=[], currentClientId=null;
+
+function renderClientForm(data){
+  data=data||{}; const box=$("clientFields"); box.innerHTML="";
+  CLIENT_FIELDS.forEach(f=>{
+    const v=data[f.key]!=null?String(data[f.key]):"";
+    let inp;
+    if(f.type==="select"){
+      inp=`<select id="cf_${f.key}"><option value=""></option>${f.options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
+    } else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
+    else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
+    box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
+  });
+}
+function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif",cgv:"OUI"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
+async function saveClient(){
+  if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
+  initFirebase();
+  const obj={}; CLIENT_FIELDS.forEach(f=>{ let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
+  const m=$("clientMsg");
+  if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
+  m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{
+    if(currentClientId){ await db.collection("clients").doc(currentClientId).update(obj); }
+    else { obj.created_at=firebase.firestore.FieldValue.serverTimestamp(); await db.collection("clients").add(obj); }
+    m.className="msg ok"; m.textContent="Client enregistré ✓";
+    setTimeout(()=>{ closeClientForm(); loadClients(); },600);
+  }catch(err){ m.className="msg err"; m.textContent="Erreur : "+err.message; }
+}
+async function loadClients(){
+  const wrap=$("clientList");
+  if(!fbReady()){ wrap.innerHTML=`<div class="empty">Backend non connecté.</div>`; $("clientStats").innerHTML=""; return; }
+  initFirebase();
+  if($("cfProg").options.length<=1) PROGRAMMES.forEach(p=>$("cfProg").insertAdjacentHTML("beforeend",`<option>${p}</option>`));
+  wrap.innerHTML=`<div class="empty">Chargement…</div>`;
+  try{
+    const snap=await db.collection("clients").get();
+    CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
+    CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||"")));
+    renderClients();
+  }catch(err){ wrap.innerHTML=`<div class="empty">Erreur : ${err.message}</div>`; }
+}
+function renderClients(){
+  const fp=$("cfProg").value, fs=$("cfStatut").value;
+  let rows=CLIENTS.slice();
+  if(fp) rows=rows.filter(x=>x.programme===fp);
+  if(fs) rows=rows.filter(x=>x.statut===fs);
+  const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+(Number(x.encaisse)||0),0);
+  $("clientStats").innerHTML=`
+    <div class="box"><div class="n">${rows.length}</div><div class="l">Clients</div></div>
+    <div class="box"><div class="n grad-text">${eur(enc)}</div><div class="l">Encaissé</div></div>
+    <div class="box"><div class="n">${eur(total-enc)}</div><div class="l">Reste à venir</div></div>`;
+  const wrap=$("clientList");
+  if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client.</div>`; return; }
+  wrap.innerHTML=rows.map(c=>{
+    const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
+    const reste=(Number(c.montant)||0)-(Number(c.encaisse)||0);
+    const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
+    return `<div class="entry">
+      <div class="eh">
+        <span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+        <span class="when">${escapeHtml(c.programme||"")}</span>
+      </div>
+      <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
+        ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
+        <span class="pill gold">${eur(c.encaisse)} / ${eur(c.montant)}</span>
+        ${reste>0?`<span class="pill">reste ${eur(reste)}</span>`:""}
+      </div>
+      ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
+      ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
+      ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
+      ${line("CGV",c.cgv)}${line("Outil",c.outil)}${line("Adresse",c.adresse)}
+      ${line("Paiement",c.paiement)}${line("Commissions",c.commissions)}
+      <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
+    </div>`;
+  }).join("");
+}
+
+document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
 </script>
 </body>
 </html>
