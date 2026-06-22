@@ -555,16 +555,26 @@ const SETTINGS_DEFAULT={
   setters:["Ilyas","Lucas","N/A"],
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Coach Viralité","Coach Conversion","Loïc"],
-  payees:["Céline"],
 };
-let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
+const PAYLIST_DEFAULT=[
+  {name:"Clément",type:"coach"},
+  {name:"Julie",type:"closer"},
+  {name:"Anthony",type:"closer"},
+  {name:"Lucas",type:"lucas"},
+  {name:"Ilyas",type:"ilyas"},
+  {name:"Céline",type:"manual"},
+];
+const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"closer",l:"Closer — 10 % encaissé"},{v:"coach",l:"Coach — 400 €/client"},{v:"lucas",l:"Lucas — base + 5 %"},{v:"ilyas",l:"Ilyas — paliers RDV/close"}];
+let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","payees","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",payees:"Personnes à payer (en plus, montant manuel)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
-    if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; }); } }catch(e){}
+    if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
+      if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
+      else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
 }
 function fieldOptions(key){
   const map={programme:'programmes',statut:'statuts',cgv:'cgvTypes',setter:'setters',closer:'closers'};
@@ -575,17 +585,33 @@ function fieldOptions(key){
 }
 function liRow(v){ return `<div class="lirow"><input value="${escapeHtml(v||'')}"><button type="button" class="xrow" onclick="this.closest('.lirow').remove()">✕</button></div>`; }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
+function payRow(it){ it=it||{name:"",type:"manual"}; return `<div class="drow pyrow">
+    <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:120px">
+    <select class="pyType" style="flex:1.8;min-width:120px">${PAY_TYPES.map(t=>`<option value="${t.v}" ${t.v===(it.type||'manual')?'selected':''}>${t.l}</option>`).join("")}</select>
+    <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
+    <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
+    <button type="button" class="xrow" onclick="this.closest('.pyrow').remove()">✕</button>
+  </div>`; }
+function movePy(btn,dir){ const row=btn.closest('.pyrow'), box=row.parentNode; if(dir<0 && row.previousElementSibling) box.insertBefore(row,row.previousElementSibling); else if(dir>0 && row.nextElementSibling) box.insertBefore(row.nextElementSibling,row); }
+function addPy(){ const box=$("payListBox"); if(box){ box.insertAdjacentHTML("afterbegin", payRow({name:"",type:"manual"})); const i=box.firstElementChild.querySelector(".pyName"); if(i) i.focus(); } }
 function renderSettings(){
   const box=$("settingsBox"); if(!box) return;
-  box.innerHTML=SET_KEYS.map(k=>{
+  let html=SET_KEYS.map(k=>{
     const rows=(SETTINGS[k]||[]).map(v=>liRow(v)).join("");
     return `<div class="setblock"><h3>${SET_LABELS[k]}</h3><div class="li-${k}">${rows}</div>
       <button type="button" class="addrow" onclick="addLi('${k}')">+ Ajouter</button></div>`;
   }).join("");
+  const pr=(SETTINGS.payList||[]).map(payRow).join("");
+  html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
+    <div id="payListBox">${pr}</div>
+    <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
+    <div class="hint">Type « Manuel » = tu mets le montant à la main dans Finance. Les autres se calculent tout seuls. Flèches ↑↓ pour changer l'ordre (les nouveaux s'ajoutent en haut).</div></div>`;
+  box.innerHTML=html;
 }
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
+  SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, ...SETTINGS},{merge:true});
     m.className="msg ok"; m.textContent="Réglages enregistrés ✓ — visibles par toute l'équipe."; renderSettings(); }
@@ -695,19 +721,21 @@ async function exportJSON(){
 }
 function payForMonth(M, cls, eods, statMap){
   const C=CONFIG.COMM;
-  let byCloser={Julie:0,Anthony:0}, lucasCA=0, coachTot=0;
-  cls.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(byCloser[c.closer]!=null) byCloser[c.closer]+=e; if(c.setter==="Lucas") lucasCA+=e; const mt=Number(c.montant)||e; coachTot+=C.coachPerClient*(e/mt); } });
+  let byCloser={}, lucasCA=0, coachTot=0;
+  cls.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(c.closer) byCloser[c.closer]=(byCloser[c.closer]||0)+e; if(c.setter==="Lucas") lucasCA+=e; const mt=Number(c.montant)||e; coachTot+=C.coachPerClient*(e/mt); } });
   const agg=aggCalls((eods||[]).filter(x=>(x.report_date||"").slice(0,7)===M));
   const stOf=n=>statMap[n+"|"+M]||{};
   const has=v=>v!=null&&v!=="";
   const stIl=stOf("Ilyas"), stLu=stOf("Lucas");
   const ilRdv=has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
   const ilClose=has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
-  const luClose=has(stLu.closes)?Number(stLu.closes):agg.bySetter.Lucas.close;
   const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
   const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
-  const arr=[{n:"Clément",a:coachTot},{n:"Julie",a:byCloser.Julie*C.closerRate},{n:"Anthony",a:byCloser.Anthony*C.closerRate},{n:"Lucas",a:luAmount},{n:"Ilyas",a:ilAmount}];
-  (SETTINGS.payees||[]).forEach(n=>{ if(n && !arr.some(p=>p.n===n)) arr.push({n, a:0}); });
+  const list=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
+  const arr=list.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual"; let a=0;
+    if(t==="coach")a=coachTot; else if(t==="closer")a=(byCloser[n]||0)*C.closerRate; else if(t==="lucas")a=luAmount; else if(t==="ilyas")a=ilAmount; else a=0;
+    return {n, a};
+  });
   arr.forEach(p=>{ const st=stOf(p.n); const o=st.override; p.eff=(o!=null&&o!=="")?Number(o):p.a; p.note=st.note||""; p.adj=(o!=null&&o!==""); });
   return arr;
 }
@@ -1128,10 +1156,10 @@ function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBa
 function renderFinance(){
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
   // encaissements du mois
-  let encTot=0, dueTot=0, byCloser={Julie:0,Anthony:0}, lucasCA=0, coachTot=0, nbCoachClients=0;
+  let encTot=0, dueTot=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
   CLIENTS.forEach(c=>{
     const e=paidInMonth(c,M); if(e>0){ encTot+=e;
-      if(byCloser[c.closer]!=null) byCloser[c.closer]+=e;
+      if(c.closer) byCloser[c.closer]=(byCloser[c.closer]||0)+e;
       if(c.setter==="Lucas") lucasCA+=e;
       const mt=Number(c.montant)||e; coachTot += C.coachPerClient*(e/mt); nbCoachClients++;
     }
@@ -1147,14 +1175,14 @@ function renderFinance(){
   const ilAmount=C.ilyasPerLead*ilRdv + C.ilyasPerClose*ilClose + ilPrimeR + ilPrimeC;
   const luBase=lucasBase(M), lu5=lucasCA*C.lucasRate, luAmount=luBase+lu5;
   const autoTag=k=>has(k)?"":" · auto";
-  const pay=[
-    {m:"Clément", amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]]},
-    {m:"Julie",   amount:byCloser.Julie*C.closerRate, rows:[["CA encaissé", eur(byCloser.Julie)],["Commission","10 %"]]},
-    {m:"Anthony", amount:byCloser.Anthony*C.closerRate, rows:[["CA encaissé", eur(byCloser.Anthony)],["Commission","10 %"]]},
-    {m:"Lucas", amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]]},
-    {m:"Ilyas", amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]},
-  ];
-  (SETTINGS.payees||[]).forEach(n=>{ if(n && !pay.some(p=>p.m===n)) pay.push({m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]}); });
+  const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
+  const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
+    if(t==="coach") return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]]};
+    if(t==="closer"){ const ca=byCloser[n]||0; return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]]}; }
+    if(t==="lucas") return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]]};
+    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]};
+    return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
+  });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
@@ -1167,12 +1195,12 @@ function renderFinance(){
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
     let act="";
     if(p.edit==="ilyas") act=`<div class="payin">
-        <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_Ilyas_rdv" value="${ilRdv||''}"></div>
-        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_Ilyas_closes" value="${ilClose||''}"></div>
+        <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${ilRdv||''}"></div>
+        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${ilClose||''}"></div>
       </div><div class="hint">RDV/closes pré-remplis auto depuis les calls des closers (no-show exclu).</div>`;
     if(p.edit==="lucas") act=`<div class="payin">
-        <div><label>Nb posts LinkedIn</label><input type="number" inputmode="numeric" id="st_Lucas_posts" value="${Number(stLu.posts)||''}"></div>
-        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_Lucas_closes" value="${luClose||''}"></div>
+        <div><label>Nb posts LinkedIn</label><input type="number" inputmode="numeric" id="st_${p.m}_posts" value="${Number(stLu.posts)||''}"></div>
+        <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${luClose||''}"></div>
       </div>`;
     const ovVal=(statOf(p.m,M).override!=null&&statOf(p.m,M).override!=="")?statOf(p.m,M).override:"";
     const noteVal=statOf(p.m,M).note||"";
