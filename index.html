@@ -629,6 +629,9 @@ async function saveFollowups(name){
 }
 
 /* ===================== COACHING (suivi par client) ===================== */
+function coachSessRow(coach,n){ const opts=(SETTINGS.coachs||[]); return `<div class="drow cwsess"><select class="csCoach" style="flex:2">${opts.map(o=>`<option ${o===coach?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select><input class="csN" type="number" inputmode="numeric" min="1" value="${n||1}" style="flex:1" aria-label="Nb séances"><button type="button" class="xrow" onclick="this.closest('.cwsess').remove()">✕</button></div>`; }
+function addSess(btn){ const box=btn.parentNode.querySelector(".cwSess"); if(box) box.insertAdjacentHTML("beforeend", coachSessRow((SETTINGS.coachs||[])[0]||"",1)); }
+function coachBreakdown(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; const m={}; log.forEach(e=>{ const k=e.coach||"?"; m[k]=(m[k]||0)+(Number(e.n)||1); }); return Object.entries(m).map(([k,v])=>k+" "+v).join(" · "); }
 async function loadCoachClients(){
   const box=$("coachClients"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -636,18 +639,17 @@ async function loadCoachClients(){
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ box.innerHTML='<div class="empty">Erreur de chargement.</div>'; return; }
   const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client actif pour l\'instant.</div>'; return; }
-  const coachOpts=SETTINGS.coachs||[];
   box.innerHTML=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
-    const curCoach=(c.coaching&&c.coaching.coach)||"", note=(c.coaching&&c.coaching.note)||"";
+    const note=(c.coaching&&c.coaching.note)||"", bd=coachBreakdown(c);
     return `<div class="cwk" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
-      <div class="cwk-sub">${escapeHtml(c.programme||"")}${c.coaching&&c.coaching.updated?" · maj "+escapeHtml(c.coaching.updated):""}</div>
+      <div class="cwk-sub">${escapeHtml(c.programme||"")}${bd?" · "+escapeHtml(bd):""}${c.coaching&&c.coaching.updated?" · maj "+escapeHtml(c.coaching.updated):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
-      <div class="payin" style="margin-top:9px">
-        <div><label>Séances faites</label><input type="number" inputmode="numeric" class="cwkDone" min="0" value="${done}"></div>
-        <div><label>Total prévu</label><input type="number" inputmode="numeric" class="cwkTot" min="0" value="${tot}"></div>
+      <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cwkTot" min="0" value="${tot}"></div>
+      <div class="cwk-in"><label>Séances faites cette semaine (choisis le coach, ajoute-en plusieurs si besoin)</label>
+        <div class="cwSess"></div>
+        <button type="button" class="addrow" onclick="addSess(this)">+ Séance cette semaine</button>
       </div>
-      <div class="cwk-in"><label>Coach</label><select class="cwkCoach"><option value=""></option>${coachOpts.map(o=>`<option ${o===curCoach?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select></div>
       <div class="cwk-in"><label>Commentaire (optionnel)</label><input type="text" class="cwkNote" value="${escapeHtml(note)}" placeholder="Ex : bonne dynamique, à relancer…"></div>
     </div>`; }).join("");
 }
@@ -655,20 +657,19 @@ function gatherCoaching(){
   return [...document.querySelectorAll("#coachClients .cwk")].map(r=>{
     const id=r.getAttribute("data-id");
     const total=Math.max(0,Number(r.querySelector(".cwkTot").value)||0);
-    let done=Math.max(0,Number(r.querySelector(".cwkDone").value)||0); if(total) done=Math.min(done,total);
-    const coach=r.querySelector(".cwkCoach").value;
     const note=r.querySelector(".cwkNote").value.trim();
+    const sess=[...r.querySelectorAll(".cwSess .cwsess")].map(s=>({coach:s.querySelector(".csCoach").value, n:Math.max(1,Number(s.querySelector(".csN").value)||1)}));
     const c=CLIENTS.find(x=>x.id===id)||{};
-    return {id, name:(c.nom||""), total, done, coach, note};
+    return {id, name:(c.nom||""), total, note, sess};
   });
 }
 function coachProgressCard(){
   const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length) return "";
-  const rows=cs.map(c=>{ const t=coachTotal(c), d=coachDone(c), p=t?Math.min(100,Math.round(d/t*100)):0; const co=c.coaching||{};
-    const extra=[co.coach,co.note].filter(Boolean).join(" · ");
+  const rows=cs.map(c=>{ const t=coachTotal(c), d=coachDone(c), p=t?Math.min(100,Math.round(d/t*100)):0; const bd=coachBreakdown(c); const note=(c.coaching&&c.coaching.note)||"";
+    const extra=[bd,note].filter(Boolean).join(" · ");
     return `<div class="cwk"><div class="cwk-h"><span class="cwk-n">${escapeHtml(c.nom||"")}</span><span class="cwk-prog">${d} / ${t}</span></div><div class="cwk-sub">${escapeHtml(c.programme||"")}${extra?" · "+escapeHtml(extra):""}</div><div class="cwk-bar"><span style="width:${p}%"></span></div></div>`; }).join("");
-  return `<div class="card"><h2>📚 Avancement coaching par client</h2><p class="sub2" style="margin-bottom:2px">Séances faites / total prévu.</p>${rows}</div>`;
+  return `<div class="card"><h2>📚 Avancement coaching par client</h2><p class="sub2" style="margin-bottom:2px">Séances faites / total prévu (détail par coach).</p>${rows}</div>`;
 }
 
 /* ===================== EXPORT / SAUVEGARDE ===================== */
@@ -744,7 +745,7 @@ async function exportReport(){
     const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
     flds.forEach(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
-      if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length) parts.push("Coaching: "+co.map(o=>esc(o.name)+" "+o.done+"/"+o.total+(o.coach?" ("+esc(o.coach)+")":"")).join(", ")); return; }
+      if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("Coaching: "+p2.join(" · ")); } return; }
       const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
     });
     return `<tr><td style="white-space:nowrap">${esc(x.report_date)}</td><td>${esc(x.member)}</td><td class="sub2c">${parts.join(" · ")||'—'}</td></tr>`;
@@ -854,9 +855,11 @@ async function submitEod(){
     if(role==="coach" && Array.isArray(payload.coaching)){
       for(const it of payload.coaching){
         const c=CLIENTS.find(x=>x.id===it.id); const prev=(c&&c.coaching)||{};
-        const log=Array.isArray(prev.log)?prev.log.slice(-50):[];
-        if(Number(it.done)!==(Number(prev.done)||0)) log.push({date:rdate, done:it.done});
-        const co={total:it.total, done:it.done, coach:it.coach||"", note:it.note||"", updated:rdate, log};
+        const addCount=(it.sess||[]).reduce((s,a)=>s+(Number(a.n)||0),0);
+        const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
+        (it.sess||[]).forEach(a=> log.push({date:rdate, coach:a.coach||"", n:Number(a.n)||1}));
+        const done=(Number(prev.done)||0)+addCount;
+        const co={total:it.total, done, note:it.note||"", log, updated:rdate};
         try{ await db.collection("clients").doc(it.id).update({coaching:co}); if(c) c.coaching=co; }catch(e){}
       }
     }
@@ -871,6 +874,7 @@ async function submitEod(){
     FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
+    if($("coachClients")) loadCoachClients();
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
@@ -966,7 +970,7 @@ function openMember(name){
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
     const kvs=fields.map(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
-      if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>`<div class="kv"><span class="k">${escapeHtml(o.name||'')}${o.coach?" · "+escapeHtml(o.coach):""}</span><span class="v">${o.done} / ${o.total}</span></div>`).join(""); }
+      if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
     const del=isAdmin()?`<button class="btn danger sm" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
@@ -1097,7 +1101,7 @@ function renderClients(){
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${c.coaching&&c.coaching.coach?" · "+escapeHtml(c.coaching.coach):""}</span></div>`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
