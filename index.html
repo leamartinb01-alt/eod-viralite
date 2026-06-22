@@ -555,11 +555,12 @@ const SETTINGS_DEFAULT={
   setters:["Ilyas","Lucas","N/A"],
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Coach Viralité","Coach Conversion","Loïc"],
+  payees:["Céline"],
 };
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","payees","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",payees:"Personnes à payer (en plus, montant manuel)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
@@ -706,6 +707,7 @@ function payForMonth(M, cls, eods, statMap){
   const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
   const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
   const arr=[{n:"Clément",a:coachTot},{n:"Julie",a:byCloser.Julie*C.closerRate},{n:"Anthony",a:byCloser.Anthony*C.closerRate},{n:"Lucas",a:luAmount},{n:"Ilyas",a:ilAmount}];
+  (SETTINGS.payees||[]).forEach(n=>{ if(n && !arr.some(p=>p.n===n)) arr.push({n, a:0}); });
   arr.forEach(p=>{ const st=stOf(p.n); const o=st.override; p.eff=(o!=null&&o!=="")?Number(o):p.a; p.note=st.note||""; p.adj=(o!=null&&o!==""); });
   return arr;
 }
@@ -1152,6 +1154,7 @@ function renderFinance(){
     {m:"Lucas", amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]]},
     {m:"Ilyas", amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]},
   ];
+  (SETTINGS.payees||[]).forEach(n=>{ if(n && !pay.some(p=>p.m===n)) pay.push({m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]}); });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
@@ -1182,7 +1185,7 @@ function renderFinance(){
     return `<div class="entry">
       <div class="pay">
         <div class="avatar sm ${avClass(mb.role)}">${initials(p.m)}</div>
-        <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${mb.title}</div></div>
+        <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
         <div class="amt"><div class="big grad-text">${eur(p.eff)}</div><div class="lb">à verser${adj}</div></div>
       </div>
       ${kvs}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}
