@@ -191,6 +191,13 @@
   .cwk-in{margin-top:9px}
   .cwk-in label{margin:0 0 4px}
   .cwk-in input{padding:9px 11px}
+  /* checkbox client (onboarding) */
+  .ckline{display:flex; align-items:center; gap:9px; margin:12px 0 0; font-size:14px; color:var(--txt); font-weight:500; cursor:pointer}
+  .ckline input{width:20px; height:20px; flex:0 0 auto}
+  /* détail commission */
+  details.cdet{margin-top:10px}
+  details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
+  details.cdet>summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
@@ -1050,11 +1057,15 @@ const CLIENT_FIELDS=[
   { key:"statut",label:"Statut",type:"select" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
+  { key:"whatsapp",label:"📱 Groupe WhatsApp donné",type:"check" },
+  { key:"acces_booster",label:"🚀 Accès Viralité Booster donné",type:"check" },
+  { key:"notion",label:"📄 Fichier de suivi Notion envoyé (Clément)",type:"check" },
 ];
 let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
+    if(f.type==="check"){ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; inp=`<select id="cf_${f.key}">${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
@@ -1077,7 +1088,7 @@ function gatherSchedule(){ return [...document.querySelectorAll("#schedRows .sch
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
-  const obj={}; CLIENT_FIELDS.forEach(f=>{ let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
+  const obj={}; CLIENT_FIELDS.forEach(f=>{ if(f.type==="check"){ obj[f.key]=!!($("cf_"+f.key)&&$("cf_"+f.key).checked); return; } let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
   obj.schedule=gatherSchedule();
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
@@ -1133,6 +1144,11 @@ function renderClients(){
       ${line("Note paiement",c.paiement)}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
+      <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+        <span class="pill ${c.whatsapp?'ok':''}">${c.whatsapp?'✅':'⬜'} WhatsApp</span>
+        <span class="pill ${c.acces_booster?'ok':''}">${c.acces_booster?'✅':'⬜'} Booster</span>
+        <span class="pill ${c.notion?'ok':''}">${c.notion?'✅':'⬜'} Notion</span>
+      </div>
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
     </div>`;
@@ -1177,9 +1193,9 @@ function renderFinance(){
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
-    if(t==="coach") return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]]};
-    if(t==="closer"){ const ca=byCloser[n]||0; return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]]}; }
-    if(t==="lucas") return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]]};
+    if(t==="coach"){ const det=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(C.coachPerClient*(e/mt))]; }); return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detail:det}; }
+    if(t==="closer"){ const ca=byCloser[n]||0; const det=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.closerRate)]; }); return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detail:det}; }
+    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det}; }
     if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]};
     return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
   });
@@ -1193,6 +1209,7 @@ function renderFinance(){
   $("finPay").innerHTML = pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail du calcul (par client)</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
     let act="";
     if(p.edit==="ilyas") act=`<div class="payin">
         <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${ilRdv||''}"></div>
@@ -1216,7 +1233,7 @@ function renderFinance(){
         <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
         <div class="amt"><div class="big grad-text">${eur(p.eff)}</div><div class="lb">à verser${adj}</div></div>
       </div>
-      ${kvs}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}
+      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}
     </div>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
   renderFinTable();
