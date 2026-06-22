@@ -328,7 +328,7 @@
     <div class="card">
       <h2>💾 Sauvegarde & export</h2>
       <p class="sub2">Garde tes données en sécurité — à faire idéalement chaque mois. Si tu perds l'app, tu gardes tout.</p>
-      <button class="btn ghost" onclick="exportReport()">📄 Rapport clients & finances (.html — ouvre / imprime en PDF)</button>
+      <button class="btn ghost" onclick="exportReport()">📄 Rapport complet — clients + commissions + EOD (.html → PDF)</button>
       <button class="btn ghost" onclick="exportJSON()">💾 Sauvegarde complète des données (.json)</button>
       <div id="exportMsg" class="msg"></div>
     </div>
@@ -635,53 +635,105 @@ async function exportJSON(){
     m.className="msg ok"; m.textContent=`Sauvegarde téléchargée ✓ (${out.clients.length} clients, ${out.eod_reports.length} EOD).`;
   }catch(err){ m.className="msg err"; m.textContent="Erreur : "+err.message; }
 }
+function payForMonth(M, cls, eods, statMap){
+  const C=CONFIG.COMM;
+  let byCloser={Julie:0,Anthony:0}, lucasCA=0, coachTot=0;
+  cls.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(byCloser[c.closer]!=null) byCloser[c.closer]+=e; if(c.setter==="Lucas") lucasCA+=e; const mt=Number(c.montant)||e; coachTot+=C.coachPerClient*(e/mt); } });
+  const agg=aggCalls((eods||[]).filter(x=>(x.report_date||"").slice(0,7)===M));
+  const stOf=n=>statMap[n+"|"+M]||{};
+  const has=v=>v!=null&&v!=="";
+  const stIl=stOf("Ilyas"), stLu=stOf("Lucas");
+  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
+  const ilClose=has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
+  const luClose=has(stLu.closes)?Number(stLu.closes):agg.bySetter.Lucas.close;
+  const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
+  const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
+  const arr=[{n:"Clément",a:coachTot},{n:"Julie",a:byCloser.Julie*C.closerRate},{n:"Anthony",a:byCloser.Anthony*C.closerRate},{n:"Lucas",a:luAmount},{n:"Ilyas",a:ilAmount}];
+  arr.forEach(p=>{ const st=stOf(p.n); const o=st.override; p.eff=(o!=null&&o!=="")?Number(o):p.a; p.note=st.note||""; p.adj=(o!=null&&o!==""); });
+  return arr;
+}
 async function exportReport(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
-  const m=$("exportMsg"); m.className="msg"; m.style.display="block"; m.textContent="Génération du rapport…";
-  let cls=CLIENTS;
-  try{ const snap=await db.collection("clients").get(); cls=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  cls=cls.slice().sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  const m=$("exportMsg"); m.className="msg"; m.style.display="block"; m.textContent="Génération du rapport complet…";
+  let cls=[], eods=[], statMap={};
+  try{
+    const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
+    cls=cs.docs.map(d=>({id:d.id,...d.data()}));
+    eods=es.docs.map(d=>({id:d.id,...d.data()}));
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isTeamConfig||x.isSettings||x.isFollowups) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+  }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
+  const esc=s=>escapeHtml(String(s==null?"":s));
+  const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const clsS=cls.slice().sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   const totalC=cls.reduce((s,x)=>s+(Number(x.montant)||0),0);
   const encC=cls.reduce((s,x)=>s+clientEncaisse(x),0);
-  const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  const esc=s=>escapeHtml(String(s==null?"":s));
-  const rowsHtml=cls.map(c=>{
+  const clientsHtml=clsS.map(c=>{
     const e=clientEncaisse(c), r=(Number(c.montant)||0)-e;
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month))).map(s=>`${monthShort(s.month)} ${eur(s.amount)} ${s.paid?'✅':'⏳'}`).join(" · ");
     return `<tr><td><b>${esc(c.nom)}</b> ${esc(c.prenom)}<div class="sub">${esc(c.mail)}</div></td><td>${esc(c.programme)}</td><td>${esc(c.statut)}</td><td>${esc([c.setter,c.closer].filter(Boolean).join(" / "))}</td><td class="r">${eur(c.montant)}</td><td class="r ok">${eur(e)}</td><td class="r ${r>0?'due':''}">${eur(r)}</td><td class="sched">${sched||'—'}</td></tr>`;
   }).join("");
-  const html=`<!doctype html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapport Écosystème Viral — ${todayStr()}</title>
+  const months=[...new Set([].concat(
+    cls.flatMap(c=>[startMonth(c)].concat((c.schedule||[]).map(s=>s.month))),
+    eods.map(x=>(x.report_date||"").slice(0,7)),
+    Object.keys(statMap).map(k=>k.split("|")[1])
+  ))].filter(Boolean).sort().reverse();
+  const commHtml=months.map(M=>{
+    const arr=payForMonth(M,cls,eods,statMap); const tot=arr.reduce((s,p)=>s+p.eff,0);
+    const rws=arr.map(p=>`<tr><td>${esc(p.n)}</td><td class="r">${eur(p.eff)}</td><td>${p.adj?'ajusté ✎':'auto'}</td><td class="sub">${esc(p.note)}</td></tr>`).join("");
+    return `<h3>${esc(monthLabel(M))} — total à verser ${eur(tot)}</h3><table><thead><tr><th>Membre</th><th class="r">À verser</th><th>Type</th><th>Note</th></tr></thead><tbody>${rws}</tbody></table>`;
+  }).join("")||'<p class="sub">Aucune commission.</p>';
+  const eodSorted=eods.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
+  const eodHtml=eodSorted.map(x=>{
+    const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
+    flds.forEach(f=>{
+      if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
+      const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
+    });
+    return `<tr><td style="white-space:nowrap">${esc(x.report_date)}</td><td>${esc(x.member)}</td><td class="sub2c">${parts.join(" · ")||'—'}</td></tr>`;
+  }).join("")||'<tr><td colspan="3">Aucun EOD.</td></tr>';
+  const html=`<!doctype html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapport complet Écosystème Viral — ${todayStr()}</title>
 <style>
   *{box-sizing:border-box} body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#0b0b0e;color:#f4f2ee;margin:0;padding:32px}
   .doc{max-width:1000px;margin:0 auto}
   h1{font-size:24px;margin:0;background:linear-gradient(135deg,#ff8b47,#e04c6b 55%,#9d4db0);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
+  h2.sec{font-size:16px;margin:34px 0 6px;padding-top:18px;border-top:1px solid rgba(255,255,255,.12);page-break-before:always}
+  h2.sec:first-of-type{page-break-before:avoid}
+  h3{font-size:13.5px;margin:18px 0 2px;color:#ffb27a}
   .date{color:#9a98a4;font-size:13px;margin-top:4px;text-transform:capitalize}
-  .boxes{display:flex;gap:14px;margin:22px 0}
-  .box{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;text-align:center}
+  .boxes{display:flex;gap:14px;margin:22px 0;flex-wrap:wrap}
+  .box{flex:1;min-width:150px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;text-align:center}
   .box .n{font-size:22px;font-weight:800} .box .l{font-size:11px;color:#9a98a4;margin-top:4px}
-  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
-  th,td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;vertical-align:top}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  th,td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left;vertical-align:top}
   th{color:#9a98a4;text-transform:uppercase;font-size:10px;letter-spacing:.5px}
   td.r{text-align:right;white-space:nowrap} .ok{color:#7ee2a3} .due{color:#ffcf7a}
   .sub{color:#6c6a76;font-size:10.5px} .sched{color:#bdbbc6;font-size:11px}
+  .sub2c{font-size:11px;color:#bdbbc6;line-height:1.5}
+  tr{page-break-inside:avoid}
   .foot{margin-top:24px;color:#6c6a76;font-size:11px;text-align:center}
-  @media print{body{background:#fff;color:#111} .box,th,td{border-color:#ddd} .box{background:#f6f6f8} h1{color:#e04c6b;-webkit-text-fill-color:#e04c6b} .sub,.date,th{color:#666} .sched{color:#444}}
+  @media print{body{background:#fff;color:#111} .box,th,td{border-color:#ddd} .box{background:#f6f6f8} h1{color:#e04c6b;-webkit-text-fill-color:#e04c6b} h2.sec{border-color:#ccc} h3{color:#c2410c} .sub,.sub2c,.date,th{color:#555} .sched{color:#444}}
 </style></head><body><div class="doc">
-  <h1>Écosystème Viral — Rapport clients & finances</h1>
+  <h1>Écosystème Viral — Rapport complet</h1>
   <div class="date">Édité le ${dnow}</div>
   <div class="boxes">
     <div class="box"><div class="n">${cls.length}</div><div class="l">Clients</div></div>
     <div class="box"><div class="n ok">${eur(encC)}</div><div class="l">Total encaissé</div></div>
     <div class="box"><div class="n">${eur(totalC)}</div><div class="l">Total contrats</div></div>
     <div class="box"><div class="n due">${eur(totalC-encC)}</div><div class="l">Reste à encaisser</div></div>
+    <div class="box"><div class="n">${eods.length}</div><div class="l">EOD enregistrés</div></div>
   </div>
+  <h2 class="sec">Clients & encaissements</h2>
   <table><thead><tr><th>Client</th><th>Programme</th><th>Statut</th><th>Setter / Closer</th><th class="r">Montant</th><th class="r">Encaissé</th><th class="r">Reste</th><th>Échéancier</th></tr></thead>
-  <tbody>${rowsHtml||'<tr><td colspan="8">Aucun client.</td></tr>'}</tbody></table>
-  <div class="foot">Écosystème Viral · sauvegarde générée automatiquement — conserve ce fichier. Astuce : Cmd/Ctrl + P → « Enregistrer en PDF ».</div>
+  <tbody>${clientsHtml||'<tr><td colspan="8">Aucun client.</td></tr>'}</tbody></table>
+  <h2 class="sec">Commissions par mois (à verser)</h2>
+  ${commHtml}
+  <h2 class="sec">EOD — historique complet (${eods.length})</h2>
+  <table><thead><tr><th>Date</th><th>Membre</th><th>Détail</th></tr></thead><tbody>${eodHtml}</tbody></table>
+  <div class="foot">Écosystème Viral · sauvegarde générée le ${dnow}. Conserve ce fichier. Astuce : Cmd/Ctrl + P → « Enregistrer en PDF ».</div>
 </div></body></html>`;
-  dl("rapport-ecosysteme-viral-"+todayStr()+".html", html, "text/html");
-  m.className="msg ok"; m.textContent="Rapport téléchargé ✓ — ouvre-le, puis Cmd/Ctrl+P pour un PDF.";
+  dl("rapport-complet-ecosysteme-viral-"+todayStr()+".html", html, "text/html");
+  m.className="msg ok"; m.textContent="Rapport complet téléchargé ✓ — ouvre-le, puis Cmd/Ctrl+P pour le PDF.";
 }
 
 /* ===================== INIT ===================== */
