@@ -157,8 +157,17 @@
   .stat .box{min-width:0}
   .stat .n{word-break:break-word}
   .drow{flex-wrap:wrap}
-  .drow .cP,.drow .sMonth{min-width:120px}
-  .drow select,.drow input{min-width:90px}
+  .drow>*{min-width:0}
+  .drow .cP,.drow .sMonth{flex:1 1 130px}
+  .drow .cS,.drow .cR{flex:1 1 92px}
+  #fields input,#fields select,#fields textarea,#clientFields input,#clientFields select,#clientFields textarea{max-width:100%}
+  /* recherche + coaching hebdo */
+  .srch{width:100%}
+  .cglog{margin-top:10px}
+  .cglog-row{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12.5px; padding:7px 0; border-top:1px solid var(--line2)}
+  .cgw{font-weight:700; color:#ffb27a}
+  .cgmot{font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,.06); white-space:nowrap}
+  .cgadd{margin-top:11px; border-top:1px dashed var(--line); padding-top:11px}
   /* accordéon EOD */
   details.eodday{background:var(--card); border:1px solid var(--line); border-radius:16px; margin:11px 0; overflow:hidden}
   details.eodday>summary{list-style:none; cursor:pointer; padding:14px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:700; font-size:14px; text-transform:capitalize}
@@ -287,6 +296,16 @@
     <div id="memberDetail" class="hide"></div>
   </div>
 
+  <!-- COACHING -->
+  <div id="view-coaching" class="wrap hide">
+    <div class="card">
+      <h2>📚 Suivi coaching</h2>
+      <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
+      <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
+    </div>
+    <div id="coachingList"></div>
+  </div>
+
   <!-- CLIENTS -->
   <div id="view-clients" class="wrap hide">
     <div class="card">
@@ -309,7 +328,8 @@
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
     </div>
-    <div class="filters" style="margin:14px 2px 0">
+    <input id="cfSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderClients()" style="margin:14px 0 0">
+    <div class="filters" style="margin:8px 2px 0">
       <select id="cfProg"><option value="">Tous les programmes</option></select>
       <select id="cfStatut">
         <option value="">Tous les statuts</option>
@@ -357,6 +377,7 @@
 <div id="nav" class="nav hide">
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
+  <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
   <button id="nav-settings" class="hide" onclick="show('settings')"><span class="ic">⚙️</span>Réglages</button>
@@ -427,7 +448,6 @@ const FORMS = {
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
   ],
   coach:[
-    { key:"coaching",  label:"📚 Suivi coaching par client (mets le nb total de séances faites)", type:"coaching" },
     { key:"wins",      label:"Wins de la semaine 🏆",                 type:"textarea" },
     { key:"blockers",  label:"Clients à risque / blocages",           type:"textarea" },
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
@@ -455,7 +475,10 @@ function monthLabel(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateStr
 function monthShort(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}); }catch(e){ return ym; } }
 function monthsBetween(a,b){ if(!a||!b) return 0; const d1=new Date(a+"T00:00:00"), d2=new Date(b+"T00:00:00"); if(isNaN(d1)||isNaN(d2)) return 0; return Math.max(0,(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth())); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
-function coachDone(c){ return (c&&c.coaching&&Number(c.coaching.done))||0; }
+function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
+function isoWeekStr(d){ d=d?new Date(d):new Date(); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wn=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-W"+String(wn).padStart(2,"0"); }
+function weekDates(wstr){ const m=/^(\d{4})-W(\d{2})$/.exec(wstr||""); if(!m) return null; const y=+m[1], w=+m[2]; const simple=new Date(Date.UTC(y,0,1+(w-1)*7)); const dow=simple.getUTCDay(); const start=new Date(simple); if(dow<=4) start.setUTCDate(simple.getUTCDate()-dow+1); else start.setUTCDate(simple.getUTCDate()+8-dow); const end=new Date(start); end.setUTCDate(start.getUTCDate()+6); return [start,end]; }
+function cgWeekLabel(wstr){ const r=weekDates(wstr); if(!r) return wstr||""; const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "sem. "+f(r[0])+" → "+f(r[1]); }
 function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
 function fillMonthSelect(sel){ if(!sel||sel.options.length) return; lastMonths(12).forEach(ym=> sel.insertAdjacentHTML("beforeend",`<option value="${ym}">${monthLabel(ym)}</option>`)); }
 function streakOf(dates){
@@ -663,39 +686,69 @@ async function saveFollowups(name){
 }
 
 /* ===================== COACHING (suivi par client) ===================== */
-function coachSessRow(coach,n){ const opts=(SETTINGS.coachs||[]); return `<div class="drow cwsess"><select class="csCoach" style="flex:2">${opts.map(o=>`<option ${o===coach?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select><input class="csN" type="number" inputmode="numeric" min="1" value="${n||1}" style="flex:1" aria-label="Nb séances"><button type="button" class="xrow" onclick="this.closest('.cwsess').remove()">✕</button></div>`; }
-function addSess(btn){ const box=btn.parentNode.querySelector(".cwSess"); if(box) box.insertAdjacentHTML("beforeend", coachSessRow((SETTINGS.coachs||[])[0]||"",1)); }
 function coachBreakdown(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; const m={}; log.forEach(e=>{ const k=e.coach||"?"; m[k]=(m[k]||0)+(Number(e.n)||1); }); return Object.entries(m).map(([k,v])=>k+" "+v).join(" · "); }
-async function loadCoachClients(){
-  const box=$("coachClients"); if(!box) return;
+function coachLogHtml(c, withDel){ const id=c.id, log=(c.coaching&&c.coaching.log)||[]; if(!log.length) return '<div class="sub2" style="margin:8px 0 0">Aucune séance pointée pour l\'instant.</div>';
+  const ord=log.map((e,i)=>({e,i})).sort((a,b)=>String((b.e.week||b.e.date||"")).localeCompare(String((a.e.week||a.e.date||""))));
+  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const wk=e.week?cgWeekLabel(e.week):(e.date||""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(wk)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
+async function loadCoaching(){
+  const box=$("coachingList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
   initFirebase();
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ box.innerHTML='<div class="empty">Erreur de chargement.</div>'; return; }
-  const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
-  if(!cs.length){ box.innerHTML='<div class="empty">Aucun client actif pour l\'instant.</div>'; return; }
+  renderCoachingTab();
+}
+function renderCoachingTab(){
+  const box=$("coachingList"); if(!box) return;
+  const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
+  let cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif");
+  if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
+  cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
+  const coachOpts=SETTINGS.coachs||[];
   box.innerHTML=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
-    const note=(c.coaching&&c.coaching.note)||"", bd=coachBreakdown(c);
-    return `<div class="cwk" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
-      <div class="cwk-sub">${escapeHtml(c.programme||"")}${bd?" · "+escapeHtml(bd):""}${c.coaching&&c.coaching.updated?" · maj "+escapeHtml(c.coaching.updated):""}</div>
+    return `<div class="card cwkcard" data-id="${c.id}">
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
+      <div class="cwk-sub">${escapeHtml(c.programme||"")}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
-      <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cwkTot" min="0" value="${tot}"></div>
-      <div class="cwk-in"><label>Séances faites cette semaine (choisis le coach, ajoute-en plusieurs si besoin)</label>
-        <div class="cwSess"></div>
-        <button type="button" class="addrow" onclick="addSess(this)">+ Séance cette semaine</button>
+      <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
+      ${coachLogHtml(c,true)}
+      <div class="cgadd">
+        <div class="payin">
+          <div><label>Semaine</label><input type="week" class="cgWeek" value="${isoWeekStr()}"></div>
+          <div><label>Coach</label><select class="cgCoach">${coachOpts.map(o=>`<option>${escapeHtml(o)}</option>`).join("")}</select></div>
+        </div>
+        <div class="payin">
+          <div><label>Motivation</label><select class="cgMot"><option>🔥 Motivé·e</option><option>😐 Moyen</option><option>😮‍💨 Peu motivé·e</option></select></div>
+          <div><label>Note (optionnel)</label><input type="text" class="cgNote" placeholder="Ex : à relancer…"></div>
+        </div>
+        <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer la séance de la semaine</button>
       </div>
-      <div class="cwk-in"><label>Commentaire (optionnel)</label><input type="text" class="cwkNote" value="${escapeHtml(note)}" placeholder="Ex : bonne dynamique, à relancer…"></div>
     </div>`; }).join("");
 }
-function gatherCoaching(){
-  return [...document.querySelectorAll("#coachClients .cwk")].map(r=>{
-    const id=r.getAttribute("data-id");
-    const total=Math.max(0,Number(r.querySelector(".cwkTot").value)||0);
-    const note=r.querySelector(".cwkNote").value.trim();
-    const sess=[...r.querySelectorAll(".cwSess .cwsess")].map(s=>({coach:s.querySelector(".csCoach").value, n:Math.max(1,Number(s.querySelector(".csN").value)||1)}));
-    const c=CLIENTS.find(x=>x.id===id)||{};
-    return {id, name:(c.nom||""), total, note, sess};
-  });
+async function addCoachWeek(btn,id){
+  if(!fbReady()) return; initFirebase();
+  const card=btn.closest(".cwkcard"); const c=CLIENTS.find(x=>x.id===id); if(!c||!card) return;
+  const week=card.querySelector(".cgWeek").value||isoWeekStr();
+  const coach=card.querySelector(".cgCoach").value;
+  const motive=card.querySelector(".cgMot").value;
+  const note=card.querySelector(".cgNote").value.trim();
+  const total=Math.max(0,Number(card.querySelector(".cgTot").value)||coachTotal(c));
+  const prev=c.coaching||{}; const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
+  log.push({week, coach, motive, note, date:todayStr()});
+  const co={total, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), note:prev.note||"", log, updated:todayStr()};
+  try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); }
+}
+async function delCoachWeek(id,idx){
+  const c=CLIENTS.find(x=>x.id===id); if(!c||!c.coaching) return;
+  if(!confirm("Supprimer cette séance ?")) return;
+  const log=(c.coaching.log||[]).slice(); log.splice(idx,1);
+  const co={...c.coaching, log, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), updated:todayStr()};
+  try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); }
+}
+async function saveCoachTotal(id,val){
+  const c=CLIENTS.find(x=>x.id===id); if(!c) return; const prev=c.coaching||{};
+  const co={total:Math.max(0,Number(val)||0), done:Array.isArray(prev.log)?prev.log.reduce((s,e)=>s+(Number(e.n)||1),0):(Number(prev.done)||0), note:prev.note||"", log:prev.log||[], updated:todayStr()};
+  try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; }catch(e){}
 }
 function coachProgressCard(){
   const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
@@ -855,21 +908,17 @@ function onMember(){
       inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
     } else if(f.type==="calls"){
       inp=`<div id="callRows"></div><button type="button" class="addrow" onclick="addCallRow()">+ Ajouter un call</button>`;
-    } else if(f.type==="coaching"){
-      inp=`<div id="coachClients"><div class="empty">Chargement des clients…</div></div>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
-  if($("coachClients")) loadCoachClients();
 }
 function fillEodForm(x){
   const role=member(x.member).role;
   FORMS[role].forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
-    else if(f.type==="coaching"){ if($("coachClients")) loadCoachClients(); }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
@@ -885,7 +934,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="coaching"){ payload.coaching=gatherCoaching(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -911,16 +960,16 @@ async function submitEod(){
     FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
-    if($("coachClients")) loadCoachClients();
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
 /* ===================== NAV (animée) ===================== */
 function show(v){
-  ["form","team","clients","finance","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
-  ["form","team","clients","finance","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","coaching","clients","finance","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
+  ["form","team","coaching","clients","finance","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
+  if(v==="coaching") loadCoaching();
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
   if(v==="settings") renderSettings();
@@ -1057,6 +1106,9 @@ const CLIENT_FIELDS=[
   { key:"statut",label:"Statut",type:"select" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
+  { key:"immersive_lieu",label:"🎟️ Journée immersive — lieu (Mentorat / Élite Virale)",type:"text" },
+  { key:"immersive_date",label:"Journée immersive — date",type:"date" },
+  { key:"immersive_participe",label:"🎟️ A participé à la journée immersive",type:"check" },
   { key:"whatsapp",label:"📱 Groupe WhatsApp donné",type:"check" },
   { key:"acces_booster",label:"🚀 Accès Viralité Booster donné",type:"check" },
   { key:"notion",label:"📄 Fichier de suivi Notion envoyé (Clément)",type:"check" },
@@ -1114,9 +1166,11 @@ async function loadClients(){
 function clientEncaisse(c){ return (Number(c.encaisse)||0) + (c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function renderClients(){
   const fp=$("cfProg").value, fs=$("cfStatut").value;
+  const q=(($("cfSearch")&&$("cfSearch").value)||"").toLowerCase();
   let rows=CLIENTS.slice();
   if(fp) rows=rows.filter(x=>x.programme===fp);
   if(fs) rows=rows.filter(x=>x.statut===fs);
+  if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
   const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+clientEncaisse(x),0);
   $("clientStats").innerHTML=`
     <div class="box"><div class="n">${rows.length}</div><div class="l">Clients</div></div>
@@ -1142,12 +1196,14 @@ function renderClients(){
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>`:""}
+      ${line("Journée immersive",(c.immersive_lieu||"")+(c.immersive_date?" · "+c.immersive_date:""))}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${coachLogHtml(c,false)}`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         <span class="pill ${c.whatsapp?'ok':''}">${c.whatsapp?'✅':'⬜'} WhatsApp</span>
         <span class="pill ${c.acces_booster?'ok':''}">${c.acces_booster?'✅':'⬜'} Booster</span>
         <span class="pill ${c.notion?'ok':''}">${c.notion?'✅':'⬜'} Notion</span>
+        ${c.immersive_participe?`<span class="pill ok">✅ Journée immersive</span>`:""}
       </div>
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
