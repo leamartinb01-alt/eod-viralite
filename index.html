@@ -613,6 +613,7 @@ const SETTINGS_DEFAULT={
   setters:["Ilyas","Lucas","N/A"],
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Coach Viralité","Coach Conversion","Loïc"],
+  checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
   {name:"Clément",type:"coach"},
@@ -631,6 +632,7 @@ async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
+      if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
 }
@@ -652,6 +654,12 @@ function payRow(it){ it=it||{name:"",type:"manual"}; return `<div class="drow py
   </div>`; }
 function movePy(btn,dir){ const row=btn.closest('.pyrow'), box=row.parentNode; if(dir<0 && row.previousElementSibling) box.insertBefore(row,row.previousElementSibling); else if(dir>0 && row.nextElementSibling) box.insertBefore(row.nextElementSibling,row); }
 function addPy(){ const box=$("payListBox"); if(box){ box.insertAdjacentHTML("afterbegin", payRow({name:"",type:"manual"})); const i=box.firstElementChild.querySelector(".pyName"); if(i) i.focus(); } }
+function slugKey(s){ return (String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,24))||("chk"+Date.now()); }
+function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" data-key="${escapeHtml(it.key||"")}">
+    <input class="chkLabel" type="text" placeholder="Ex : 📱 Groupe WhatsApp donné" value="${escapeHtml(it.label||"")}" style="flex:1;min-width:120px">
+    <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
+  </div>`; }
+function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
 function renderSettings(){
   const box=$("settingsBox"); if(!box) return;
   let html=SET_KEYS.map(k=>{
@@ -664,12 +672,18 @@ function renderSettings(){
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
     <div class="hint">Type « Manuel » = tu mets le montant à la main dans Finance. Les autres se calculent tout seuls. Flèches ↑↓ pour changer l'ordre (les nouveaux s'ajoutent en haut).</div></div>`;
+  const ck=(SETTINGS.checks||[]).map(chkRow).join("");
+  html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
+    <div id="checkBox">${ck}</div>
+    <button type="button" class="addrow" onclick="addChk()">+ Ajouter une case</button>
+    <div class="hint">Ce sont les cases d'onboarding (WhatsApp, accès, etc.) qui apparaissent sur chaque fiche client. Mets un emoji + un texte court.</div></div>`;
   box.innerHTML=html;
 }
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
+  SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, ...SETTINGS},{merge:true});
     m.className="msg ok"; m.textContent="Réglages enregistrés ✓ — visibles par toute l'équipe."; renderSettings(); }
@@ -1182,9 +1196,6 @@ const CLIENT_FIELDS=[
   { key:"immersive_lieu",label:"🎟️ Journée immersive — lieu (Mentorat / Élite Virale)",type:"text" },
   { key:"immersive_date",label:"Journée immersive — date",type:"date" },
   { key:"immersive_participe",label:"🎟️ A participé à la journée immersive",type:"check" },
-  { key:"whatsapp",label:"📱 Groupe WhatsApp donné",type:"check" },
-  { key:"acces_booster",label:"🚀 Accès Viralité Booster donné",type:"check" },
-  { key:"notion",label:"📄 Fichier de suivi Notion envoyé (Clément)",type:"check" },
 ];
 let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
@@ -1197,6 +1208,7 @@ function renderClientForm(data){
     else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
+  (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
@@ -1214,6 +1226,7 @@ async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ if(f.type==="check"){ obj[f.key]=!!($("cf_"+f.key)&&$("cf_"+f.key).checked); return; } let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
+  (SETTINGS.checks||[]).forEach(f=>{ obj[f.key]=!!($("cf_"+f.key)&&$("cf_"+f.key).checked); });
   obj.schedule=gatherSchedule();
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
@@ -1274,9 +1287,7 @@ function renderClients(){
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
-        <span class="pill ${c.whatsapp?'ok':''}">${c.whatsapp?'✅':'⬜'} WhatsApp</span>
-        <span class="pill ${c.acces_booster?'ok':''}">${c.acces_booster?'✅':'⬜'} Booster</span>
-        <span class="pill ${c.notion?'ok':''}">${c.notion?'✅':'⬜'} Notion</span>
+        ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
         ${c.immersive_participe?`<span class="pill ok">✅ Journée immersive</span>`:""}
       </div>
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
