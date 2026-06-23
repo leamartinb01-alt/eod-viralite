@@ -203,6 +203,9 @@
   /* checkbox client (onboarding) */
   .ckline{display:flex; align-items:center; gap:9px; margin:12px 0 0; font-size:14px; color:var(--txt); font-weight:500; cursor:pointer}
   .ckline input{width:20px; height:20px; flex:0 0 auto}
+  /* bloc vérification client (admin) */
+  .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
+  .vbox textarea{min-height:46px; font-size:14px}
   /* détail commission */
   details.cdet{margin-top:10px}
   details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
@@ -396,6 +399,7 @@ const CONFIG = {
   },
   PASSWORD_TEAM : "VIRALITE2026@01",
   PASSWORD_ADMIN: "ADMIN-VIRALITE2026@01",
+  PASSWORD_CLIENT: "CLIENTS-VIRALITE2026@01",
   TEAM : [
     { name:"Julie",   title:"Closeuse", role:"closer" },
     { name:"Anthony", title:"Closer",   role:"closer" },
@@ -504,6 +508,7 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
 
 /* ===================== ACCÈS ===================== */
 let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
+const canClients=()=>isAdmin()||ACCESS==="client";
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -566,10 +571,11 @@ function renderTeamManage(){
 function login(){
   const v=$("pw").value.trim();
   if(v===CONFIG.PASSWORD_ADMIN) ACCESS="admin";
+  else if(v===CONFIG.PASSWORD_CLIENT) ACCESS="client";
   else if(v===CONFIG.PASSWORD_TEAM) ACCESS="team";
   else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; return; }
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
-  $("nav-clients").classList.toggle("hide", !isAdmin());
+  $("nav-clients").classList.toggle("hide", !canClients());
   $("nav-finance").classList.toggle("hide", !isAdmin());
   $("nav-settings").classList.toggle("hide", !isAdmin());
   initApp();
@@ -1190,6 +1196,7 @@ function renderClients(){
         ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
         <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
         ${reste>0?`<span class="pill">reste ${eur(reste)}</span>`:""}
+        <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
@@ -1206,9 +1213,29 @@ function renderClients(){
         ${c.immersive_participe?`<span class="pill ok">✅ Journée immersive</span>`:""}
       </div>
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
-      <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ Modifier</button>
+      ${!isAdmin()&&c.verified_note?line("📝 Note de Léa",c.verified_note):""}
+      ${isAdmin()?`<div class="vbox">
+        <label class="ckline" style="margin:0"><input type="checkbox" ${c.verified?'checked':''} onchange="setVerified('${c.id}',this.checked)"> ✅ Vérifié par Léa ${c.verified&&c.verified_at?`<span style="font-size:11px;color:var(--muted);font-weight:400">(${escapeHtml(c.verified_at)})</span>`:""}</label>
+        <textarea id="vn_${c.id}" rows="2" placeholder="Note de vérification (optionnel) — ex : montant à recouper, CGV à revoir…" style="margin-top:8px">${escapeHtml(c.verified_note||"")}</textarea>
+        <button class="btn ghost sm" style="margin-top:8px" onclick="saveVerifyNote('${c.id}')">💾 Enregistrer la note</button>
+      </div>`:""}
+      <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ ${isAdmin()?"Modifier":"Compléter / modifier la fiche"}</button>
     </div>`;
   }).join("");
+}
+async function setVerified(id,val){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const obj={verified:!!val, verified_by:"Léa", verified_at:val?todayStr():""};
+  try{ await db.collection("clients").doc(id).update(obj); Object.assign(c,obj); renderClients(); }
+  catch(e){ alert("Erreur : "+e.message); }
+}
+async function saveVerifyNote(id){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const el=$("vn_"+id); const note=el?el.value.trim():"";
+  try{ await db.collection("clients").doc(id).update({verified_note:note}); c.verified_note=note; alert("Note enregistrée ✓"); }
+  catch(e){ alert("Erreur : "+e.message); }
 }
 
 /* ===================== FINANCE & PAIE ===================== */
