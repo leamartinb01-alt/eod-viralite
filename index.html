@@ -204,19 +204,24 @@
   .ckline{display:flex; align-items:center; gap:9px; margin:12px 0 0; font-size:14px; color:var(--txt); font-weight:500; cursor:pointer}
   .ckline input{width:20px; height:20px; flex:0 0 auto}
   /* calendrier coaching */
-  .cal{margin-top:12px; background:rgba(0,0,0,.18); border:1px solid var(--line2); border-radius:14px; padding:12px}
+  details.calwrap{margin-top:12px; background:rgba(0,0,0,.18); border:1px solid var(--line2); border-radius:14px; overflow:hidden}
+  details.calwrap>summary{list-style:none; cursor:pointer; padding:12px 14px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center}
+  details.calwrap>summary::-webkit-details-marker{display:none}
+  details.calwrap>summary::after{content:"▸"; color:var(--faint); transition:transform .2s}
+  details.calwrap[open]>summary::after{transform:rotate(90deg)}
+  .cal{padding:0 12px 12px}
   .cal-h{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
   .cal-h .m{font-weight:700; font-size:13.5px; text-transform:capitalize}
-  .cal-nav{background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--txt); border-radius:9px; width:30px; height:30px; cursor:pointer; font-size:16px; padding:0; line-height:1; margin:0}
+  .cal-nav{background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--txt); border-radius:9px; width:32px; height:32px; cursor:pointer; font-size:17px; padding:0; line-height:1; margin:0}
   .cal-nav:active{transform:scale(.92)}
   .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
   .cal-dow{font-size:9.5px; color:var(--faint); text-align:center; text-transform:uppercase; font-weight:700; padding-bottom:2px}
-  .cal-cell{aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:12px; background:rgba(255,255,255,.03); border:1px solid transparent; color:var(--muted)}
+  .cal-cell{aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(255,255,255,.03); border:1px solid transparent; color:var(--muted)}
   .cal-cell.out{background:none; border:none}
-  .cal-cell.today{border-color:rgba(255,139,71,.5)}
-  .cal-cell.has{background:linear-gradient(135deg,rgba(255,139,71,.24),rgba(224,76,107,.22)); border-color:rgba(255,139,71,.45); color:#fff; font-weight:800}
-  .cal-dot{display:flex; gap:2px; margin-top:3px}
-  .cal-dot i{width:5px; height:5px; border-radius:50%; display:block}
+  .cal-cell.today{outline:2px solid rgba(255,139,71,.6); outline-offset:-2px}
+  .cal-cell.has{color:#fff}
+  .cal-d{font-size:12px; line-height:1; font-weight:700}
+  .cal-ab{font-size:8.5px; font-weight:800; margin-top:2px; letter-spacing:.3px}
   .cal-legend{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
   .cal-lg{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--muted)}
   .cal-lg i{width:8px; height:8px; border-radius:50%; display:inline-block}
@@ -713,9 +718,12 @@ function coachBreakdown(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; const
 function dayLabel(ds){ try{ return new Date(ds+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}); }catch(e){ return ds; } }
 function entryDay(e){ if(e.date) return e.date; if(e.week){ const r=weekDates(e.week); if(r) return r[0].toISOString().slice(0,10); } return ""; }
 function coachColor(name){ const arr=SETTINGS.coachs||[]; const pal=["#ff8b47","#5aa9ff","#62e29a","#d39be6","#ffcf7a","#ff7a9c"]; const i=arr.indexOf(name); if(i>=0) return pal[i%pal.length]; let h=0; const s=name||""; for(let k=0;k<s.length;k++) h=(h*31+s.charCodeAt(k))>>>0; return pal[h%pal.length]; }
+function coachAbbr(name){ name=(name||"").trim(); if(!name) return "?"; const w=name.split(/\s+/); if(w.length>=2) return (w[0][0]+w[1][0]).toUpperCase(); return name.slice(0,2).toUpperCase(); }
+function localYM(d){ d=d||new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function shiftYM(ym,delta){ let Y=+ym.slice(0,4), M=+ym.slice(5,7)-1+delta; Y+=Math.floor(M/12); M=((M%12)+12)%12; return Y+"-"+String(M+1).padStart(2,"0"); }
 function sessionsByDay(c){ const map={}; ((c.coaching&&c.coaching.log)||[]).forEach(e=>{ const d=entryDay(e); if(d){ (map[d]=map[d]||[]).push(e); } }); return map; }
 function coachCalendar(c, ym){
-  ym=ym||new Date().toISOString().slice(0,7);
+  ym=ym||localYM();
   const Y=+ym.slice(0,4), Mo=+ym.slice(5,7);
   const startDow=(new Date(Y,Mo-1,1).getDay()+6)%7; // Lundi=0
   const daysInMonth=new Date(Y,Mo,0).getDate();
@@ -726,11 +734,17 @@ function coachCalendar(c, ym){
   for(let d=1;d<=daysInMonth;d++){
     const ds=`${Y}-${String(Mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const ev=byDay[ds]||[];
-    const dots=ev.slice(0,4).map(e=>`<i style="background:${coachColor(e.coach)}"></i>`).join("");
-    const title=ev.length?ev.map(e=>(e.coach||"")+(e.motive?" — "+e.motive:"")+(e.note?" — "+e.note:"")).join(" | "):"";
-    cells+=`<div class="cal-cell${ev.length?' has':''}${ds===today?' today':''}" title="${escapeHtml(title)}">${d}${ev.length?`<span class="cal-dot">${dots}</span>`:""}</div>`;
+    const isToday=ds===today?" today":"";
+    if(ev.length){
+      const c0=coachColor(ev[0].coach);
+      const abbr=[...new Set(ev.map(e=>coachAbbr(e.coach)))].join("·");
+      const title=ev.map(e=>(e.coach||"")+(e.motive?" — "+e.motive:"")+(e.note?" — "+e.note:"")).join(" | ");
+      cells+=`<div class="cal-cell has${isToday}" style="background:${c0}2b;border-color:${c0}99" title="${escapeHtml(title)}"><span class="cal-d">${d}</span><span class="cal-ab" style="color:${c0}">${escapeHtml(abbr)}</span></div>`;
+    } else {
+      cells+=`<div class="cal-cell${isToday}"><span class="cal-d">${d}</span></div>`;
+    }
   }
-  const legend=(SETTINGS.coachs||[]).map(n=>`<span class="cal-lg"><i style="background:${coachColor(n)}"></i>${escapeHtml(n)}</span>`).join("");
+  const legend=(SETTINGS.coachs||[]).map(n=>`<span class="cal-lg"><i style="background:${coachColor(n)}"></i>${escapeHtml(coachAbbr(n))} ${escapeHtml(n)}</span>`).join("");
   return `<div class="calHolder"><div class="cal">
     <div class="cal-h"><button type="button" class="cal-nav" onclick="calMove(this,'${c.id}','${ym}',-1)">‹</button><span class="m">${monthLabel(ym)}</span><button type="button" class="cal-nav" onclick="calMove(this,'${c.id}','${ym}',1)">›</button></div>
     <div class="cal-grid">${dows.map(d=>`<div class="cal-dow">${d}</div>`).join("")}${cells}</div>
@@ -738,8 +752,7 @@ function coachCalendar(c, ym){
   </div></div>`;
 }
 function calMove(btn,id,ym,delta){
-  const Y=+ym.slice(0,4), Mo=+ym.slice(5,7);
-  const nym=new Date(Y,Mo-1+delta,1).toISOString().slice(0,7);
+  const nym=shiftYM(ym,delta);
   const c=CLIENTS.find(x=>x.id===id); const holder=btn.closest(".calHolder");
   if(c&&holder) holder.outerHTML=coachCalendar(c,nym);
 }
@@ -766,7 +779,7 @@ function renderCoachingTab(){
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
-      ${coachCalendar(c)}
+      <details class="calwrap" open><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       <div class="cgadd">
         <div class="payin">
@@ -1258,7 +1271,7 @@ function renderClients(){
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
       ${line("Journée immersive",(c.immersive_lieu||"")+(c.immersive_date?" · "+c.immersive_date:""))}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?coachCalendar(c):coachLogHtml(c,false)}`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         <span class="pill ${c.whatsapp?'ok':''}">${c.whatsapp?'✅':'⬜'} WhatsApp</span>
