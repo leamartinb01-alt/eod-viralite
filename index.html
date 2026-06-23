@@ -203,6 +203,23 @@
   /* checkbox client (onboarding) */
   .ckline{display:flex; align-items:center; gap:9px; margin:12px 0 0; font-size:14px; color:var(--txt); font-weight:500; cursor:pointer}
   .ckline input{width:20px; height:20px; flex:0 0 auto}
+  /* calendrier coaching */
+  .cal{margin-top:12px; background:rgba(0,0,0,.18); border:1px solid var(--line2); border-radius:14px; padding:12px}
+  .cal-h{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+  .cal-h .m{font-weight:700; font-size:13.5px; text-transform:capitalize}
+  .cal-nav{background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--txt); border-radius:9px; width:30px; height:30px; cursor:pointer; font-size:16px; padding:0; line-height:1; margin:0}
+  .cal-nav:active{transform:scale(.92)}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+  .cal-dow{font-size:9.5px; color:var(--faint); text-align:center; text-transform:uppercase; font-weight:700; padding-bottom:2px}
+  .cal-cell{aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:12px; background:rgba(255,255,255,.03); border:1px solid transparent; color:var(--muted)}
+  .cal-cell.out{background:none; border:none}
+  .cal-cell.today{border-color:rgba(255,139,71,.5)}
+  .cal-cell.has{background:linear-gradient(135deg,rgba(255,139,71,.24),rgba(224,76,107,.22)); border-color:rgba(255,139,71,.45); color:#fff; font-weight:800}
+  .cal-dot{display:flex; gap:2px; margin-top:3px}
+  .cal-dot i{width:5px; height:5px; border-radius:50%; display:block}
+  .cal-legend{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+  .cal-lg{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--muted)}
+  .cal-lg i{width:8px; height:8px; border-radius:50%; display:inline-block}
   /* bloc vérification client (admin) */
   .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
   .vbox textarea{min-height:46px; font-size:14px}
@@ -303,7 +320,7 @@
   <div id="view-coaching" class="wrap hide">
     <div class="card">
       <h2>📚 Suivi coaching</h2>
-      <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
+      <p class="sub2">Pointe chaque jour les coachings faits par client (visible par toute l'équipe).</p>
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
     </div>
     <div id="coachingList"></div>
@@ -693,9 +710,42 @@ async function saveFollowups(name){
 
 /* ===================== COACHING (suivi par client) ===================== */
 function coachBreakdown(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; const m={}; log.forEach(e=>{ const k=e.coach||"?"; m[k]=(m[k]||0)+(Number(e.n)||1); }); return Object.entries(m).map(([k,v])=>k+" "+v).join(" · "); }
+function dayLabel(ds){ try{ return new Date(ds+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}); }catch(e){ return ds; } }
+function entryDay(e){ if(e.date) return e.date; if(e.week){ const r=weekDates(e.week); if(r) return r[0].toISOString().slice(0,10); } return ""; }
+function coachColor(name){ const arr=SETTINGS.coachs||[]; const pal=["#ff8b47","#5aa9ff","#62e29a","#d39be6","#ffcf7a","#ff7a9c"]; const i=arr.indexOf(name); if(i>=0) return pal[i%pal.length]; let h=0; const s=name||""; for(let k=0;k<s.length;k++) h=(h*31+s.charCodeAt(k))>>>0; return pal[h%pal.length]; }
+function sessionsByDay(c){ const map={}; ((c.coaching&&c.coaching.log)||[]).forEach(e=>{ const d=entryDay(e); if(d){ (map[d]=map[d]||[]).push(e); } }); return map; }
+function coachCalendar(c, ym){
+  ym=ym||new Date().toISOString().slice(0,7);
+  const Y=+ym.slice(0,4), Mo=+ym.slice(5,7);
+  const startDow=(new Date(Y,Mo-1,1).getDay()+6)%7; // Lundi=0
+  const daysInMonth=new Date(Y,Mo,0).getDate();
+  const byDay=sessionsByDay(c), today=todayStr();
+  const dows=["L","M","M","J","V","S","D"];
+  let cells="";
+  for(let i=0;i<startDow;i++) cells+=`<div class="cal-cell out"></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${Y}-${String(Mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const ev=byDay[ds]||[];
+    const dots=ev.slice(0,4).map(e=>`<i style="background:${coachColor(e.coach)}"></i>`).join("");
+    const title=ev.length?ev.map(e=>(e.coach||"")+(e.motive?" — "+e.motive:"")+(e.note?" — "+e.note:"")).join(" | "):"";
+    cells+=`<div class="cal-cell${ev.length?' has':''}${ds===today?' today':''}" title="${escapeHtml(title)}">${d}${ev.length?`<span class="cal-dot">${dots}</span>`:""}</div>`;
+  }
+  const legend=(SETTINGS.coachs||[]).map(n=>`<span class="cal-lg"><i style="background:${coachColor(n)}"></i>${escapeHtml(n)}</span>`).join("");
+  return `<div class="calHolder"><div class="cal">
+    <div class="cal-h"><button type="button" class="cal-nav" onclick="calMove(this,'${c.id}','${ym}',-1)">‹</button><span class="m">${monthLabel(ym)}</span><button type="button" class="cal-nav" onclick="calMove(this,'${c.id}','${ym}',1)">›</button></div>
+    <div class="cal-grid">${dows.map(d=>`<div class="cal-dow">${d}</div>`).join("")}${cells}</div>
+    <div class="cal-legend">${legend}</div>
+  </div></div>`;
+}
+function calMove(btn,id,ym,delta){
+  const Y=+ym.slice(0,4), Mo=+ym.slice(5,7);
+  const nym=new Date(Y,Mo-1+delta,1).toISOString().slice(0,7);
+  const c=CLIENTS.find(x=>x.id===id); const holder=btn.closest(".calHolder");
+  if(c&&holder) holder.outerHTML=coachCalendar(c,nym);
+}
 function coachLogHtml(c, withDel){ const id=c.id, log=(c.coaching&&c.coaching.log)||[]; if(!log.length) return '<div class="sub2" style="margin:8px 0 0">Aucune séance pointée pour l\'instant.</div>';
-  const ord=log.map((e,i)=>({e,i})).sort((a,b)=>String((b.e.week||b.e.date||"")).localeCompare(String((a.e.week||a.e.date||""))));
-  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const wk=e.week?cgWeekLabel(e.week):(e.date||""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(wk)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
+  const ord=log.map((e,i)=>({e,i})).sort((a,b)=>String((entryDay(b.e))).localeCompare(String((entryDay(a.e)))));
+  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const dd=e.date?dayLabel(e.date):(e.week?cgWeekLabel(e.week):""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(dd)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
 async function loadCoaching(){
   const box=$("coachingList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -716,31 +766,32 @@ function renderCoachingTab(){
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
-      <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
-      ${coachLogHtml(c,true)}
+      ${coachCalendar(c)}
+      <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       <div class="cgadd">
         <div class="payin">
-          <div><label>Semaine</label><input type="week" class="cgWeek" value="${isoWeekStr()}"></div>
+          <div><label>Jour du coaching</label><input type="date" class="cgDate" value="${todayStr()}"></div>
           <div><label>Coach</label><select class="cgCoach">${coachOpts.map(o=>`<option>${escapeHtml(o)}</option>`).join("")}</select></div>
         </div>
         <div class="payin">
           <div><label>Motivation</label><select class="cgMot"><option>🔥 Motivé·e</option><option>😐 Moyen</option><option>😮‍💨 Peu motivé·e</option></select></div>
           <div><label>Note (optionnel)</label><input type="text" class="cgNote" placeholder="Ex : à relancer…"></div>
         </div>
-        <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer la séance de la semaine</button>
+        <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
+        <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
       </div>
     </div>`; }).join("");
 }
 async function addCoachWeek(btn,id){
   if(!fbReady()) return; initFirebase();
   const card=btn.closest(".cwkcard"); const c=CLIENTS.find(x=>x.id===id); if(!c||!card) return;
-  const week=card.querySelector(".cgWeek").value||isoWeekStr();
+  const date=card.querySelector(".cgDate").value||todayStr();
   const coach=card.querySelector(".cgCoach").value;
   const motive=card.querySelector(".cgMot").value;
   const note=card.querySelector(".cgNote").value.trim();
   const total=Math.max(0,Number(card.querySelector(".cgTot").value)||coachTotal(c));
   const prev=c.coaching||{}; const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
-  log.push({week, coach, motive, note, date:todayStr()});
+  log.push({date, coach, motive, note});
   const co={total, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), note:prev.note||"", log, updated:todayStr()};
   try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); }
 }
@@ -971,6 +1022,9 @@ async function submitEod(){
 
 /* ===================== NAV (animée) ===================== */
 function show(v){
+  // Sécurité accès : Finance & Réglages = admin uniquement ; Clients = admin ou accès clients
+  if((v==="finance"||v==="settings") && !isAdmin()) v="form";
+  if(v==="clients" && !canClients()) v="form";
   ["form","team","coaching","clients","finance","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
   ["form","team","coaching","clients","finance","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
@@ -1204,7 +1258,7 @@ function renderClients(){
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
       ${line("Journée immersive",(c.immersive_lieu||"")+(c.immersive_date?" · "+c.immersive_date:""))}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${coachLogHtml(c,false)}`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?coachCalendar(c):coachLogHtml(c,false)}`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         <span class="pill ${c.whatsapp?'ok':''}">${c.whatsapp?'✅':'⬜'} WhatsApp</span>
