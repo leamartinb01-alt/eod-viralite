@@ -225,6 +225,15 @@
   .cal-legend{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
   .cal-lg{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--muted)}
   .cal-lg i{width:8px; height:8px; border-radius:50%; display:inline-block}
+  /* tracking calls (finance) */
+  .ctrow{background:rgba(0,0,0,.2); border:1px solid var(--line2); border-radius:13px; padding:10px 11px; margin-top:9px}
+  .ctrow.dup{border-color:rgba(255,90,77,.55); background:rgba(255,90,77,.07)}
+  .ctrow .ctP{font-weight:600}
+  .ctline{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px}
+  .ctline>select,.ctline>input[type=date]{flex:1 1 90px; min-width:0; padding:9px 10px; font-size:13px}
+  .ctline .ck{font-size:11px}
+  .ctrow.lead{border-color:rgba(52,199,89,.5)}
+  .ctwarn{background:rgba(255,90,77,.13); color:#ff9a90; border:1px solid rgba(255,90,77,.35); border-radius:11px; padding:9px 12px; font-size:12.5px; margin-top:8px}
   /* bloc vérification client (admin) */
   .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
   .vbox textarea{min-height:46px; font-size:14px}
@@ -375,6 +384,8 @@
     </div>
     <div class="section-title">Fiches de paie du mois</div>
     <div id="finPay"></div>
+    <div class="section-title">📞 Tracking des calls (RDV → show)</div>
+    <div id="callTrack"></div>
     <div class="section-title">Encaissements par client × mois</div>
     <div id="finTable"></div>
   </div>
@@ -450,6 +461,15 @@ const MOODS = [
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
 const CALL_RESULTS = ["Show-up","No-show","Closé"];
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
+/* Calls pré-remplis depuis le Calendly (juin) — modifiables ensuite dans Finance */
+const CALL_SEED=[
+  {month:"2026-06", prospect:"Théo Penin",      setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
+  {month:"2026-06", prospect:"Ilias Atghaninti", setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
+  {month:"2026-06", prospect:"Rohan Enault",     setter:"Ilyas", closer:"Anthony", date:"2026-06-23"},
+  {month:"2026-06", prospect:"Fanta Sakho",      setter:"Ilyas", closer:"Anthony", date:"2026-06-22"},
+  {month:"2026-06", prospect:"Capelle Florian",  setter:"Ilyas", closer:"Julie",   date:"2026-06-22"},
+  {month:"2026-06", prospect:"Samuel Lariviere", setter:"Ilyas", closer:"Anthony", date:"2026-06-21"},
+];
 const FORMS = {
   closer:[
     { key:"calls_log",       label:"📞 Tes calls du jour (prospect · source · résultat)", type:"calls" },
@@ -677,10 +697,10 @@ function renderSettings(){
       <button type="button" class="addrow" onclick="addLi('${k}')">+ Ajouter</button></div>`;
   }).join("");
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
-  html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
+  html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & type de paie</h3>
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint">Type « Manuel » = tu mets le montant à la main dans Finance. Les autres se calculent tout seuls. Flèches ↑↓ pour changer l'ordre (les nouveaux s'ajoutent en haut).</div></div>`;
+    <div class="hint">Choisis le <b>type de paie</b> pour chacun dans le menu déroulant (Manuel, Closer 10 %, Coach 400 €, Lucas, Ilyas). « Manuel » = tu mets le montant à la main dans Finance. Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
     <div id="checkBox">${ck}</div>
@@ -882,7 +902,7 @@ function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
   const has=v=>v!=null&&v!=="";
   const stIl=stOf("Ilyas"), stLu=stOf("Lucas");
-  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
+  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
   const ilClose=has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
   const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
   const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
@@ -903,7 +923,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()}));
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isTeamConfig||x.isSettings||x.isFollowups) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isTeamConfig||x.isSettings||x.isFollowups) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1336,13 +1356,31 @@ async function saveVerifyNote(id){
 
 /* ===================== FINANCE & PAIE ===================== */
 let SSTATS={}; // key member|month -> {rdv,closes,posts}
+let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
 function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
+function normName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function autoCallCandidates(M){
+  const out=[];
+  EODS.filter(x=>(x.report_date||"").slice(0,7)===M).forEach(e=>{
+    callsArr(e).forEach(c=>{ if(!c.p) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), verified:false}); });
+    bookedArr(e).forEach(b=>{ if(!b.name) return; out.push({prospect:b.name, setter:e.member||"", closer:"", date:e.report_date||"", show:null, verified:!!b.verified}); });
+  });
+  return out;
+}
+function mergeCalls(M){
+  const saved=(CALLTRK[M]||[]).map(x=>({...x}));
+  const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
+  const cand=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:null,verified:false})).concat(autoCallCandidates(M));
+  cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
+  return saved;
+}
+function trackerLeads(M,setter){ return mergeCalls(M).filter(c=>c.setter===setter && c.show===true && c.verified===true).length; }
 async function loadFinance(){
   if(!fbReady()){ $("finPay").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
   if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
   if(!EODS.length){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isTeamConfig||x.isSettings||x.isFollowups) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -1365,7 +1403,7 @@ function renderFinance(){
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
-  const ilRdv = has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
+  const ilRdv = has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
   const ilClose = has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
   const luClose = has(stLu.closes)?Number(stLu.closes):agg.bySetter.Lucas.close;
   const ilPrimeR=palier(ilRdv,C.palierRdv), ilPrimeC=palier(ilClose,C.palierClose);
@@ -1395,7 +1433,7 @@ function renderFinance(){
     if(p.edit==="ilyas") act=`<div class="payin">
         <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${ilRdv||''}"></div>
         <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${ilClose||''}"></div>
-      </div><div class="hint">RDV/closes pré-remplis auto depuis les calls des closers (no-show exclu).</div>`;
+      </div><div class="hint">Auto = show-up <b>vérifiés</b> dans le tracking des calls ci-dessous. Tu peux forcer un nombre ici si besoin.</div>`;
     if(p.edit==="lucas") act=`<div class="payin">
         <div><label>Nb posts LinkedIn</label><input type="number" inputmode="numeric" id="st_${p.m}_posts" value="${Number(stLu.posts)||''}"></div>
         <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${luClose||''}"></div>
@@ -1417,7 +1455,52 @@ function renderFinance(){
       ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}
     </div>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
+  renderCallTracker(M);
   renderFinTable();
+}
+function ctRow(c,i){ const setters=["",...(SETTINGS.setters||[])], closers=["",...(SETTINGS.closers||[])];
+  const showSel=v=>`<select class="ctShow"><option value=""${v==null?" selected":""}>— statut</option><option value="show"${v===true?" selected":""}>✅ Show-up</option><option value="no"${v===false?" selected":""}>❌ No-show</option></select>`;
+  return `<div class="ctrow${c._dup?' dup':''}${(c.show===true&&c.verified)?' lead':''}" data-i="${i}">
+    <input class="ctP" type="text" placeholder="Prospect" value="${escapeHtml(c.prospect||'')}" style="width:100%">
+    <div class="ctline">
+      <select class="ctSet">${setters.map(o=>`<option ${o===(c.setter||'')?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select>
+      <select class="ctClo">${closers.map(o=>`<option ${o===(c.closer||'')?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select>
+      <input class="ctDate" type="date" value="${escapeHtml(c.date||'')}">
+      ${showSel(c.show)}
+      <label class="ck"><input type="checkbox" class="ctVer" ${c.verified?'checked':''}>vérifié</label>
+      <button type="button" class="xrow" onclick="this.closest('.ctrow').remove()">✕</button>
+    </div>
+  </div>`; }
+function renderCallTracker(M){
+  const box=$("callTrack"); if(!box) return;
+  if(!isAdmin()){ box.innerHTML=""; return; }
+  const list=mergeCalls(M);
+  const cnt={}; list.forEach(c=>{ const k=normName(c.prospect); if(k) cnt[k]=(cnt[k]||0)+1; });
+  list.forEach(c=>{ c._dup = normName(c.prospect) && cnt[normName(c.prospect)]>1; });
+  const dups=Object.values(cnt).filter(v=>v>1).length;
+  const leadsIl=list.filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified).length;
+  const leadsLu=list.filter(c=>c.setter==="Lucas"&&c.show===true&&c.verified).length;
+  box.innerHTML=`<div class="entry">
+    <p class="sub2" style="margin:0 0 6px">Insta = Ilyas · LinkedIn = Lucas. Pré-rempli depuis le Calendly + les EOD. Un call compte comme <b>lead payé</b> seulement si <b>Show-up + vérifié</b>. ✅ Ilyas : ${leadsIl} lead(s) · Lucas : ${leadsLu}.</p>
+    ${dups?`<div class="ctwarn">⚠️ ${dups} doublon(s) détecté(s) — vérifie les lignes en rouge.</div>`:""}
+    <div id="ctRows">${list.map((c,i)=>ctRow(c,i)).join("")}</div>
+    <button type="button" class="addrow" onclick="addCallTrack()">+ Ajouter un call</button>
+    <button class="btn ghost sm" style="margin-top:10px" onclick="saveCallTracker('${M}')">💾 Enregistrer le tracking ${M}</button>
+    <div id="ctMsg" class="msg"></div>
+  </div>`;
+}
+function addCallTrack(){ const box=$("ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",setter:"Ilyas",closer:"",date:todayStr(),show:null,verified:false}, box.children.length)); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
+async function saveCallTracker(M){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  if(!fbReady()) return; initFirebase();
+  const list=[...document.querySelectorAll("#ctRows .ctrow")].map(r=>{
+    const sh=r.querySelector(".ctShow").value;
+    return { prospect:r.querySelector(".ctP").value.trim(), setter:r.querySelector(".ctSet").value, closer:r.querySelector(".ctClo").value, date:r.querySelector(".ctDate").value, show: sh==="show"?true:(sh==="no"?false:null), verified:r.querySelector(".ctVer").checked };
+  }).filter(x=>x.prospect);
+  const m=$("ctMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("setter_stats").doc("CALLS_"+M).set({isCalls:true, month:M, list},{merge:true});
+    CALLTRK[M]=list; m.className="msg ok"; m.textContent="Tracking enregistré ✓"; renderFinance(); }
+  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function saveStat(name){
   const M=$("finMonth").value||monthStr();
