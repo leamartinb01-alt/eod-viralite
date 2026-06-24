@@ -467,8 +467,7 @@ const FORMS = {
     { key:"contacted",        label:"Personnes contactées",                 type:"number" },
     { key:"in_contact",       label:"Personnes en contact (conversations)", type:"number" },
     { key:"calls_booked",     label:"Calls pris (RDV calés)",               type:"number" },
-    { key:"confirmed_tomorrow", label:"RDV confirmés pour demain",          type:"number" },
-    { key:"booked_names",     label:"Noms des calls bookés aujourd'hui",    type:"textarea" },
+    { key:"booked",           label:"📋 RDV pris aujourd'hui (nom + vérifié)", type:"booked" },
     { key:"need_help",        label:"Un blocage / besoin d'aide ?",         type:"textarea" },
     { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
@@ -483,7 +482,7 @@ const FORMS = {
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
   closer:[ {key:"cash_gen_month",label:"Cash généré (mois)",money:true,agg:"last"}, {key:"cash_month",label:"Cash collecté (mois)",money:true,agg:"last"} ],
-  setter:[ {key:"contacted",label:"Contactées"}, {key:"calls_booked",label:"Calls pris"}, {key:"confirmed_tomorrow",label:"Confirmés"} ],
+  setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
 };
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
@@ -522,6 +521,16 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; box.i
     <button type="button" class="xrow" onclick="this.closest('.callRow').remove()">✕</button>
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
+function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; box.insertAdjacentHTML("beforeend",
+  `<div class="drow bookRow">
+    <input class="bkN" type="text" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1">
+    <label class="ck"><input class="bkV" type="checkbox" ${d.verified?'checked':''}>vérifié</label>
+    <button type="button" class="xrow" onclick="this.closest('.bookRow').remove()">✕</button>
+  </div>`); }
+function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
+function bookedArr(x){ const b=x&&x.payload&&x.payload.booked; return Array.isArray(b)?b:[]; }
+function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
+function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
 function callsArr(x){ return (x&&x.payload&&Array.isArray(x.payload.calls))?x.payload.calls:[]; }
 function lastMonthVal(eods,key){ const sorted=(eods||[]).slice().sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date))); const f=sorted.find(x=>x.payload&&x.payload[key]!=null&&x.payload[key]!==""); return f?(Number(f.payload[key])||0):0; }
 function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
@@ -921,6 +930,7 @@ async function exportReport(){
     const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
     flds.forEach(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
+      if(f.type==="booked"){ const b=bookedArr(x); if(b.length) parts.push("RDV pris: "+b.map(z=>esc(z.name||'?')+(z.verified?" ✓":"")).join(", ")); return; }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("Coaching: "+p2.join(" · ")); } return; }
       const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
     });
@@ -994,17 +1004,21 @@ function onMember(){
       inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
     } else if(f.type==="calls"){
       inp=`<div id="callRows"></div><button type="button" class="addrow" onclick="addCallRow()">+ Ajouter un call</button>`;
+    } else if(f.type==="booked"){
+      inp=`<div id="bookRows"></div><button type="button" class="addrow" onclick="addBookRow()">+ Ajouter un RDV pris</button>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
+  if($("bookRows") && !$("bookRows").children.length) addBookRow();
 }
 function fillEodForm(x){
   const role=member(x.member).role;
   FORMS[role].forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
+    else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
@@ -1020,7 +1034,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -1046,6 +1060,7 @@ async function submitEod(){
     FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
+    if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
@@ -1145,6 +1160,7 @@ function openMember(name){
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
     const kvs=fields.map(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
+      if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
@@ -1344,7 +1360,9 @@ function renderFinance(){
     }
     (c.schedule||[]).forEach(s=>{ if(s.month===M && !s.paid) dueTot+=Number(s.amount)||0; });
   });
-  const agg=aggCalls(EODS.filter(x=>(x.report_date||"").slice(0,7)===M));
+  const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
+  const agg=aggCalls(monthEods);
+  function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
   const ilRdv = has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
@@ -1358,8 +1376,8 @@ function renderFinance(){
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
     if(t==="coach"){ const det=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(C.coachPerClient*(e/mt))]; }); return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detail:det}; }
     if(t==="closer"){ const ca=byCloser[n]||0; const det=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.closerRate)]; }); return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detail:det}; }
-    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det}; }
-    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]]};
+    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det.concat(setterTrack("Lucas"))}; }
+    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]], detail:setterTrack("Ilyas")};
     return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
   });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
@@ -1372,7 +1390,7 @@ function renderFinance(){
   $("finPay").innerHTML = pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
-    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail du calcul (par client)</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
+    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail & tracking</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
     let act="";
     if(p.edit==="ilyas") act=`<div class="payin">
         <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${ilRdv||''}"></div>
