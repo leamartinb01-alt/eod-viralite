@@ -469,10 +469,8 @@ const CALL_SEED=[
 const FORMS = {
   closer:[
     { key:"calls_log",       label:"📞 Tes calls du jour (prospect · source · résultat)", type:"calls" },
-    { key:"cash_gen_day",    label:"💰 Cash généré aujourd'hui (€)",        type:"number" },
-    { key:"cash_gen_month",  label:"💰 Cash généré depuis le début du mois (€)", type:"number" },
-    { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€)",      type:"number" },
-    { key:"cash_month",      label:"🏦 Cash collecté depuis le début du mois (€)", type:"number" },
+    { key:"cash_gen_day",    label:"💰 Cash généré aujourd'hui (€) — le total du mois se calcule tout seul", type:"number" },
+    { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€) — le total du mois se calcule tout seul", type:"number" },
     { key:"objections",      label:"Objections / blocages rencontrés",      type:"textarea" },
     { key:"followup_next",   label:"Nb & noms follow-up des prochains jours", type:"textarea" },
     { key:"followup_update", label:"Update follow-up du jour",              type:"textarea" },
@@ -497,7 +495,7 @@ const FORMS = {
 };
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
-  closer:[ {key:"cash_gen_month",label:"Cash généré (mois)",money:true,agg:"last"}, {key:"cash_month",label:"Cash collecté (mois)",money:true,agg:"last"} ],
+  closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
 };
@@ -1111,7 +1109,7 @@ function renderTeam(){
   $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
   const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
   let gen=0, col=0;
-  CONFIG.TEAM.filter(m=>m.role==="closer").forEach(m=>{ const evs=mc.filter(x=>x.member===m.name); gen+=lastMonthVal(evs,"cash_gen_month"); col+=lastMonthVal(evs,"cash_month"); });
+  mc.forEach(x=>{ gen+=Number(x.payload&&x.payload.cash_gen_day)||0; col+=Number(x.payload&&x.payload.cash_day)||0; });
   const closed=aggCalls(mc).close;
   $("teamStats").innerHTML=`
     <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré</div></div>
