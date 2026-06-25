@@ -1421,22 +1421,23 @@ let SSTATS={}; // key member|month -> {rdv,closes,posts}
 let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
 function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
 function normName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function junkName(s){ const t=String(s||"").trim(); return !t || /^\d+$/.test(t) || t.length<2; }
 function autoCallCandidates(M){
   const out=[];
   EODS.filter(x=>(x.report_date||"").slice(0,7)===M).forEach(e=>{
-    callsArr(e).forEach(c=>{ if(!c.p) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), verified:false}); });
-    bookedArr(e).forEach(b=>{ if(!b.name) return; out.push({prospect:b.name, setter:e.member||"", closer:"", date:e.report_date||"", show:null, verified:!!b.verified}); });
+    callsArr(e).forEach(c=>{ if(junkName(c.p)) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), verified:false}); });
+    bookedArr(e).forEach(b=>{ if(junkName(b.name)) return; out.push({prospect:b.name, setter:e.member||"", closer:"", date:e.report_date||"", show:null, verified:!!b.verified}); });
   });
   return out;
 }
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
   const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
-  // Le seed d'un setter ne s'affiche que tant que tu n'as RIEN enregistré pour ce setter ce mois-ci.
-  // Dès que tu enregistres sa fiche, tes suppressions/modifs sont définitives (le seed ne revient plus).
+  // Dès que tu as enregistré la fiche d'un setter, PLUS RIEN ne se re-greffe tout seul pour lui
+  // (ni seed, ni calls auto des EOD) : tes suppressions/modifs sont définitives. Tu ajoutes les suivants à la main.
   const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
-  const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
-  const cand=seedRows.concat(autoCallCandidates(M));
+  const seedRows=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
+  const cand=seedRows.concat(autoCallCandidates(M)).filter(c=> c.setter ? !savedSetters.has(c.setter) : true);
   cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
   return saved;
 }
