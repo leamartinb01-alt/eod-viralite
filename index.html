@@ -1432,8 +1432,11 @@ function autoCallCandidates(M){
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
   const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
-  // Leads vérifiés (seed) toujours garantis ; tes éventuelles modifs enregistrées priment (même nom). Puis les calls auto des EOD.
-  const cand=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified})).concat(autoCallCandidates(M));
+  // Le seed d'un setter ne s'affiche que tant que tu n'as RIEN enregistré pour ce setter ce mois-ci.
+  // Dès que tu enregistres sa fiche, tes suppressions/modifs sont définitives (le seed ne revient plus).
+  const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
+  const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
+  const cand=seedRows.concat(autoCallCandidates(M));
   cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
   return saved;
 }
