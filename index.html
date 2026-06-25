@@ -1463,14 +1463,17 @@ function ctRow(c){
     </div>
   </div>`; }
 function setterCallsBlock(M, setter){
-  const list=mergeCalls(M).filter(c=>c.setter===setter);
-  const leads=list.filter(c=>c.show===true&&c.verified).length;
-  const rows=list.length?list.map(ctRow).join(""):'<div class="sub2" style="margin:8px 0">Aucun call pour l\'instant — ils remontent des EOD d\'Anthony/Julie.</div>';
+  const all=mergeCalls(M).filter(c=>c.setter===setter).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const pending=all.filter(c=>!c.verified), done=all.filter(c=>c.verified);
+  const leads=done.filter(c=>c.show===true).length;
+  const pRows=pending.length?pending.map(ctRow).join(""):'<div class="sub2" style="margin:8px 0">Rien à vérifier 👌 — les nouveaux calls remonteront ici.</div>';
   return `<div class="ctbox" data-set="${setter}" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
-    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b> (${setter==="Ilyas"?"Instagram":"LinkedIn"}) · ${leads} lead(s) vérifié(s) — coche <b>Show-up + vérifié</b> pour compter.</div>
-    <div class="ctRows">${rows}</div>
+    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b> (${setter==="Ilyas"?"Instagram":"LinkedIn"}) · ${leads} lead(s) payé(s) ce mois.</div>
+    <div class="sub2" style="margin:0 0 2px;color:var(--faint)">À vérifier (${pending.length}) — choisis le statut, coche « vérifié », puis Enregistrer.</div>
+    <div class="ctRows">${pRows}</div>
     <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
-    <button class="btn ghost sm" style="margin-top:8px" onclick="saveSetterCalls('${M}','${setter}')">💾 Enregistrer les calls ${escapeHtml(setter)}</button>
+    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés (${done.length})</summary><div class="ctRows">${done.map(ctRow).join("")}</div></details>`:""}
+    <button class="btn ghost sm" style="margin-top:10px" onclick="saveSetterCalls('${M}','${setter}')">💾 Enregistrer / valider</button>
     <div class="ctMsg msg"></div>
   </div>`;
 }
@@ -1479,7 +1482,7 @@ async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
   const box=document.querySelector('.ctbox[data-set="'+setter+'"]'); if(!box) return;
-  const mine=[...box.querySelectorAll(".ctRows .ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value;
+  const mine=[...box.querySelectorAll(".ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value;
     return { prospect:r.querySelector(".ctP").value.trim(), setter:setter, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: sh==="show"?true:(sh==="no"?false:null), verified:r.querySelector(".ctVer").checked };
   }).filter(x=>x.prospect);
   const others=(CALLTRK[M]||[]).filter(c=>c.setter!==setter);
