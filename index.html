@@ -227,13 +227,11 @@
   .cal-lg i{width:8px; height:8px; border-radius:50%; display:inline-block}
   /* tracking calls (finance) */
   .ctrow{background:rgba(0,0,0,.2); border:1px solid var(--line2); border-radius:13px; padding:10px 11px; margin-top:9px}
-  .ctrow.dup{border-color:rgba(255,90,77,.55); background:rgba(255,90,77,.07)}
   .ctrow .ctP{font-weight:600}
   .ctline{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px}
   .ctline>select,.ctline>input[type=date]{flex:1 1 90px; min-width:0; padding:9px 10px; font-size:13px}
   .ctline .ck{font-size:11px}
   .ctrow.lead{border-color:rgba(52,199,89,.5)}
-  .ctwarn{background:rgba(255,90,77,.13); color:#ff9a90; border:1px solid rgba(255,90,77,.35); border-radius:11px; padding:9px 12px; font-size:12.5px; margin-top:8px}
   /* bloc vérification client (admin) */
   .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
   .vbox textarea{min-height:46px; font-size:14px}
@@ -384,8 +382,6 @@
     </div>
     <div class="section-title">Fiches de paie du mois</div>
     <div id="finPay"></div>
-    <div class="section-title">📞 Tracking des calls (RDV → show)</div>
-    <div id="callTrack"></div>
     <div class="section-title">Encaissements par client × mois</div>
     <div id="finTable"></div>
   </div>
@@ -461,7 +457,7 @@ const MOODS = [
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
 const CALL_RESULTS = ["Show-up","No-show","Closé"];
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
-/* Calls pré-remplis depuis le Calendly (juin) — modifiables ensuite dans Finance */
+/* Calls pré-remplis depuis le Calendly (juin) — disparaissent dès que tu enregistres tes calls */
 const CALL_SEED=[
   {month:"2026-06", prospect:"Théo Penin",      setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
   {month:"2026-06", prospect:"Ilias Atghaninti", setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
@@ -652,7 +648,7 @@ const PAYLIST_DEFAULT=[
   {name:"Ilyas",type:"ilyas"},
   {name:"Céline",type:"manual"},
 ];
-const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"closer",l:"Closer — 10 % encaissé"},{v:"coach",l:"Coach — 400 €/client"},{v:"lucas",l:"Lucas — base + 5 %"},{v:"ilyas",l:"Ilyas — paliers RDV/close"}];
+const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"closer",l:"Closer — 10 % encaissé"},{v:"coach",l:"Coach — 400 €/client"},{v:"lucas",l:"Lucas — base + 5 %"},{v:"ilyas",l:"Ilyas — paliers leads/close"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
 const SET_KEYS=["setters","closers","coachs","programmes","statuts","cgvTypes"];
@@ -1370,7 +1366,8 @@ function autoCallCandidates(M){
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
   const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
-  const cand=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:null,verified:false})).concat(autoCallCandidates(M));
+  const useSeed=!(CALLTRK[M]&&CALLTRK[M].length); // le seed Calendly disparaît une fois que tu as enregistré
+  const cand=(useSeed?CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:null,verified:false})):[]).concat(autoCallCandidates(M));
   cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
   return saved;
 }
@@ -1400,7 +1397,6 @@ function renderFinance(){
   });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   const agg=aggCalls(monthEods);
-  function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
   const ilRdv = has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
@@ -1414,8 +1410,8 @@ function renderFinance(){
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
     if(t==="coach"){ const det=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(C.coachPerClient*(e/mt))]; }); return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detail:det}; }
     if(t==="closer"){ const ca=byCloser[n]||0; const det=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.closerRate)]; }); return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detail:det}; }
-    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det.concat(setterTrack("Lucas"))}; }
-    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["RDV qualifiés"+autoTag(stIl.rdv), ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × RDV", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier RDV", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]], detail:setterTrack("Ilyas")};
+    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det, callset:"Lucas"}; }
+    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier leads", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]], callset:"Ilyas"};
     return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
   });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
@@ -1428,12 +1424,12 @@ function renderFinance(){
   $("finPay").innerHTML = pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
-    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail & tracking</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
+    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail du calcul</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
     let act="";
     if(p.edit==="ilyas") act=`<div class="payin">
-        <div><label>Nb RDV qualifiés</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${ilRdv||''}"></div>
+        <div><label>Forcer nb leads</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${has(stIl.rdv)?Number(stIl.rdv):''}" placeholder="auto : ${ilRdv}"></div>
         <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${ilClose||''}"></div>
-      </div><div class="hint">Auto = show-up <b>vérifiés</b> dans le tracking des calls ci-dessous. Tu peux forcer un nombre ici si besoin.</div>`;
+      </div><div class="hint">Auto = show-up <b>vérifiés</b> dans les calls ci-dessous. Tu peux forcer un nombre si besoin.</div>`;
     if(p.edit==="lucas") act=`<div class="payin">
         <div><label>Nb posts LinkedIn</label><input type="number" inputmode="numeric" id="st_${p.m}_posts" value="${Number(stLu.posts)||''}"></div>
         <div><label>Nb close</label><input type="number" inputmode="numeric" id="st_${p.m}_closes" value="${luClose||''}"></div>
@@ -1443,7 +1439,7 @@ function renderFinance(){
     const editor=`${act}<div class="payin"><div><label>Commission à verser (€)</label><input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}"></div></div>
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
       <textarea id="st_${p.m}_note" rows="2" placeholder="Ex : prime, avance, ajustement…" style="width:100%;margin-top:4px">${escapeHtml(noteVal)}</textarea>
-      <div class="hint">Laisse le montant vide = calcul auto. Mets ta valeur pour la garder. Tout est enregistré <b>par mois</b> (change de mois en haut pour revoir l'historique).</div>
+      <div class="hint">Laisse le montant vide = calcul auto. Mets ta valeur pour la garder. Tout est enregistré <b>par mois</b>.</div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="saveStat('${p.m}')">💾 Enregistrer ${p.m}</button>`;
     const adj=(ov(p.m)!=null)?' · ajusté ✎':'';
     return `<div class="entry">
@@ -1452,61 +1448,54 @@ function renderFinance(){
         <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
         <div class="amt"><div class="big grad-text">${eur(p.eff)}</div><div class="lb">à verser${adj}</div></div>
       </div>
-      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}
+      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}${p.callset?setterCallsBlock(M,p.callset):""}
     </div>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
-  renderCallTracker(M);
   renderFinTable();
 }
-function ctRow(c,i){ const setters=["",...(SETTINGS.setters||[])], closers=["",...(SETTINGS.closers||[])];
+function ctRow(c){
   const showSel=v=>`<select class="ctShow"><option value=""${v==null?" selected":""}>— statut</option><option value="show"${v===true?" selected":""}>✅ Show-up</option><option value="no"${v===false?" selected":""}>❌ No-show</option></select>`;
-  return `<div class="ctrow${c._dup?' dup':''}${(c.show===true&&c.verified)?' lead':''}" data-i="${i}">
+  return `<div class="ctrow${(c.show===true&&c.verified)?' lead':''}" data-clo="${escapeHtml(c.closer||'')}">
     <input class="ctP" type="text" placeholder="Prospect" value="${escapeHtml(c.prospect||'')}" style="width:100%">
     <div class="ctline">
-      <select class="ctSet">${setters.map(o=>`<option ${o===(c.setter||'')?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select>
-      <select class="ctClo">${closers.map(o=>`<option ${o===(c.closer||'')?'selected':''}>${escapeHtml(o)}</option>`).join("")}</select>
       <input class="ctDate" type="date" value="${escapeHtml(c.date||'')}">
       ${showSel(c.show)}
       <label class="ck"><input type="checkbox" class="ctVer" ${c.verified?'checked':''}>vérifié</label>
       <button type="button" class="xrow" onclick="this.closest('.ctrow').remove()">✕</button>
     </div>
   </div>`; }
-function renderCallTracker(M){
-  const box=$("callTrack"); if(!box) return;
-  if(!isAdmin()){ box.innerHTML=""; return; }
-  const list=mergeCalls(M);
-  const cnt={}; list.forEach(c=>{ const k=normName(c.prospect); if(k) cnt[k]=(cnt[k]||0)+1; });
-  list.forEach(c=>{ c._dup = normName(c.prospect) && cnt[normName(c.prospect)]>1; });
-  const dups=Object.values(cnt).filter(v=>v>1).length;
-  const leadsIl=list.filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified).length;
-  const leadsLu=list.filter(c=>c.setter==="Lucas"&&c.show===true&&c.verified).length;
-  box.innerHTML=`<div class="entry">
-    <p class="sub2" style="margin:0 0 6px">Insta = Ilyas · LinkedIn = Lucas. Pré-rempli depuis le Calendly + les EOD. Un call compte comme <b>lead payé</b> seulement si <b>Show-up + vérifié</b>. ✅ Ilyas : ${leadsIl} lead(s) · Lucas : ${leadsLu}.</p>
-    ${dups?`<div class="ctwarn">⚠️ ${dups} doublon(s) détecté(s) — vérifie les lignes en rouge.</div>`:""}
-    <div id="ctRows">${list.map((c,i)=>ctRow(c,i)).join("")}</div>
-    <button type="button" class="addrow" onclick="addCallTrack()">+ Ajouter un call</button>
-    <button class="btn ghost sm" style="margin-top:10px" onclick="saveCallTracker('${M}')">💾 Enregistrer le tracking ${M}</button>
-    <div id="ctMsg" class="msg"></div>
+function setterCallsBlock(M, setter){
+  const list=mergeCalls(M).filter(c=>c.setter===setter);
+  const leads=list.filter(c=>c.show===true&&c.verified).length;
+  const rows=list.length?list.map(ctRow).join(""):'<div class="sub2" style="margin:8px 0">Aucun call pour l\'instant — ils remontent des EOD d\'Anthony/Julie.</div>';
+  return `<div class="ctbox" data-set="${setter}" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
+    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b> (${setter==="Ilyas"?"Instagram":"LinkedIn"}) · ${leads} lead(s) vérifié(s) — coche <b>Show-up + vérifié</b> pour compter.</div>
+    <div class="ctRows">${rows}</div>
+    <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="saveSetterCalls('${M}','${setter}')">💾 Enregistrer les calls ${escapeHtml(setter)}</button>
+    <div class="ctMsg msg"></div>
   </div>`;
 }
-function addCallTrack(){ const box=$("ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",setter:"Ilyas",closer:"",date:todayStr(),show:null,verified:false}, box.children.length)); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
-async function saveCallTracker(M){
+function addSetterCall(btn){ const box=btn.closest(".ctbox").querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
+async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
-  const list=[...document.querySelectorAll("#ctRows .ctrow")].map(r=>{
-    const sh=r.querySelector(".ctShow").value;
-    return { prospect:r.querySelector(".ctP").value.trim(), setter:r.querySelector(".ctSet").value, closer:r.querySelector(".ctClo").value, date:r.querySelector(".ctDate").value, show: sh==="show"?true:(sh==="no"?false:null), verified:r.querySelector(".ctVer").checked };
+  const box=document.querySelector('.ctbox[data-set="'+setter+'"]'); if(!box) return;
+  const mine=[...box.querySelectorAll(".ctRows .ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value;
+    return { prospect:r.querySelector(".ctP").value.trim(), setter:setter, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: sh==="show"?true:(sh==="no"?false:null), verified:r.querySelector(".ctVer").checked };
   }).filter(x=>x.prospect);
-  const m=$("ctMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  const others=(CALLTRK[M]||[]).filter(c=>c.setter!==setter);
+  const list=others.concat(mine);
+  const m=box.querySelector(".ctMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("setter_stats").doc("CALLS_"+M).set({isCalls:true, month:M, list},{merge:true});
-    CALLTRK[M]=list; m.className="msg ok"; m.textContent="Tracking enregistré ✓"; renderFinance(); }
+    CALLTRK[M]=list; m.className="msg ok"; m.textContent="Calls "+setter+" enregistrés ✓"; renderFinance(); }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function saveStat(name){
   const M=$("finMonth").value||monthStr();
   const obj={member:name, month:M};
   const r=$("st_"+name+"_rdv"), cl=$("st_"+name+"_closes"), po=$("st_"+name+"_posts"), ovEl=$("st_"+name+"_override"), noteEl=$("st_"+name+"_note");
-  if(r) obj.rdv=Number(r.value)||0;
+  if(r) obj.rdv = r.value===""?null:Number(r.value);
   if(cl) obj.closes=Number(cl.value)||0;
   if(po) obj.posts=Number(po.value)||0;
   if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
