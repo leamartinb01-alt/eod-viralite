@@ -107,8 +107,8 @@
   .kv{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; padding:6px 0; border-top:1px solid var(--line2)}
   .kv .k{color:var(--muted)} .kv .v{text-align:right; font-weight:600}
   .empty{color:var(--faint); text-align:center; padding:34px 16px; font-size:14px}
-  .filters{display:flex; gap:8px; margin-bottom:4px}
-  .filters select{padding:10px 30px 10px 12px; font-size:14px}
+  .filters{display:flex; gap:8px; margin-bottom:4px; flex-wrap:wrap}
+  .filters select{padding:10px 30px 10px 12px; font-size:14px; flex:1 1 120px}
   .back{display:inline-flex; align-items:center; gap:7px; background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:6px; font-weight:600}
   .center{min-height:82vh; display:flex; flex-direction:column; justify-content:center}
   .hide{display:none !important}
@@ -235,6 +235,16 @@
   /* bloc vérification client (admin) */
   .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
   .vbox textarea{min-height:46px; font-size:14px}
+  /* fiche client pliable */
+  details.clcard{background:var(--card); border:1px solid var(--line); border-radius:16px; margin:11px 0; backdrop-filter:blur(10px); overflow:hidden}
+  details.clcard>summary{list-style:none; cursor:pointer; padding:14px 15px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  details.clcard>summary::-webkit-details-marker{display:none}
+  details.clcard>summary .who{font-weight:700; font-size:14.5px; flex:1 1 auto}
+  details.clcard>summary .chev{color:var(--faint); font-size:13px; transition:transform .2s; margin-left:auto}
+  details.clcard[open]>summary .chev{transform:rotate(90deg)}
+  details.clcard .clbody{padding:0 15px 15px}
+  .cltools{display:flex; gap:8px; margin:6px 2px 0}
+  .cltools button{flex:1; font-size:12.5px; padding:9px; border-radius:11px; border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--txt); font-weight:600; cursor:pointer}
   /* détail commission */
   details.cdet{margin-top:10px}
   details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
@@ -360,8 +370,10 @@
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
     </div>
+    <div id="clientAlert"></div>
     <input id="cfSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderClients()" style="margin:14px 0 0">
     <div class="filters" style="margin:8px 2px 0">
+      <select id="cfMonth" onchange="renderClients()"><option value="">📅 Tous les mois</option></select>
       <select id="cfProg"><option value="">Tous les programmes</option></select>
       <select id="cfStatut">
         <option value="">Tous les statuts</option>
@@ -457,14 +469,14 @@ const MOODS = [
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
 const CALL_RESULTS = ["Show-up","No-show","Closé"];
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
-/* Calls pré-remplis depuis le Calendly (juin) — disparaissent dès que tu enregistres tes calls */
+/* Leads d'Ilyas DÉJÀ VÉRIFIÉS par Léa (juin) — comptent comme leads payés, archivés dans sa fiche */
 const CALL_SEED=[
-  {month:"2026-06", prospect:"Théo Penin",      setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
-  {month:"2026-06", prospect:"Ilias Atghaninti", setter:"Ilyas", closer:"Anthony", date:"2026-06-24"},
-  {month:"2026-06", prospect:"Rohan Enault",     setter:"Ilyas", closer:"Anthony", date:"2026-06-23"},
-  {month:"2026-06", prospect:"Fanta Sakho",      setter:"Ilyas", closer:"Anthony", date:"2026-06-22"},
-  {month:"2026-06", prospect:"Capelle Florian",  setter:"Ilyas", closer:"Julie",   date:"2026-06-22"},
-  {month:"2026-06", prospect:"Samuel Lariviere", setter:"Ilyas", closer:"Anthony", date:"2026-06-21"},
+  {month:"2026-06", prospect:"Théo Penin",       setter:"Ilyas", closer:"Anthony", date:"2026-06-24", show:true, verified:true},
+  {month:"2026-06", prospect:"Ilias Atghaninti", setter:"Ilyas", closer:"Anthony", date:"2026-06-24", show:true, verified:true},
+  {month:"2026-06", prospect:"Rohan Enault",     setter:"Ilyas", closer:"Anthony", date:"2026-06-23", show:true, verified:true},
+  {month:"2026-06", prospect:"Fanta Sakho",      setter:"Ilyas", closer:"Anthony", date:"2026-06-22", show:true, verified:true},
+  {month:"2026-06", prospect:"Capelle Florian",  setter:"Ilyas", closer:"Julie",   date:"2026-06-22", show:true, verified:true},
+  {month:"2026-06", prospect:"Samuel Lariviere", setter:"Ilyas", closer:"Anthony", date:"2026-06-21", show:true, verified:true},
 ];
 const FORMS = {
   closer:[
@@ -547,6 +559,13 @@ function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>ca
 function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
 function callsArr(x){ return (x&&x.payload&&Array.isArray(x.payload.calls))?x.payload.calls:[]; }
 function lastMonthVal(eods,key){ const sorted=(eods||[]).slice().sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date))); const f=sorted.find(x=>x.payload&&x.payload[key]!=null&&x.payload[key]!==""); return f?(Number(f.payload[key])||0):0; }
+/* Cash du mois : somme des saisies "du jour" ; si rien, on retombe sur l'ancien cumul mensuel (par membre) pour ne rien perdre. */
+function monthCashSum(eods, dayKey, monthKey){
+  const daily=(eods||[]).reduce((s,x)=>s+(Number(x.payload&&x.payload[dayKey])||0),0);
+  if(daily>0) return daily;
+  const byM={}; (eods||[]).forEach(x=>{ const v=x.payload&&x.payload[monthKey]; if(v!=null&&v!==""){ const k=x.member||""; if(!byM[k]||String(x.report_date)>String(byM[k].d)) byM[k]={d:x.report_date,v:Number(v)||0}; } });
+  return Object.values(byM).reduce((s,o)=>s+o.v,0);
+}
 function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
   (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
   return o; }
@@ -1108,8 +1127,7 @@ function renderTeam(){
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
   $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
   const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
-  let gen=0, col=0;
-  mc.forEach(x=>{ gen+=Number(x.payload&&x.payload.cash_gen_day)||0; col+=Number(x.payload&&x.payload.cash_day)||0; });
+  const gen=monthCashSum(mc,"cash_gen_day","cash_gen_month"), col=monthCashSum(mc,"cash_day","cash_month");
   const closed=aggCalls(mc).close;
   $("teamStats").innerHTML=`
     <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré</div></div>
@@ -1132,7 +1150,7 @@ function renderInsights(selM, doneSet){
   const missing=CONFIG.TEAM.filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<CONFIG.TEAM.length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM).forEach(x=>{ byCloser[x.member]=(byCloser[x.member]||0)+(Number(x.payload&&x.payload.cash_gen_day)||0); });
+  CONFIG.TEAM.filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>x.member===m.name && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
   const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
   if(top && top[1]>0) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
   let best=null; CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
@@ -1157,6 +1175,8 @@ function openMember(name){
   let stats=metrics.map(mt=>{
     let val;
     if(mt.agg==="last"){ val=lastMonthVal(month,mt.key); }
+    else if(mt.key==="cash_gen_day"){ val=monthCashSum(month,"cash_gen_day","cash_gen_month"); }
+    else if(mt.key==="cash_day"){ val=monthCashSum(month,"cash_day","cash_month"); }
     else { val=month.reduce((s,x)=>s+(Number(x.payload&&x.payload[mt.key])||0),0); }
     return `<div class="box"><div class="n${mt.money?' grad-text':''}">${mt.money?eur(val):val}</div><div class="l">${mt.label}</div></div>`;
   }).join("");
@@ -1278,38 +1298,81 @@ async function loadClients(){
   const fsSel=$("cfStatut"), fs0=fsSel.value; fsSel.innerHTML='<option value="">Tous les statuts</option>'; SETTINGS.statuts.forEach(p=>fsSel.insertAdjacentHTML("beforeend",`<option ${p===fs0?"selected":""}>${escapeHtml(p)}</option>`));
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
-    CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); renderClients();
+    CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); fillClientMonths(); renderClients();
   }catch(err){ wrap.innerHTML=`<div class="empty">Erreur : ${err.message}</div>`; }
+}
+function fillClientMonths(){
+  const sel=$("cfMonth"); if(!sel) return; const cur=sel.value; const set=new Set();
+  CLIENTS.forEach(c=>{ if(startMonth(c)) set.add(startMonth(c)); (c.schedule||[]).forEach(s=>{ if(s.month) set.add(s.month); }); });
+  const ms=[...set].filter(Boolean).sort().reverse();
+  sel.innerHTML='<option value="">📅 Tous les mois</option>'+ms.map(m=>`<option value="${m}" ${m===cur?"selected":""}>${monthLabel(m)}</option>`).join("");
+}
+function clientIssues(c){
+  const iss=[];
+  const m=Number(c.montant)||0, e=clientEncaisse(c);
+  if(!c.verified) iss.push("à vérifier");
+  if(m<=0) iss.push("montant manquant");
+  if(!c.closer) iss.push("pas de closer");
+  if(!c.programme) iss.push("pas de programme");
+  if(m>0 && e>m) iss.push("encaissé > contrat");
+  if(m>0 && !(c.schedule||[]).length && !(Number(c.encaisse)||0)) iss.push("pas d'échéancier");
+  return iss;
 }
 function clientEncaisse(c){ return (Number(c.encaisse)||0) + (c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function renderClients(){
-  const fp=$("cfProg").value, fs=$("cfStatut").value;
+  const fp=$("cfProg").value, fs=$("cfStatut").value, fm=($("cfMonth")&&$("cfMonth").value)||"";
   const q=(($("cfSearch")&&$("cfSearch").value)||"").toLowerCase();
+  // Encart en haut : à vérifier / incohérences (admin)
+  const al=$("clientAlert");
+  if(al){
+    if(isAdmin()){
+      const flagged=CLIENTS.map(c=>({c,iss:clientIssues(c)})).filter(o=>o.iss.length);
+      al.innerHTML = flagged.length ? `<div class="card" style="border-color:rgba(255,180,71,.4);background:rgba(255,180,71,.06);margin-top:14px">
+        <h2 style="margin:0 0 6px">⚠️ À checker (${flagged.length})</h2>
+        <p class="sub2" style="margin:0 0 8px">Fiches non vérifiées ou avec une incohérence — clique pour ouvrir.</p>
+        ${flagged.map(o=>`<div class="kv" style="cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">${escapeHtml((o.c.nom||"")+" "+(o.c.prenom||"")).trim()}</span><span class="v" style="color:#ffcf7a">${o.iss.map(escapeHtml).join(" · ")}</span></div>`).join("")}
+      </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Tout est vérifié et cohérent</h2></div>`;
+    } else al.innerHTML="";
+  }
   let rows=CLIENTS.slice();
   if(fp) rows=rows.filter(x=>x.programme===fp);
   if(fs) rows=rows.filter(x=>x.statut===fs);
+  if(fm) rows=rows.filter(x=>paidInMonth(x,fm)>0 || dueInMonth(x,fm)>0);
   if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
   const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+clientEncaisse(x),0);
-  $("clientStats").innerHTML=`
+  const monthEnc=fm?rows.reduce((s,x)=>s+paidInMonth(x,fm),0):0;
+  const monthDue=fm?rows.reduce((s,x)=>s+dueInMonth(x,fm),0):0;
+  $("clientStats").innerHTML=fm?`
+    <div class="box"><div class="n">${rows.length}</div><div class="l">Clients actifs en ${monthShort(fm)}</div></div>
+    <div class="box"><div class="n grad-text">${eur(monthEnc)}</div><div class="l">Rentré ${monthShort(fm)}</div></div>
+    <div class="box"><div class="n">${eur(monthDue)}</div><div class="l">Attendu ${monthShort(fm)}</div></div>`:`
     <div class="box"><div class="n">${rows.length}</div><div class="l">Clients</div></div>
     <div class="box"><div class="n grad-text">${eur(enc)}</div><div class="l">Encaissé</div></div>
     <div class="box"><div class="n">${eur(total-enc)}</div><div class="l">Reste à venir</div></div>`;
   const wrap=$("clientList");
-  if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client.</div>`; return; }
-  wrap.innerHTML=rows.map(c=>{
+  if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client${fm?" pour "+monthLabel(fm):""}.</div>`; return; }
+  const tools=`<div class="cltools"><button onclick="toggleAllClients(true)">⬇️ Tout déplier</button><button onclick="toggleAllClients(false)">⬆️ Tout replier</button></div>`;
+  wrap.innerHTML=tools+rows.map(c=>{
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=(Number(c.montant)||0)-encC;
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
       .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
-    return `<div class="entry">
-      <div class="eh"><span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="when">${escapeHtml(c.programme||"")}</span></div>
-      <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
-        ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
+    return `<details class="clcard">
+      <summary>
+        <span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
         <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
+        <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="clbody">
+      <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
+        ${c.programme?`<span class="pill">${escapeHtml(c.programme)}</span>`:""}
+        ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
         ${reste>0?`<span class="pill">reste ${eur(reste)}</span>`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
+      ${fm?`<div class="kv"><span class="k">💶 Rentré en ${monthShort(fm)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,fm))}${dueInMonth(c,fm)>0?" · ⏳ "+eur(dueInMonth(c,fm))+" attendu":""}</span></div>`:""}
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
@@ -1330,9 +1393,11 @@ function renderClients(){
         <button class="btn ghost sm" style="margin-top:8px" onclick="saveVerifyNote('${c.id}')">💾 Enregistrer la note</button>
       </div>`:""}
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ ${isAdmin()?"Modifier":"Compléter / modifier la fiche"}</button>
-    </div>`;
+      </div>
+    </details>`;
   }).join("");
 }
+function toggleAllClients(open){ document.querySelectorAll('#clientList details.clcard').forEach(d=>d.open=open); }
 async function setVerified(id,val){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
@@ -1364,8 +1429,8 @@ function autoCallCandidates(M){
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
   const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
-  const useSeed=!(CALLTRK[M]&&CALLTRK[M].length); // le seed Calendly disparaît une fois que tu as enregistré
-  const cand=(useSeed?CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:null,verified:false})):[]).concat(autoCallCandidates(M));
+  // Leads vérifiés (seed) toujours garantis ; tes éventuelles modifs enregistrées priment (même nom). Puis les calls auto des EOD.
+  const cand=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified})).concat(autoCallCandidates(M));
   cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
   return saved;
 }
@@ -1409,7 +1474,12 @@ function renderFinance(){
     if(t==="coach"){ const det=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(C.coachPerClient*(e/mt))]; }); return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detail:det}; }
     if(t==="closer"){ const ca=byCloser[n]||0; const det=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.closerRate)]; }); return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detail:det}; }
     if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det, callset:"Lucas"}; }
-    if(t==="ilyas") return {m:n, amount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)],["Prime palier leads", eur(ilPrimeR)],["Prime palier close", eur(ilPrimeC)]], callset:"Ilyas"};
+    if(t==="ilyas"){ const ld=mergeCalls(M).filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified===true).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+      const det=ld.map(c=>[escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), eur(C.ilyasPerLead)]);
+      if(ilClose) det.push([ilClose+" close × 50 €", eur(C.ilyasPerClose*ilClose)]);
+      if(ilPrimeR) det.push(["🎁 Prime palier "+ilRdv+" leads", eur(ilPrimeR)]);
+      if(ilPrimeC) det.push(["🎁 Prime palier "+ilClose+" close", eur(ilPrimeC)]);
+      return {m:n, amount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)]], detail:det, callset:"Ilyas"}; }
     return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
   });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
