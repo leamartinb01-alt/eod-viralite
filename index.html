@@ -245,6 +245,9 @@
   details.clcard .clbody{padding:0 15px 15px}
   .cltools{display:flex; gap:8px; margin:6px 2px 0}
   .cltools button{flex:1; font-size:12.5px; padding:9px; border-radius:11px; border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--txt); font-weight:600; cursor:pointer}
+  .paycard>summary{align-items:center}
+  .arch-tools{display:flex; gap:8px; margin:8px 0 2px; flex-wrap:wrap}
+  .arch-tools input{flex:1 1 120px; padding:9px 10px; font-size:13px}
   /* détail commission */
   details.cdet{margin-top:10px}
   details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
@@ -1510,14 +1513,17 @@ function renderFinance(){
       <div class="hint">Laisse le montant vide = calcul auto. Mets ta valeur pour la garder. Tout est enregistré <b>par mois</b>.</div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="saveStat('${p.m}')">💾 Enregistrer ${p.m}</button>`;
     const adj=(ov(p.m)!=null)?' · ajusté ✎':'';
-    return `<div class="entry">
-      <div class="pay">
+    return `<details class="clcard paycard">
+      <summary>
         <div class="avatar sm ${avClass(mb.role)}">${initials(p.m)}</div>
-        <div><div style="font-weight:700">${p.m}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
-        <div class="amt"><div class="big grad-text">${eur(p.eff)}</div><div class="lb">à verser${adj}</div></div>
-      </div>
+        <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
+        <div style="text-align:right"><div style="font-size:18px;font-weight:800" class="grad-text">${eur(p.eff)}</div><div style="font-size:10px;color:var(--muted)">à verser${adj}</div></div>
+        <span class="chev">▸</span>
+      </summary>
+      <div class="clbody">
       ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}${p.callset?setterCallsBlock(M,p.callset):""}
-    </div>`;
+      </div>
+    </details>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
   renderFinTable();
 }
@@ -1542,12 +1548,18 @@ function setterCallsBlock(M, setter){
     <div class="sub2" style="margin:0 0 2px;color:var(--faint)">À vérifier (${pending.length}) — choisis le statut, coche « vérifié », puis Enregistrer.</div>
     <div class="ctRows">${pRows}</div>
     <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
-    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés (${done.length})</summary><div class="ctRows">${done.map(ctRow).join("")}</div></details>`:""}
+    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés — archive (${done.length})</summary>
+      <div class="arch-tools">
+        <input class="archSearch" placeholder="🔎 Rechercher un client…" oninput="filterArchive(this)">
+        <input type="date" class="archDate" onchange="filterArchive(this)">
+      </div>
+      <div class="ctRows archRows">${done.map(ctRow).join("")}</div></details>`:""}
     <button class="btn ghost sm" style="margin-top:10px" onclick="saveSetterCalls('${M}','${setter}')">💾 Enregistrer / valider</button>
     <div class="ctMsg msg"></div>
   </div>`;
 }
 function addSetterCall(btn){ const box=btn.closest(".ctbox").querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
+function filterArchive(el){ const det=el.closest("details"); if(!det) return; const q=(det.querySelector(".archSearch").value||"").toLowerCase().trim(); const d=det.querySelector(".archDate").value||""; det.querySelectorAll(".archRows .ctrow").forEach(r=>{ const nm=((r.querySelector(".ctP")||{}).value||"").toLowerCase(); const dt=((r.querySelector(".ctDate")||{}).value||""); const ok=(!q||nm.includes(q))&&(!d||dt===d); r.style.display=ok?"":"none"; }); }
 async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
