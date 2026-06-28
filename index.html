@@ -107,8 +107,8 @@
   .kv{display:flex; justify-content:space-between; gap:12px; font-size:13.5px; padding:6px 0; border-top:1px solid var(--line2)}
   .kv .k{color:var(--muted)} .kv .v{text-align:right; font-weight:600}
   .empty{color:var(--faint); text-align:center; padding:34px 16px; font-size:14px}
-  .filters{display:flex; gap:8px; margin-bottom:4px; flex-wrap:wrap}
-  .filters select{padding:10px 30px 10px 12px; font-size:14px; flex:1 1 120px}
+  .filters{display:flex; gap:8px; margin-bottom:4px}
+  .filters select{padding:10px 30px 10px 12px; font-size:14px}
   .back{display:inline-flex; align-items:center; gap:7px; background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:4px 0; margin-bottom:6px; font-weight:600}
   .center{min-height:82vh; display:flex; flex-direction:column; justify-content:center}
   .hide{display:none !important}
@@ -227,11 +227,13 @@
   .cal-lg i{width:8px; height:8px; border-radius:50%; display:inline-block}
   /* tracking calls (finance) */
   .ctrow{background:rgba(0,0,0,.2); border:1px solid var(--line2); border-radius:13px; padding:10px 11px; margin-top:9px}
+  .ctrow.dup{border-color:rgba(255,90,77,.55); background:rgba(255,90,77,.07)}
   .ctrow .ctP{font-weight:600}
   .ctline{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px}
   .ctline>select,.ctline>input[type=date]{flex:1 1 90px; min-width:0; padding:9px 10px; font-size:13px}
   .ctline .ck{font-size:11px}
   .ctrow.lead{border-color:rgba(52,199,89,.5)}
+  .ctwarn{background:rgba(255,90,77,.13); color:#ff9a90; border:1px solid rgba(255,90,77,.35); border-radius:11px; padding:9px 12px; font-size:12.5px; margin-top:8px}
   /* bloc vérification client (admin) */
   .vbox{margin-top:12px; padding:11px 12px; border:1px solid rgba(52,199,89,.3); background:rgba(52,199,89,.06); border-radius:13px}
   .vbox textarea{min-height:46px; font-size:14px}
@@ -252,6 +254,28 @@
   details.cdet{margin-top:10px}
   details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
   details.cdet>summary::-webkit-details-marker{display:none}
+  /* comptes */
+  .acrow{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:8px 0;border-top:1px solid var(--line2)}
+  .acrow .k{color:var(--muted)} .acrow .v{text-align:right;font-weight:600;white-space:nowrap}
+  .pill.in{color:#7ee2a3;border-color:rgba(52,199,89,.4);background:rgba(52,199,89,.08)}
+  .pill.out{color:#ff9a90;border-color:rgba(255,90,77,.4);background:rgba(255,90,77,.08)}
+  .pill.transfer{color:#8fc4ff;border-color:rgba(90,169,255,.4);background:rgba(90,169,255,.08)}
+  .txrow{background:rgba(0,0,0,.2);border:1px solid var(--line2);border-radius:12px;padding:10px 11px;margin-top:8px}
+  .txrow .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .txrow .nm{font-weight:600;font-size:13.5px} .txrow .meta{font-size:11px;color:var(--muted);margin-top:2px}
+  .txrow .amt{text-align:right;white-space:nowrap;font-weight:700;font-size:13.5px}
+  .txrow .amt .eu{font-size:11px;color:var(--muted);font-weight:500;display:block}
+  .txact{display:flex;gap:6px;margin-top:8px}
+  .txact button{flex:1;font-size:12px;padding:7px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--txt);cursor:pointer}
+  .txact button.del{background:rgba(255,90,77,.12);border-color:rgba(255,90,77,.3);color:#ff9a90}
+  .catbar{height:7px;border-radius:6px;background:rgba(255,255,255,.07);margin-top:6px;overflow:hidden}
+  .catbar span{display:block;height:100%}
+  details.acmonth{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:10px 0;overflow:hidden}
+  details.acmonth>summary{list-style:none;cursor:pointer;padding:13px 15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;font-size:14px;text-transform:capitalize}
+  details.acmonth>summary::-webkit-details-marker{display:none}
+  details.acmonth>summary .chev{margin-left:auto;color:var(--faint);transition:transform .2s}
+  details.acmonth[open]>summary .chev{transform:rotate(90deg)}
+  details.acmonth .body{padding:0 15px 14px}
 </style>
 </head>
 <body>
@@ -345,7 +369,7 @@
   <div id="view-coaching" class="wrap hide">
     <div class="card">
       <h2>📚 Suivi coaching</h2>
-      <p class="sub2">Pointe chaque jour les coachings faits par client (visible par toute l'équipe).</p>
+      <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
     </div>
     <div id="coachingList"></div>
@@ -418,6 +442,69 @@
       <div id="exportMsg" class="msg"></div>
     </div>
   </div>
+
+  <!-- COMPTES -->
+  <div id="view-accounts" class="wrap hide">
+    <div class="card">
+      <h2>💰 Comptes · suivi bancaire</h2>
+      <p class="sub2">Liberty Corp (Wio) & LLC US (Wise) · tout converti en € (taux figé).</p>
+      <div class="filters" style="margin-top:6px">
+        <div><label>Mois</label><select id="acMonth" onchange="renderAccounts()"></select></div>
+        <div><label>Compte</label><select id="acAcc" onchange="renderAccounts()"></select></div>
+        <div><label>Type</label><select id="acType" onchange="renderAccounts()">
+          <option value="">Tout</option><option value="in">Entrées</option><option value="out">Sorties</option><option value="transfer">Transferts</option>
+        </select></div>
+      </div>
+      <input id="acSearch" class="srch" placeholder="🔎 Rechercher (catégorie, libellé…)" oninput="renderAccounts()" style="margin-top:10px">
+      <div class="stat" id="acKpis" style="margin-top:14px"></div>
+      <div class="hint" id="acScope"></div>
+    </div>
+    <div class="section-title">Par compte (net €)</div>
+    <div class="card" id="acByAcc"></div>
+    <div class="section-title">Par catégorie</div>
+    <div id="acByCat"></div>
+    <div class="section-title">Opérations</div>
+    <div id="acTxList"></div>
+    <div class="section-title">➕ Ajouter une opération</div>
+    <div class="card">
+      <div class="payin">
+        <div><label>Date</label><input id="acDate" type="date"></div>
+        <div><label>Compte</label><select id="acAccSel" onchange="syncAcctCur()"></select></div>
+      </div>
+      <div class="payin">
+        <div><label>Type</label><select id="acTypeSel"><option value="out">Sortie</option><option value="in">Entrée</option><option value="transfer">Transfert interne</option></select></div>
+        <div><label>Catégorie</label><input id="acCat" list="acCatList" placeholder="ex : Facebook Ads"><datalist id="acCatList"></datalist></div>
+      </div>
+      <div class="payin">
+        <div><label>Montant (<span id="acCur">EUR</span>)</label><input id="acAmt" type="number" inputmode="decimal" placeholder="0"></div>
+        <div><label>Libellé (optionnel)</label><input id="acLabel" placeholder="détail"></div>
+      </div>
+      <button class="btn" onclick="addAcctOp()">Enregistrer l'opération ✓</button>
+      <div id="acAddMsg" class="msg"></div>
+    </div>
+    <details class="calwrap" style="margin-top:18px"><summary>⚙️ Réglages comptes & catégories</summary><div style="padding:0 14px 14px">
+      <label>Taux AED → € (1 dh = … €)</label>
+      <input id="acAed" type="number" inputmode="decimal" step="0.0001">
+      <div class="hint">Convertit les dirhams. Ton board = 0,2506.</div>
+      <h2 style="margin:16px 0 0;font-size:14px">Comptes</h2>
+      <div id="acAccBox"></div>
+      <button class="addrow" onclick="addAcctAccRow()">+ Ajouter un compte</button>
+      <h2 style="margin:16px 0 0;font-size:14px">Catégories</h2>
+      <div id="acCatBox"></div>
+      <button class="addrow" onclick="addAcctCatRow()">+ Ajouter une catégorie</button>
+      <button class="btn" onclick="saveAcctCfg()">Enregistrer les réglages ✓</button>
+      <div id="acCfgMsg" class="msg"></div>
+    </div></details>
+    <details class="calwrap"><summary>📥 Importer / exporter</summary><div style="padding:0 14px 14px">
+      <button class="btn ghost" onclick="importAcctSeed()">📥 Importer l'historique janvier → mai (194 lignes)</button>
+      <div class="hint">À faire une seule fois. Les mois déjà remplis sont ignorés.</div>
+      <label style="margin-top:14px">Coller des lignes (JSON) — avancé</label>
+      <textarea id="acImpBox" rows="4" placeholder='[{"date":"2026-06-03","account":"wio_aed","cur":"AED","cat":"Facebook Ads","type":"out","amount":1200}]'></textarea>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="importAcctJSON()">Importer ce JSON</button>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="exportAcct()">⬇️ Exporter tout (JSON)</button>
+      <div id="acImpMsg" class="msg"></div>
+    </div></details>
+  </div>
 </div>
 
 <!-- NAV -->
@@ -427,6 +514,7 @@
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
+  <button id="nav-accounts" class="hide" onclick="show('accounts')"><span class="ic">💰</span>Comptes</button>
   <button id="nav-settings" class="hide" onclick="show('settings')"><span class="ic">⚙️</span>Réglages</button>
 </div>
 
@@ -644,6 +732,7 @@ function login(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
   $("nav-clients").classList.toggle("hide", !canClients());
   $("nav-finance").classList.toggle("hide", !isAdmin());
+  $("nav-accounts").classList.toggle("hide", !isAdmin());
   $("nav-settings").classList.toggle("hide", !isAdmin());
   initApp();
 }
@@ -713,10 +802,10 @@ function renderSettings(){
       <button type="button" class="addrow" onclick="addLi('${k}')">+ Ajouter</button></div>`;
   }).join("");
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
-  html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & type de paie</h3>
+  html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint">Choisis le <b>type de paie</b> pour chacun dans le menu déroulant (Manuel, Closer 10 %, Coach 400 €, Lucas, Ilyas). « Manuel » = tu mets le montant à la main dans Finance. Flèches ↑↓ pour l'ordre.</div></div>`;
+    <div class="hint">Type « Manuel » = tu mets le montant à la main dans Finance. Les autres se calculent tout seuls. Flèches ↑↓ pour changer l'ordre (les nouveaux s'ajoutent en haut).</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
     <div id="checkBox">${ck}</div>
@@ -918,7 +1007,7 @@ function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
   const has=v=>v!=null&&v!=="";
   const stIl=stOf("Ilyas"), stLu=stOf("Lucas");
-  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
+  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
   const ilClose=has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
   const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
   const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
@@ -939,7 +1028,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()}));
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isTeamConfig||x.isSettings||x.isFollowups) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1103,15 +1192,16 @@ async function submitEod(){
 /* ===================== NAV (animée) ===================== */
 function show(v){
   // Sécurité accès : Finance & Réglages = admin uniquement ; Clients = admin ou accès clients
-  if((v==="finance"||v==="settings") && !isAdmin()) v="form";
+  if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="clients" && !canClients()) v="form";
-  ["form","team","coaching","clients","finance","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
-  ["form","team","coaching","clients","finance","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","coaching","clients","finance","accounts","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
+  ["form","team","coaching","clients","finance","accounts","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="coaching") loadCoaching();
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
+  if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
 }
 
@@ -1375,7 +1465,6 @@ function renderClients(){
         ${reste>0?`<span class="pill">reste ${eur(reste)}</span>`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
-      ${fm?`<div class="kv"><span class="k">💶 Rentré en ${monthShort(fm)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,fm))}${dueInMonth(c,fm)>0?" · ⏳ "+eur(dueInMonth(c,fm))+" attendu":""}</span></div>`:""}
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
@@ -1447,7 +1536,7 @@ async function loadFinance(){
   initFirebase();
   if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
   if(!EODS.length){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -1467,6 +1556,7 @@ function renderFinance(){
   });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   const agg=aggCalls(monthEods);
+  function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
   const ilRdv = has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
@@ -1622,6 +1712,376 @@ function renderFinTable(){
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
+
+/* ===================== COMPTES (suivi bancaire) ===================== */
+let ACCOUNTS=[
+ {id:"wio_eur",label:"Wio €",company:"Liberty Corp",cur:"EUR"},
+ {id:"wio_aed",label:"Wio AED",company:"Liberty Corp",cur:"AED"},
+ {id:"wise_eur",label:"Wise €",company:"LLC US",cur:"EUR"},
+ {id:"wise_usd",label:"Wise $",company:"LLC US",cur:"USD"},
+ {id:"wise_chf",label:"Wise CHF",company:"LLC US",cur:"CHF"},
+];
+let ACCT_CATS=[
+ ["CA encaissé Hotmart/Whop","in"],["Affiliations","in"],["Recouvrement","in"],["CA encaissé virement clients LC","in"],["CA accompagnement Loïc","in"],["CA encaissé mentorat","in"],["CA Club viralité 2","in"],["CA encaissé virement clients Mastermind 2 / upsell","in"],["CA M3","in"],["Divers","in"],["Stripe (Suisse)","in"],["YT","in"],
+ ["TRANSFERT € vers AED","transfer"],["TRANSFERT € vers WIZE","transfer"],["TRANSFERT € vers Wize CHF","transfer"],["TRANSFERT WISE VERS WISE LLC","transfer"],["TRANSFERT PERSO vers AED WIO","transfer"],["Remboursement","transfer"],["Envoi de Loic","transfer"],
+ ["ACTIVE CAMPAIGN","out"],["AIRTABLE","out"],["BIZEE","out"],["CALENDLY","out"],["CHAT GPT","out"],["CLICKFUNNELS","out"],["COMPTABILITÉ","out"],["FACEBOOK ADS","out"],["FRAME IO","out"],["GOOGLE","out"],["GODADDY","out"],["INCFILE/BIZEE","out"],["JOTFORM","out"],["KOMBINEO","out"],["LEARNY LAWERS","out"],["LINKEDIN","out"],["LOOM","out"],["MAKE","out"],["MANYCHAT","out"],["NITRO OPTIMIZATION","out"],["SKOOL","out"],["SMASH","out"],["STARTINTEGRATE","out"],["SUBSCRIPTION FEE (WIO)","out"],["SYSTÈME IO","out"],["TEST CHALLENGE WHOP","out"],["THE COACH","out"],["TYPEFORM","out"],["TWILIO","out"],["VIMEO","out"],["WEBINARJAM","out"],["WE TRANSFER","out"],["YOUTUBE","out"],["ZAPIER","out"],["ZBOONI","out"],["ZOOM","out"],
+ ["Setters","out"],["Closers","out"],["Litige ML DIGITAL Agency (Inès)","out"],["Partner LLC (compta 2025 LLC)","out"],["Martin","out"],["Dépenses influ challenge","out"],["HOS V3","out"],["Partage Céline","out"],["Salaire Loïc","out"],["Lucas AGENCE x Koncept","out"],["PODLABS","out"],["Célestine","out"],["RH Koncept","out"],["ADS Mastermind 2/Challenge","out"],["Funnel Jean-Louis","out"],["Monteurs/Cadreurs","out"],["Terry x LT CONSULTING x Kommunify","out"],["Léa","out"],["Julie Janvier","out"],["Hotel resort M3 / billet avion","out"],["Journée immersive monaco","out"],["Coachs","out"],["CM","out"],["WIDAL CAPTURE","out"],["Copywriter","out"],["Miniamaker","out"],["WARWICK PARIS","out"],["HOTEL COTE D'AZUR V3","out"],["COMPTA LLC","out"],["Élodie/ rbsmt clients / avocats","out"],
+ ["Bar/Restaurants/Alimentation","out"],["Activités","out"],["Loc DXB (gaz)","out"],["Fournitures","out"],["Voiture/Parking/metro","out"],["Vols/Déplacements","out"],["Hôtels/Airbnb","out"],["Podcast/studio","out"],["Uber/Careem","out"],
+ ["IMPÔT IS FTA","out"],["TVA","out"],["STRIPE","out"],["Céline","out"],["Frais conversion","out"],["Paiement perso","out"],["Logiciel non nommé (Fév)","out"],
+].map(x=>({name:x[0],type:x[1]}));
+let AEDR=0.2506, ATX=[], acctEditId=null;
+const ACCT_SEED=[
+{d:"2026-02-15",ac:"wio_eur",c:"EUR",cat:"CA encaissé Hotmart/Whop",t:"in",a:273.2,e:273.2},
+{d:"2026-03-15",ac:"wio_eur",c:"EUR",cat:"CA encaissé Hotmart/Whop",t:"in",a:30224.91,e:30224.91},
+{d:"2026-01-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:3552.19,e:3552.19},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:130.0,e:130.0},
+{d:"2026-02-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:8781.06,e:8781.06},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:49000.0,e:49000.0},
+{d:"2026-03-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:363.19,e:363.19},
+{d:"2026-04-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:472.57,e:472.57},
+{d:"2026-05-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:10995.52,e:10995.52},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:4600.0,e:4600.0},
+{d:"2026-05-15",ac:"wio_eur",c:"EUR",cat:"Recouvrement",t:"in",a:1309.79,e:1309.79},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA accompagnement Loïc",t:"in",a:1000.0,e:1000.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA accompagnement Loïc",t:"in",a:1000.0,e:1000.0},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:15500.0,e:15500.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:4000.0,e:4000.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:6500.0,e:6500.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:14000.0,e:14000.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:16000.0,e:16000.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:15000.0,e:15000.0},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé virement clients Mastermind 2 / upsell",t:"in",a:6250.0,e:6250.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé virement clients Mastermind 2 / upsell",t:"in",a:3000.0,e:3000.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CA M3",t:"in",a:1416.0,e:1416.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA M3",t:"in",a:6500.0,e:6500.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Divers",t:"in",a:0.72,e:0.72},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Stripe (Suisse)",t:"in",a:375.0,e:375.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Stripe (Suisse)",t:"in",a:375.0,e:375.0},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1719.09,e:1719.09},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1832.76,e:1832.76},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:927.25,e:927.25},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1395.58,e:1395.58},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1192.04,e:1192.04},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:88044.19,e:22063.87},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:122085.81,e:30594.7},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:81039.6,e:20308.52},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:46006.87,e:11529.32},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:82250.03,e:20611.86},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"TRANSFERT WISE VERS WISE LLC",t:"transfer",a:3000.0,e:3000.0},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT PERSO vers AED WIO",t:"transfer",a:541.53,e:135.71},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT PAYPAL vers WIO",t:"transfer",a:928.07,e:232.57},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Remboursement",t:"transfer",a:200.0,e:200.0},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Remboursement",t:"transfer",a:4556.1,e:1141.76},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"ACTIVE CAMPAIGN",t:"out",a:1908.88,e:478.37},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"ACTIVE CAMPAIGN",t:"out",a:1908.88,e:478.37},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"AIRTABLE",t:"out",a:90.57,e:22.7},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:549.74,e:137.76},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CALENDLY",t:"out",a:418.43,e:104.86},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CALENDLY",t:"out",a:425.01,e:106.51},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:301.8,e:75.63},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"FACEBOOK ADS",t:"out",a:3587.76,e:899.09},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"FACEBOOK ADS",t:"out",a:82187.55,e:20596.2},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:199.58,e:50.01},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:130.32,e:32.66},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:185.3,e:46.44},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:185.03,e:46.37},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:186.65,e:46.77},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"GODADDY",t:"out",a:5556.08,e:1392.35},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"KOMBINEO",t:"out",a:328.42,e:82.3},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"LINKEDIN",t:"out",a:256.8,e:64.35},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Logiciel non nommé (Fév)",t:"out",a:1343.26,e:336.62},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:407.58,e:102.14},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"STARTINTEGRATE",t:"out",a:85.65,e:21.46},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:437.69,e:109.69},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:433.66,e:108.68},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:422.53,e:105.89},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:429.8,e:107.71},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:427.62,e:107.16},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TEST CHALLENGE WHOP",t:"out",a:4719.64,e:1182.74},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:363.31,e:91.05},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:371.4,e:93.07},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:672.34,e:168.49},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TWILIO",t:"out",a:75.48,e:18.92},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"VIMEO",t:"out",a:3638.8,e:911.88},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"WEBINARJAM",t:"out",a:1883.22,e:471.93},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"YOUTUBE",t:"out",a:58.34,e:14.62},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:115.23,e:28.88},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:116.41,e:29.17},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:114.36,e:28.66},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:113.67,e:28.49},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:115.72,e:29.0},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1335.0,e:1335.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1400.0,e:1400.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1800.0,e:1800.0},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Litige ML DIGITAL Agency (Inès)",t:"out",a:1815.0,e:1815.0},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Partner LLC (compta 2025 LLC)",t:"out",a:3903.89,e:978.31},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Martin",t:"out",a:350.0,e:350.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Dépenses influ challenge",t:"out",a:1330.26,e:1330.26},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Dépenses influ challenge",t:"out",a:6000.0,e:6000.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"HOS V3",t:"out",a:1317.75,e:1317.75},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:9272.35,e:9272.35},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:1319.55,e:1319.55},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:240.0,e:240.0},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"PODLABS",t:"out",a:700.0,e:700.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Célestine",t:"out",a:400.0,e:400.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"ADS Mastermind 2/Challenge",t:"out",a:1823.0,e:1823.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Funnel Jean-Louis",t:"out",a:800.0,e:800.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Funnel Jean-Louis",t:"out",a:1000.0,e:1000.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:5285.0,e:5285.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:4520.0,e:4520.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:3167.5,e:3167.5},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:5219.0,e:5219.0},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:34162.0,e:8561.0},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:4552.0,e:1140.73},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:5884.27,e:1474.6},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:8655.0,e:2168.94},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Léa",t:"out",a:83.0,e:83.0},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:8625.0,e:2161.42},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11825.0,e:2963.34},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11182.5,e:2802.33},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11290.65,e:2829.44},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Julie Janvier",t:"out",a:380.0,e:380.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Hotel resort M3 / billet avion",t:"out",a:3404.69,e:3404.69},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Journée immersive monaco",t:"out",a:1135.0,e:1135.0},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:500.0,e:500.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"WIDAL CAPTURE",t:"out",a:1600.0,e:400.96},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"WIDAL CAPTURE",t:"out",a:400.0,e:100.24},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Miniamaker",t:"out",a:220.0,e:220.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Miniamaker",t:"out",a:220.0,e:220.0},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"WARWICK PARIS",t:"out",a:5771.57,e:1446.36},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"WARWICK PARIS",t:"out",a:2386.91,e:598.16},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"HOTEL COTE D'AZUR V3",t:"out",a:11325.0,e:11325.0},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:1823.28,e:456.91},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:612.35,e:153.45},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Activités",t:"out",a:2468.01,e:618.48},
+{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Activités",t:"out",a:638.86,e:638.86},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Fournitures",t:"out",a:6359.5,e:1593.69},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Fournitures",t:"out",a:425.28,e:106.58},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Voiture/Parking/metro",t:"out",a:6302.41,e:1579.38},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:5710.66,e:1431.09},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Vols/Déplacements",t:"out",a:2000.0,e:2000.0},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:598.62,e:150.01},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:10490.62,e:2628.95},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:2922.53,e:732.39},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:7128.18,e:1786.32},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:16104.0,e:4035.66},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:23359.34,e:5853.85},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Uber/Careem",t:"out",a:19.0,e:4.76},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TVA",t:"out",a:2989.38,e:749.14},
+{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TVA",t:"out",a:975.2,e:244.39},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Céline",t:"out",a:3635.0,e:910.93},
+{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Céline",t:"out",a:4863.0,e:1218.67},
+{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:1615.0,e:404.72},
+{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:1800.0,e:1800.0},
+{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:8860.0,e:2220.32},
+{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:986.0,e:986.0},
+{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:4601.49,e:1153.13},
+{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:320.0,e:320.0},
+{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:100.0,e:100.0}
+];
+const acUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function acAccObj(id){ return ACCOUNTS.find(a=>a.id===id)||{id,label:id,cur:"EUR"}; }
+function eur0(n){return (Math.round(Number(n)||0)).toLocaleString("fr-FR")+" €";}
+function eur2(n){return (Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
+function acNat(n,c){const v=(Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2}); return c==="AED"?("dh "+v):c==="USD"?("$ "+v):c==="CHF"?(v+" CHF"):(v+" €");}
+async function loadAccounts(){
+  if(!fbReady()){ $("acTxList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase();
+  try{ const s=await db.collection("setter_stats").get(); ATX=[];
+    s.docs.forEach(d=>{ const x=d.data();
+      if(x.isAcctCfg){ if(Array.isArray(x.accounts)&&x.accounts.length)ACCOUNTS=x.accounts; if(Array.isArray(x.cats)&&x.cats.length)ACCT_CATS=x.cats; if(x.aedRate)AEDR=Number(x.aedRate)||AEDR; }
+      if(x.isAcctTx&&Array.isArray(x.lines)){ x.lines.forEach(L=>ATX.push({...L,month:x.month})); }
+    });
+  }catch(e){}
+  acFillSelectors(); renderAcctCfg(); renderAccounts();
+}
+function acFillSelectors(){
+  const months=[...new Set(ATX.map(t=>t.month))].sort().reverse();
+  $("acMonth").innerHTML='<option value="">📅 Tous les mois</option>'+months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join("");
+  $("acAcc").innerHTML='<option value="">Tous les comptes</option>'+ACCOUNTS.map(a=>`<option value="${a.id}">${escapeHtml(a.label)} · ${escapeHtml(a.company||"")}</option>`).join("");
+  $("acAccSel").innerHTML=ACCOUNTS.map(a=>`<option value="${a.id}">${escapeHtml(a.label)} · ${escapeHtml(a.company||"")}</option>`).join("");
+  $("acCatList").innerHTML=ACCT_CATS.map(c=>`<option value="${escapeHtml(c.name)}">`).join("");
+  if(!$("acDate").value) $("acDate").value=todayStr(); syncAcctCur();
+}
+function acFillKeep(){ const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value; acFillSelectors(); $("acMonth").value=m;$("acAcc").value=a;$("acType").value=t; }
+function syncAcctCur(){ $("acCur").textContent=acAccObj($("acAccSel").value).cur; }
+async function acEurRate(cur,date){
+  if(cur==="EUR") return 1;
+  if(cur==="AED") return AEDR;
+  try{ const r=await fetch(`https://api.frankfurter.app/${date}?from=${cur}&to=EUR`); const j=await r.json(); if(j&&j.rates&&j.rates.EUR) return j.rates.EUR; }catch(e){}
+  const m=prompt(`Taux ${cur}→EUR introuvable auto. Entre le taux (1 ${cur} = ? €) :`,""); return m?Number(m.replace(",","."))||0:0;
+}
+function acFiltered(){
+  const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,q=($("acSearch").value||"").toLowerCase().trim();
+  return ATX.filter(x=>(!m||x.month===m)&&(!a||x.account===a)&&(!t||x.type===t)&&(!q||((x.cat||"")+" "+(x.label||"")).toLowerCase().includes(q)));
+}
+function renderAccounts(){
+  if(!$("acKpis")) return;
+  const rows=acFiltered();
+  const sum=t=>rows.filter(x=>x.type===t).reduce((s,x)=>s+(Number(x.eur)||0),0);
+  const ins=sum("in"),outs=sum("out"),tr=sum("transfer");
+  $("acKpis").innerHTML=`
+    <div class="box"><div class="n" style="color:#7ee2a3">${eur0(ins)}</div><div class="l">Entrées</div></div>
+    <div class="box"><div class="n" style="color:#ff9a90">${eur0(outs)}</div><div class="l">Sorties</div></div>
+    <div class="box"><div class="n grad-text">${eur0(ins-outs)}</div><div class="l">Net</div></div>
+    <div class="box"><div class="n" style="color:#8fc4ff">${eur0(tr)}</div><div class="l">Transferts</div></div>`;
+  $("acScope").textContent=`${rows.length} opération(s) · converti en € (taux figé). Les transferts internes ne comptent pas dans le Net.`;
+  const accAgg={};
+  rows.forEach(x=>{ const k=x.account; accAgg[k]=accAgg[k]||{in:0,out:0,tr:0}; if(x.type==="in")accAgg[k].in+=+x.eur||0; else if(x.type==="out")accAgg[k].out+=+x.eur||0; else accAgg[k].tr+=+x.eur||0; });
+  $("acByAcc").innerHTML=ACCOUNTS.filter(a=>accAgg[a.id]).map(a=>{const g=accAgg[a.id];return `<div class="acrow"><span class="k">${escapeHtml(a.label)} <span class="pill">${a.cur}</span></span><span class="v">${eur0(g.in-g.out)}<span style="color:var(--faint);font-weight:500;font-size:11px"> &nbsp;+${eur0(g.in)} / −${eur0(g.out)}</span></span></div>`;}).join("")||'<div class="sub2" style="margin:0">Aucune donnée.</div>';
+  const catAgg={};
+  rows.forEach(x=>{ const k=x.cat||"(sans cat.)"; catAgg[k]=catAgg[k]||{in:0,out:0,tr:0,n:0}; catAgg[k].n++; if(x.type==="in")catAgg[k].in+=+x.eur||0; else if(x.type==="out")catAgg[k].out+=+x.eur||0; else catAgg[k].tr+=+x.eur||0; });
+  const cats=Object.entries(catAgg).map(([k,v])=>({k,...v,tot:v.in+v.out+v.tr})).sort((a,b)=>b.tot-a.tot);
+  const maxv=Math.max(1,...cats.map(c=>c.tot));
+  $("acByCat").innerHTML=`<div class="card">${cats.length?cats.map(c=>{const col=c.in>0?"#34c759":c.tr>0?"#5aa9ff":"#e04c6b"; const val=c.in>0?c.in:c.out>0?c.out:c.tr; return `<div style="margin-top:10px"><div class="acrow" style="border:none;padding:2px 0"><span class="k">${escapeHtml(c.k)} <span style="color:var(--faint)">·${c.n}</span></span><span class="v">${eur0(val)}</span></div><div class="catbar"><span style="width:${Math.round(val/maxv*100)}%;background:${col}"></span></div></div>`;}).join(""):'<div class="sub2" style="margin:0">Aucune donnée.</div>'}</div>`;
+  const byM={}; rows.forEach(x=>{(byM[x.month]=byM[x.month]||[]).push(x);});
+  const months=Object.keys(byM).sort().reverse();
+  $("acTxList").innerHTML=months.length?months.map(m=>{
+    const list=byM[m].slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    const mi=list.filter(x=>x.type==="in").reduce((s,x)=>s+(+x.eur||0),0), mo=list.filter(x=>x.type==="out").reduce((s,x)=>s+(+x.eur||0),0);
+    return `<details class="acmonth"><summary>${monthLabel(m)} <span class="pill in">+${eur0(mi)}</span> <span class="pill out">−${eur0(mo)}</span> <span class="chev">▸</span></summary><div class="body">${list.map(acTxRow).join("")}</div></details>`;
+  }).join(""):'<div class="card"><div class="sub2" style="margin:0">Aucune opération. Importe ton historique en bas 👇</div></div>';
+}
+function acTxRow(x){
+  const a=acAccObj(x.account); const sign=x.type==="in"?"+":x.type==="out"?"−":"";
+  const col=x.type==="in"?"#7ee2a3":x.type==="out"?"#ff9a90":"#8fc4ff";
+  return `<div class="txrow">
+    <div class="top"><div><div class="nm">${escapeHtml(x.cat||"(sans cat.)")} <span class="pill ${x.type}">${x.type==="in"?"entrée":x.type==="out"?"sortie":"transfert"}</span></div>
+      <div class="meta">${escapeHtml(x.date)} · ${escapeHtml(a.label)}${x.label?" · "+escapeHtml(x.label):""}</div></div>
+      <div class="amt" style="color:${col}">${sign}${acNat(x.amount,x.cur)}<span class="eu">${sign}${eur2(x.eur)}</span></div></div>
+    <div class="txact"><button onclick="editAcctTx('${x.id}')">✎ Modifier</button><button class="del" onclick="delAcctTx('${x.id}')">🗑 Supprimer</button></div>
+  </div>`;
+}
+function acCatType(name){ const c=ACCT_CATS.find(c=>c.name.toLowerCase()===String(name||"").toLowerCase()); return c?c.type:null; }
+async function addAcctOp(){
+  const date=$("acDate").value||todayStr(), account=$("acAccSel").value, cat=$("acCat").value.trim();
+  let type=$("acTypeSel").value; const ct=acCatType(cat); if(ct) type=ct;
+  const amount=Number(($("acAmt").value||"").replace(",",".")); const label=$("acLabel").value.trim(); const cur=acAccObj(account).cur;
+  const msg=$("acAddMsg");
+  if(!account||!cat||!amount){ msg.className="msg err"; msg.textContent="Compte, catégorie et montant obligatoires."; return; }
+  msg.className="msg"; msg.style.display="block"; msg.textContent="Conversion + enregistrement…";
+  const rate=await acEurRate(cur,date); const e=Math.round(amount*rate*100)/100;
+  const line={id:acctEditId||acUid(),date,account,cur,cat,type,amount:Math.round(amount*100)/100,eur:e,rate,label};
+  const month=date.slice(0,7);
+  try{ if(acctEditId) await acRemoveLine(acctEditId); await acAddLineToMonth(month,line);
+    msg.className="msg ok"; msg.textContent=acctEditId?"Opération mise à jour ✓":"Opération enregistrée ✓ ("+eur2(e)+")";
+    acctEditId=null; $("acAmt").value=""; $("acLabel").value=""; $("acCat").value="";
+    await loadAccounts();
+  }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
+}
+async function acAddLineToMonth(month,line){
+  const ref=db.collection("setter_stats").doc("ATX_"+month);
+  const d=await ref.get(); const lines=d.exists&&Array.isArray(d.data().lines)?d.data().lines:[];
+  const i=lines.findIndex(l=>l.id===line.id); if(i>=0) lines[i]=line; else lines.push(line);
+  await ref.set({isAcctTx:true,month,lines},{merge:true});
+}
+async function acRemoveLine(id){
+  const t=ATX.find(x=>x.id===id); if(!t) return;
+  const ref=db.collection("setter_stats").doc("ATX_"+t.month);
+  const d=await ref.get(); if(!d.exists) return; const lines=(d.data().lines||[]).filter(l=>l.id!==id);
+  await ref.set({isAcctTx:true,month:t.month,lines},{merge:true});
+}
+function editAcctTx(id){
+  const x=ATX.find(t=>t.id===id); if(!x) return; acctEditId=id;
+  $("acDate").value=x.date; $("acAccSel").value=x.account; syncAcctCur(); $("acTypeSel").value=x.type; $("acCat").value=x.cat; $("acAmt").value=x.amount; $("acLabel").value=x.label||"";
+  $("acDate").scrollIntoView({behavior:"smooth"}); const m=$("acAddMsg"); m.className="msg"; m.style.display="block"; m.textContent="✎ Modification — change puis Enregistrer.";
+}
+async function delAcctTx(id){ if(!confirm("Supprimer cette opération ?")) return; await acRemoveLine(id); await loadAccounts(); }
+function renderAcctCfg(){
+  $("acAed").value=AEDR;
+  $("acAccBox").innerHTML=ACCOUNTS.map(acAccRow).join("");
+  $("acCatBox").innerHTML=ACCT_CATS.map(acCatRow).join("");
+}
+function acAccRow(a){a=a||{id:"",label:"",company:"",cur:"EUR"};return `<div class="lirow accr">
+  <input class="aId" placeholder="id" value="${escapeHtml(a.id)}" style="flex:.8">
+  <input class="aLab" placeholder="Nom" value="${escapeHtml(a.label)}">
+  <input class="aCo" placeholder="Société" value="${escapeHtml(a.company||"")}" style="flex:.9">
+  <select class="aCu" style="flex:.7">${["EUR","AED","USD","CHF","GBP"].map(c=>`<option ${c===a.cur?"selected":""}>${c}</option>`).join("")}</select>
+  <button class="xrow" onclick="this.closest('.accr').remove()">✕</button></div>`;}
+function addAcctAccRow(){$("acAccBox").insertAdjacentHTML("beforeend",acAccRow());}
+function acCatRow(c){c=c||{name:"",type:"out"};return `<div class="lirow catr">
+  <input class="cNm" placeholder="Catégorie" value="${escapeHtml(c.name)}">
+  <select class="cTy" style="flex:.7"><option value="out" ${c.type==="out"?"selected":""}>sortie</option><option value="in" ${c.type==="in"?"selected":""}>entrée</option><option value="transfer" ${c.type==="transfer"?"selected":""}>transfert</option></select>
+  <button class="xrow" onclick="this.closest('.catr').remove()">✕</button></div>`;}
+function addAcctCatRow(){$("acCatBox").insertAdjacentHTML("beforeend",acCatRow());}
+async function saveAcctCfg(){
+  AEDR=Number(($("acAed").value||"").replace(",","."))||AEDR;
+  ACCOUNTS=[...document.querySelectorAll("#acAccBox .accr")].map(r=>({id:r.querySelector(".aId").value.trim(),label:r.querySelector(".aLab").value.trim(),company:r.querySelector(".aCo").value.trim(),cur:r.querySelector(".aCu").value})).filter(a=>a.id&&a.label);
+  ACCT_CATS=[...document.querySelectorAll("#acCatBox .catr")].map(r=>({name:r.querySelector(".cNm").value.trim(),type:r.querySelector(".cTy").value})).filter(c=>c.name);
+  const m=$("acCfgMsg");m.className="msg";m.style.display="block";m.textContent="Enregistrement…";
+  try{ await db.collection("setter_stats").doc("cfg_accounts").set({isAcctCfg:true,accounts:ACCOUNTS,cats:ACCT_CATS,aedRate:AEDR},{merge:true});
+    m.className="msg ok";m.textContent="Réglages enregistrés ✓"; acFillKeep(); renderAccounts();
+  }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
+}
+async function importAcctSeed(){
+  if(!confirm("Importer les 194 lignes de janvier→mai ? Les mois déjà remplis seront ignorés.")) return;
+  const m=$("acImpMsg");m.className="msg";m.style.display="block";m.textContent="Import…";
+  const existing=new Set(ATX.map(t=>t.month)); const byM={};
+  ACCT_SEED.forEach(s=>{const mo=s.d.slice(0,7); if(existing.has(mo))return; (byM[mo]=byM[mo]||[]).push({id:acUid(),date:s.d,account:s.ac,cur:s.c,cat:s.cat,type:s.t,amount:s.a,eur:s.e==null?null:s.e,rate:s.c==="AED"?AEDR:1,label:""});});
+  try{ let n=0; for(const mo of Object.keys(byM)){ await db.collection("setter_stats").doc("ATX_"+mo).set({isAcctTx:true,month:mo,lines:byM[mo]},{merge:true}); n+=byM[mo].length; }
+    m.className="msg ok"; m.textContent=n?`${n} lignes importées ✓`:"Rien à importer (mois déjà remplis)."; await loadAccounts();
+  }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
+}
+async function importAcctJSON(){
+  const m=$("acImpMsg"); let arr;
+  try{ arr=JSON.parse($("acImpBox").value); if(!Array.isArray(arr)) throw 0; }catch(e){ m.className="msg err";m.style.display="block";m.textContent="JSON invalide."; return; }
+  m.className="msg";m.style.display="block";m.textContent="Import…"; const byM={};
+  for(const s of arr){ const date=s.date||todayStr(); const cur=s.cur||acAccObj(s.account).cur; const rate=cur==="AED"?AEDR:(cur==="EUR"?1:(s.rate||await acEurRate(cur,date))); const e=s.eur!=null?s.eur:Math.round((s.amount||0)*rate*100)/100; const mo=date.slice(0,7); (byM[mo]=byM[mo]||[]).push({id:acUid(),date,account:s.account,cur,cat:s.cat||"",type:s.type||"out",amount:Number(s.amount)||0,eur:e,rate,label:s.label||""}); }
+  try{ let n=0; for(const mo of Object.keys(byM)){ const ref=db.collection("setter_stats").doc("ATX_"+mo); const d=await ref.get(); const lines=d.exists&&Array.isArray(d.data().lines)?d.data().lines:[]; byM[mo].forEach(l=>lines.push(l)); await ref.set({isAcctTx:true,month:mo,lines},{merge:true}); n+=byM[mo].length; }
+    m.className="msg ok";m.textContent=n+" lignes importées ✓"; $("acImpBox").value=""; await loadAccounts();
+  }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
+}
+function exportAcct(){
+  const blob=new Blob([JSON.stringify(ATX,null,2)],{type:"application/json"}); const u=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=u;a.download="comptes-export-"+todayStr()+".json";a.click();setTimeout(()=>URL.revokeObjectURL(u),1500);
+}
 </script>
 </body>
 </html>
