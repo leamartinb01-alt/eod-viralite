@@ -276,6 +276,22 @@
   details.acmonth>summary .chev{margin-left:auto;color:var(--faint);transition:transform .2s}
   details.acmonth[open]>summary .chev{transform:rotate(90deg)}
   details.acmonth .body{padding:0 15px 14px}
+  .acrow{flex-wrap:wrap}
+  /* mobile polish */
+  @media(max-width:560px){
+    .nav button{font-size:9.5px;padding:9px 1px 18px;letter-spacing:-.2px}
+    .nav button .ic{font-size:17px;margin-bottom:2px}
+    #view-accounts .filters>div{flex:1 1 46%;min-width:0}
+    #view-accounts .stat .box{flex:1 1 44%}
+    .acrow .v{white-space:normal;text-align:right}
+    .acrow .v span{display:block;margin-top:2px}
+    .lirow{flex-wrap:wrap}
+    .lirow.accr input,.lirow.accr select{flex:1 1 44%;min-width:0}
+    .lirow.catr input{flex:1 1 100%}
+    .lirow .xrow{flex:0 0 34px}
+    .txrow .amt{font-size:12.5px}
+    .pill{font-size:10px;padding:3px 7px}
+  }
 </style>
 </head>
 <body>
@@ -1522,11 +1538,12 @@ function autoCallCandidates(M){
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
   const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
-  // Dès que tu as enregistré la fiche d'un setter, PLUS RIEN ne se re-greffe tout seul pour lui
-  // (ni seed, ni calls auto des EOD) : tes suppressions/modifs sont définitives. Tu ajoutes les suivants à la main.
+  // Le SEED (jan→mai pré-rempli) ne se re-greffe plus pour un setter dès que tu as enregistré sa fiche.
+  // Mais les calls AUTO des EOD (ce qu'Antho/les setters rentrent) remontent TOUJOURS dans "à vérifier"
+  // (dédupliqués par nom : ta ligne enregistrée prime, donc ta validation n'est jamais écrasée).
   const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
-  const seedRows=CALL_SEED.filter(s=>s.month===M).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
-  const cand=seedRows.concat(autoCallCandidates(M)).filter(c=> c.setter ? !savedSetters.has(c.setter) : true);
+  const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
+  const cand=seedRows.concat(autoCallCandidates(M));
   cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
   return saved;
 }
