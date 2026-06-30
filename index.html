@@ -2281,6 +2281,13 @@ const acUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function acAccObj(id){ return ACCOUNTS.find(a=>a.id===id)||{id,label:id,cur:"EUR"}; }
 const ACCT_ICON={"Revenus":"💰","Publicité":"📣","Logiciels":"🛠️","Salaires/Presta":"👥","Voyages/Déplacements":"✈️","Lifestyle/Perso":"🛍️","Taxes & frais":"🏛️","Transferts internes":"🔁","À catégoriser":"❓"};
 function acIcon(c){ return ACCT_ICON[c]||"•"; }
+function acNormLabel(s){ s=String(s||"").replace(/\s+/g," ").trim(); const d=s.toLowerCase();
+  if(d.startsWith("facebk")||d.startsWith("facebook")) return "Facebook Ads";
+  if(d.includes("workspace")) return "Google Workspace";
+  if(d.includes("youtube")) return "YouTube";
+  if(d.startsWith("sent money to")) return s.slice(13).trim()||s;
+  if(d.startsWith("received money from")) return "Reçu de "+s.slice(19).trim();
+  return s; }
 function eur0(n){return (Math.round(Number(n)||0)).toLocaleString("fr-FR")+" €";}
 function eur2(n){return (Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
 function acNat(n,c){const v=(Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2}); return c==="AED"?("dh "+v):c==="USD"?("$ "+v):c==="CHF"?(v+" CHF"):(v+" €");}
@@ -2352,14 +2359,17 @@ function renderAccounts(){
   const maxv=Math.max(1,...cats.map(c=>c.tot));
   $("acByCat").innerHTML=`<div class="card">${cats.length?cats.map(c=>{
     const col=c.in>0?"#34c759":c.tr>0?"#5aa9ff":"#e04c6b"; const val=c.in>0?c.in:c.out>0?c.out:c.tr;
-    const ls=rows.filter(x=>(x.cat||"(sans cat.)")===c.k).sort((a,b)=>(b.eur||0)-(a.eur||0));
-    const det=ls.map(x=>`<div class="acrow"><span class="k" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(x.label||x.cat)}<span style="color:var(--faint)"> · ${escapeHtml(x.date)} · ${escapeHtml(acAccObj(x.account).label)}</span></span><span class="v">${eur0(x.eur)}</span></div>`).join("");
+    const ls=rows.filter(x=>(x.cat||"(sans cat.)")===c.k);
+    const g={};
+    ls.forEach(x=>{ const k=acNormLabel(x.label||x.cat); g[k]=g[k]||{e:0,n:0}; g[k].e+=(+x.eur||0); g[k].n++; });
+    const det=Object.entries(g).sort((a,b)=>b[1].e-a[1].e).map(([k,v])=>`<div class="acrow"><span class="k" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(k)}${v.n>1?` <span style="color:var(--faint)">·${v.n}</span>`:""}</span><span class="v">${eur0(v.e)}</span></div>`).join("");
+    const w=val>0?Math.max(5,Math.round(val/maxv*100)):0;
     return `<div style="border-bottom:1px solid var(--line2)">
       <details class="accat"><summary>
         <span class="catsum"><span style="font-size:16px;line-height:1">${acIcon(c.k)}</span><b style="color:var(--txt);font-weight:600">${escapeHtml(c.k)}</b><span style="color:var(--faint);font-size:11px">·${c.n}</span><span class="chev">▸</span></span>
         <span class="v">${eur0(val)}</span>
       </summary><div class="catdet">${det}</div></details>
-      <div class="catbar" style="margin:0 0 10px"><span style="width:${Math.round(val/maxv*100)}%;background:${col}"></span></div>
+      <div class="catbar" style="margin:0 0 10px"><span style="width:${w}%;background:${col}"></span></div>
     </div>`;}).join(""):'<div class="sub2" style="margin:0">Aucune donnée.</div>'}</div>`;
   const byM={}; rows.forEach(x=>{(byM[x.month]=byM[x.month]||[]).push(x);});
   const months=Object.keys(byM).sort().reverse();
