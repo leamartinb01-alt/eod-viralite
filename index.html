@@ -512,8 +512,11 @@
       <div id="acCfgMsg" class="msg"></div>
     </div></details>
     <details class="calwrap"><summary>📥 Importer / exporter</summary><div style="padding:0 14px 14px">
-      <button class="btn ghost" onclick="importAcctSeed()">📥 Importer l'historique janvier → mai (194 lignes)</button>
-      <div class="hint">À faire une seule fois. Les mois déjà remplis sont ignorés.</div>
+      <label>Déposer un relevé (CSV Wio ou Wise) — il classe et convertit tout seul</label>
+      <input id="acCsvFile" type="file" accept=".csv" multiple>
+      <button class="btn" onclick="importCSVFiles()">📥 Importer le(s) relevé(s) CSV</button>
+      <div class="hint">Glisse 1 ou plusieurs CSV. Doublons ignorés (n° d'opération). AED converti à ton taux, USD/CHF au taux réel du jour.</div>
+      <button class="btn ghost sm" style="margin-top:10px" onclick="resetAccounts()">🗑 Vider tous les comptes (repartir de zéro)</button>
       <label style="margin-top:14px">Coller des lignes (JSON) — avancé</label>
       <textarea id="acImpBox" rows="4" placeholder='[{"date":"2026-06-03","account":"wio_aed","cur":"AED","cat":"Facebook Ads","type":"out","amount":1200}]'></textarea>
       <button class="btn ghost sm" style="margin-top:8px" onclick="importAcctJSON()">Importer ce JSON</button>
@@ -1736,227 +1739,31 @@ let ACCOUNTS=[
  {id:"wio_aed",label:"Wio AED",company:"Liberty Corp",cur:"AED"},
  {id:"wise_eur",label:"Wise €",company:"LLC US",cur:"EUR"},
  {id:"wise_usd",label:"Wise $",company:"LLC US",cur:"USD"},
- {id:"wise_chf",label:"Wise CHF",company:"LLC US",cur:"CHF"},
 ];
 let ACCT_CATS=[
- ["CA encaissé Hotmart/Whop","in"],["Affiliations","in"],["Recouvrement","in"],["CA encaissé virement clients LC","in"],["CA accompagnement Loïc","in"],["CA encaissé mentorat","in"],["CA Club viralité 2","in"],["CA encaissé virement clients Mastermind 2 / upsell","in"],["CA M3","in"],["Divers","in"],["Stripe (Suisse)","in"],["YT","in"],
- ["TRANSFERT € vers AED","transfer"],["TRANSFERT € vers WIZE","transfer"],["TRANSFERT € vers Wize CHF","transfer"],["TRANSFERT WISE VERS WISE LLC","transfer"],["TRANSFERT PERSO vers AED WIO","transfer"],["Remboursement","transfer"],["Envoi de Loic","transfer"],
- ["ACTIVE CAMPAIGN","out"],["AIRTABLE","out"],["BIZEE","out"],["CALENDLY","out"],["CHAT GPT","out"],["CLICKFUNNELS","out"],["COMPTABILITÉ","out"],["FACEBOOK ADS","out"],["FRAME IO","out"],["GOOGLE","out"],["GODADDY","out"],["INCFILE/BIZEE","out"],["JOTFORM","out"],["KOMBINEO","out"],["LEARNY LAWERS","out"],["LINKEDIN","out"],["LOOM","out"],["MAKE","out"],["MANYCHAT","out"],["NITRO OPTIMIZATION","out"],["SKOOL","out"],["SMASH","out"],["STARTINTEGRATE","out"],["SUBSCRIPTION FEE (WIO)","out"],["SYSTÈME IO","out"],["TEST CHALLENGE WHOP","out"],["THE COACH","out"],["TYPEFORM","out"],["TWILIO","out"],["VIMEO","out"],["WEBINARJAM","out"],["WE TRANSFER","out"],["YOUTUBE","out"],["ZAPIER","out"],["ZBOONI","out"],["ZOOM","out"],
- ["Setters","out"],["Closers","out"],["Litige ML DIGITAL Agency (Inès)","out"],["Partner LLC (compta 2025 LLC)","out"],["Martin","out"],["Dépenses influ challenge","out"],["HOS V3","out"],["Partage Céline","out"],["Salaire Loïc","out"],["Lucas AGENCE x Koncept","out"],["PODLABS","out"],["Célestine","out"],["RH Koncept","out"],["ADS Mastermind 2/Challenge","out"],["Funnel Jean-Louis","out"],["Monteurs/Cadreurs","out"],["Terry x LT CONSULTING x Kommunify","out"],["Léa","out"],["Julie Janvier","out"],["Hotel resort M3 / billet avion","out"],["Journée immersive monaco","out"],["Coachs","out"],["CM","out"],["WIDAL CAPTURE","out"],["Copywriter","out"],["Miniamaker","out"],["WARWICK PARIS","out"],["HOTEL COTE D'AZUR V3","out"],["COMPTA LLC","out"],["Élodie/ rbsmt clients / avocats","out"],
- ["Bar/Restaurants/Alimentation","out"],["Activités","out"],["Loc DXB (gaz)","out"],["Fournitures","out"],["Voiture/Parking/metro","out"],["Vols/Déplacements","out"],["Hôtels/Airbnb","out"],["Podcast/studio","out"],["Uber/Careem","out"],
- ["IMPÔT IS FTA","out"],["TVA","out"],["STRIPE","out"],["Céline","out"],["Frais conversion","out"],["Paiement perso","out"],["Logiciel non nommé (Fév)","out"],
+ ["Revenus","in"],["Transferts internes","transfer"],
+ ["Publicité","out"],["Logiciels","out"],["Salaires/Presta","out"],["Voyages/Déplacements","out"],["Lifestyle/Perso","out"],["Taxes & frais","out"],["À catégoriser","out"],
 ].map(x=>({name:x[0],type:x[1]}));
 let AEDR=0.2506, ATX=[], acctEditId=null;
-const ACCT_SEED=[
-{d:"2026-02-15",ac:"wio_eur",c:"EUR",cat:"CA encaissé Hotmart/Whop",t:"in",a:273.2,e:273.2},
-{d:"2026-03-15",ac:"wio_eur",c:"EUR",cat:"CA encaissé Hotmart/Whop",t:"in",a:30224.91,e:30224.91},
-{d:"2026-01-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:3552.19,e:3552.19},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:130.0,e:130.0},
-{d:"2026-02-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:8781.06,e:8781.06},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:49000.0,e:49000.0},
-{d:"2026-03-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:363.19,e:363.19},
-{d:"2026-04-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:472.57,e:472.57},
-{d:"2026-05-15",ac:"wio_eur",c:"EUR",cat:"Affiliations",t:"in",a:10995.52,e:10995.52},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Affiliations",t:"in",a:4600.0,e:4600.0},
-{d:"2026-05-15",ac:"wio_eur",c:"EUR",cat:"Recouvrement",t:"in",a:1309.79,e:1309.79},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA accompagnement Loïc",t:"in",a:1000.0,e:1000.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA accompagnement Loïc",t:"in",a:1000.0,e:1000.0},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:15500.0,e:15500.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:4000.0,e:4000.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé mentorat",t:"in",a:6500.0,e:6500.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:14000.0,e:14000.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:16000.0,e:16000.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CA Club viralité 2",t:"in",a:15000.0,e:15000.0},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé virement clients Mastermind 2 / upsell",t:"in",a:6250.0,e:6250.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA encaissé virement clients Mastermind 2 / upsell",t:"in",a:3000.0,e:3000.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CA M3",t:"in",a:1416.0,e:1416.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CA M3",t:"in",a:6500.0,e:6500.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Divers",t:"in",a:0.72,e:0.72},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Stripe (Suisse)",t:"in",a:375.0,e:375.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Stripe (Suisse)",t:"in",a:375.0,e:375.0},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1719.09,e:1719.09},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1832.76,e:1832.76},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:927.25,e:927.25},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1395.58,e:1395.58},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"YT",t:"in",a:1192.04,e:1192.04},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:88044.19,e:22063.87},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:122085.81,e:30594.7},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:81039.6,e:20308.52},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:46006.87,e:11529.32},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT € vers AED",t:"transfer",a:82250.03,e:20611.86},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"TRANSFERT WISE VERS WISE LLC",t:"transfer",a:3000.0,e:3000.0},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT PERSO vers AED WIO",t:"transfer",a:541.53,e:135.71},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TRANSFERT PAYPAL vers WIO",t:"transfer",a:928.07,e:232.57},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Remboursement",t:"transfer",a:200.0,e:200.0},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Remboursement",t:"transfer",a:4556.1,e:1141.76},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"ACTIVE CAMPAIGN",t:"out",a:1908.88,e:478.37},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"ACTIVE CAMPAIGN",t:"out",a:1908.88,e:478.37},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"AIRTABLE",t:"out",a:90.57,e:22.7},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:549.74,e:137.76},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"BIZEE",t:"out",a:109.44,e:27.43},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CALENDLY",t:"out",a:418.43,e:104.86},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CALENDLY",t:"out",a:425.01,e:106.51},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CHAT GPT",t:"out",a:79.25,e:19.86},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:301.8,e:75.63},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"CLICKFUNNELS",t:"out",a:366.07,e:91.74},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"FACEBOOK ADS",t:"out",a:3587.76,e:899.09},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"FACEBOOK ADS",t:"out",a:82187.55,e:20596.2},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:199.58,e:50.01},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:130.32,e:32.66},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:185.3,e:46.44},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:185.03,e:46.37},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"GOOGLE",t:"out",a:186.65,e:46.77},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"GODADDY",t:"out",a:5556.08,e:1392.35},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"JOTFORM",t:"out",a:221.91,e:55.61},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"KOMBINEO",t:"out",a:328.42,e:82.3},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"LINKEDIN",t:"out",a:256.8,e:64.35},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"MAKE",t:"out",a:404.04,e:101.25},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"MANYCHAT",t:"out",a:735.93,e:184.42},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Logiciel non nommé (Fév)",t:"out",a:1343.26,e:336.62},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:407.58,e:102.14},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SKOOL",t:"out",a:781.2,e:195.77},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"STARTINTEGRATE",t:"out",a:85.65,e:21.46},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SUBSCRIPTION FEE (WIO)",t:"out",a:99.0,e:24.81},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:437.69,e:109.69},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:433.66,e:108.68},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:422.53,e:105.89},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:429.8,e:107.71},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"SYSTÈME IO",t:"out",a:427.62,e:107.16},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TEST CHALLENGE WHOP",t:"out",a:4719.64,e:1182.74},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:363.31,e:91.05},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:371.4,e:93.07},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"TYPEFORM",t:"out",a:672.34,e:168.49},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"TWILIO",t:"out",a:75.48,e:18.92},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"VIMEO",t:"out",a:3638.8,e:911.88},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"WEBINARJAM",t:"out",a:1883.22,e:471.93},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"YOUTUBE",t:"out",a:58.34,e:14.62},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:115.23,e:28.88},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:116.41,e:29.17},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:114.36,e:28.66},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:113.67,e:28.49},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"ZOOM",t:"out",a:115.72,e:29.0},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1335.0,e:1335.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1400.0,e:1400.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Closers",t:"out",a:1800.0,e:1800.0},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Litige ML DIGITAL Agency (Inès)",t:"out",a:1815.0,e:1815.0},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Partner LLC (compta 2025 LLC)",t:"out",a:3903.89,e:978.31},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Martin",t:"out",a:350.0,e:350.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Dépenses influ challenge",t:"out",a:1330.26,e:1330.26},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Dépenses influ challenge",t:"out",a:6000.0,e:6000.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"HOS V3",t:"out",a:1317.75,e:1317.75},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:9272.35,e:9272.35},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:1319.55,e:1319.55},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Partage Céline",t:"out",a:240.0,e:240.0},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Salaire Loïc",t:"out",a:25000.0,e:6265.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"PODLABS",t:"out",a:700.0,e:700.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Célestine",t:"out",a:400.0,e:400.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"ADS Mastermind 2/Challenge",t:"out",a:1823.0,e:1823.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Funnel Jean-Louis",t:"out",a:800.0,e:800.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Funnel Jean-Louis",t:"out",a:1000.0,e:1000.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:5285.0,e:5285.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:4520.0,e:4520.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:3167.5,e:3167.5},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Monteurs/Cadreurs",t:"out",a:5219.0,e:5219.0},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:34162.0,e:8561.0},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:4552.0,e:1140.73},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Terry x LT CONSULTING x Kommunify",t:"out",a:5884.27,e:1474.6},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:8655.0,e:2168.94},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Léa",t:"out",a:83.0,e:83.0},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:8625.0,e:2161.42},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11825.0,e:2963.34},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11182.5,e:2802.33},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Léa",t:"out",a:11290.65,e:2829.44},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Julie Janvier",t:"out",a:380.0,e:380.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Hotel resort M3 / billet avion",t:"out",a:3404.69,e:3404.69},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Journée immersive monaco",t:"out",a:1135.0,e:1135.0},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:500.0,e:500.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"CM",t:"out",a:400.0,e:400.0},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"WIDAL CAPTURE",t:"out",a:1600.0,e:400.96},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"WIDAL CAPTURE",t:"out",a:400.0,e:100.24},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Miniamaker",t:"out",a:220.0,e:220.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Miniamaker",t:"out",a:220.0,e:220.0},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"WARWICK PARIS",t:"out",a:5771.57,e:1446.36},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"WARWICK PARIS",t:"out",a:2386.91,e:598.16},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"HOTEL COTE D'AZUR V3",t:"out",a:11325.0,e:11325.0},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:1823.28,e:456.91},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:612.35,e:153.45},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Bar/Restaurants/Alimentation",t:"out",a:19.0,e:4.76},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Activités",t:"out",a:2468.01,e:618.48},
-{d:"2026-04-15",ac:"wise_eur",c:"EUR",cat:"Activités",t:"out",a:638.86,e:638.86},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Fournitures",t:"out",a:6359.5,e:1593.69},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Fournitures",t:"out",a:425.28,e:106.58},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Voiture/Parking/metro",t:"out",a:6302.41,e:1579.38},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:5710.66,e:1431.09},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Vols/Déplacements",t:"out",a:2000.0,e:2000.0},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:598.62,e:150.01},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:10490.62,e:2628.95},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Vols/Déplacements",t:"out",a:2922.53,e:732.39},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:7128.18,e:1786.32},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:16104.0,e:4035.66},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Hôtels/Airbnb",t:"out",a:23359.34,e:5853.85},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Uber/Careem",t:"out",a:19.0,e:4.76},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"TVA",t:"out",a:2989.38,e:749.14},
-{d:"2026-04-15",ac:"wio_aed",c:"AED",cat:"TVA",t:"out",a:975.2,e:244.39},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Céline",t:"out",a:3635.0,e:910.93},
-{d:"2026-05-15",ac:"wio_aed",c:"AED",cat:"Céline",t:"out",a:4863.0,e:1218.67},
-{d:"2026-01-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:1615.0,e:404.72},
-{d:"2026-01-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:1800.0,e:1800.0},
-{d:"2026-02-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:8860.0,e:2220.32},
-{d:"2026-02-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:986.0,e:986.0},
-{d:"2026-03-15",ac:"wio_aed",c:"AED",cat:"Paiement perso",t:"out",a:4601.49,e:1153.13},
-{d:"2026-03-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:320.0,e:320.0},
-{d:"2026-05-15",ac:"wise_eur",c:"EUR",cat:"Paiement perso",t:"out",a:100.0,e:100.0}
-];
+const ACCT_SEED=[];
 const acUid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function acAccObj(id){ return ACCOUNTS.find(a=>a.id===id)||{id,label:id,cur:"EUR"}; }
 function eur0(n){return (Math.round(Number(n)||0)).toLocaleString("fr-FR")+" €";}
 function eur2(n){return (Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
 function acNat(n,c){const v=(Math.round((Number(n)||0)*100)/100).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2}); return c==="AED"?("dh "+v):c==="USD"?("$ "+v):c==="CHF"?(v+" CHF"):(v+" €");}
-async function loadAccounts(){
-  if(!fbReady()){ $("acTxList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
-  initFirebase();
+async function acReload(){
   try{ const s=await db.collection("setter_stats").get(); ATX=[];
     s.docs.forEach(d=>{ const x=d.data();
       if(x.isAcctCfg){ if(Array.isArray(x.accounts)&&x.accounts.length)ACCOUNTS=x.accounts; if(Array.isArray(x.cats)&&x.cats.length)ACCT_CATS=x.cats; if(x.aedRate)AEDR=Number(x.aedRate)||AEDR; }
       if(x.isAcctTx&&Array.isArray(x.lines)){ x.lines.forEach(L=>ATX.push({...L,month:x.month})); }
     });
   }catch(e){}
+}
+async function loadAccounts(){
+  if(!fbReady()){ $("acTxList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase();
+  $("acTxList").innerHTML='<div class="empty">Chargement…</div>';
+  await acReload();
   acFillSelectors(); renderAcctCfg(); renderAccounts();
 }
 function acFillSelectors(){
@@ -2077,14 +1884,78 @@ async function saveAcctCfg(){
     m.className="msg ok";m.textContent="Réglages enregistrés ✓"; acFillKeep(); renderAccounts();
   }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
 }
-async function importAcctSeed(){
-  if(!confirm("Importer les 194 lignes de janvier→mai ? Les mois déjà remplis seront ignorés.")) return;
-  const m=$("acImpMsg");m.className="msg";m.style.display="block";m.textContent="Import…";
-  const existing=new Set(ATX.map(t=>t.month)); const byM={};
-  ACCT_SEED.forEach(s=>{const mo=s.d.slice(0,7); if(existing.has(mo))return; (byM[mo]=byM[mo]||[]).push({id:acUid(),date:s.d,account:s.ac,cur:s.c,cat:s.cat,type:s.t,amount:s.a,eur:s.e==null?null:s.e,rate:s.c==="AED"?AEDR:1,label:""});});
-  try{ let n=0; for(const mo of Object.keys(byM)){ await db.collection("setter_stats").doc("ATX_"+mo).set({isAcctTx:true,month:mo,lines:byM[mo]},{merge:true}); n+=byM[mo].length; }
-    m.className="msg ok"; m.textContent=n?`${n} lignes importées ✓`:"Rien à importer (mois déjà remplis)."; await loadAccounts();
-  }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
+const ACCT_RULES=[
+ ["Publicité",["facebk","facebook","meta ","n t publicidade","tiktok","google ads"]],
+ ["Salaires/Presta",["kommunify","partners llc","partner llc","phoenix legaxy","lt consulting","ml digital"]],
+ ["Logiciels",["skool","manychat","activecampaign","active campaign","systeme io","système","vimeo","godaddy","google workspace","workspace","zoom","calendly","jotform","typeform","clickfunnel","airtable","make.com","make ","twilio","loom","webinarjam","chatgpt","openai","zapier","kombineo","frame","smash","notion","canva","elevenlabs","wetransfer","bizee","incfile","subscription","linkedin","startintegrate","youtube","o switch"]],
+ ["Voyages/Déplacements",["airbnb","warwick","hotel","novotel","avianca","air france","emirates","etihad","vertical rio","helitour","booking","uber","careem","taxi","virtuo","bolt","flight","aeroport","concierge","getaround"]],
+ ["Lifestyle/Perso",["amzn","amazon","restaurant"," bar ","cafe","electricity","dewa","grocery","carrefour","spinneys","alimentation","fourniture","apple.com","spotify","netflix","rentola","justlife","celavi","liberty"]],
+ ["Taxes & frais",["federal tax authority","tax authority"," tva","vat","foreign exchange transaction fee","transaction fee","monthly fee"," fee"]],
+ ["Transferts internes",["eur to aed","aed to eur","currency exchange","to wise","from wise","exchange to","wise vers wise"]],
+];
+function acCsvCat(desc,ttype,amount){
+  const d=(desc||"").toLowerCase();
+  if(ttype==="Currency exchange"||d.includes("eur to aed")||d.includes("aed to eur")) return "Transferts internes";
+  for(const it of ACCT_RULES){ for(const k of it[1]){ if(d.includes(k)) return it[0]; } }
+  if(amount>0||d.startsWith("received money")||d.startsWith("from ")) return "Revenus";
+  if(d.startsWith("sent money to")||d.startsWith("to ")) return "Salaires/Presta";
+  return "À catégoriser";
+}
+function acParseCSV(text){
+  const rows=[]; let i=0,f="",row=[],q=false; text=text.replace(/\r/g,"");
+  while(i<text.length){const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else { if(c==='"')q=true; else if(c===","){row.push(f);f="";} else if(c==="\n"){row.push(f);rows.push(row);row=[];f="";} else f+=c; }
+    i++;
+  }
+  if(f.length||row.length){row.push(f);rows.push(row);}
+  if(!rows.length) return [];
+  const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};head.forEach((h,j)=>o[h]=(r[j]||"").trim());return o;});
+}
+function acWiseDate(d){const p=(d||"").split("-");return p.length===3?(p[2]+"-"+p[1]+"-"+p[0]):d;}
+async function acMapCsv(text){
+  const rows=acParseCSV(text); if(!rows.length) return [];
+  const wise=("TransferWise ID" in rows[0]); const out=[];
+  for(const r of rows){
+    let date,cur,amount,desc,extId,ttype,exto;
+    if(wise){ date=acWiseDate(r["Date"]); cur=r["Currency"]; amount=parseFloat(r["Amount"]); desc=r["Description"]; extId=r["TransferWise ID"]; ttype=r["Transaction Type"]; exto=r["Exchange To Amount"]; }
+    else { date=r["Date"]; cur=r["Account currency"]; amount=parseFloat(r["Amount"]); desc=r["Description"]; extId=r["Ref. number"]; ttype=r["Transaction type"]; exto=""; }
+    if(!amount||isNaN(amount)) continue;
+    const account = cur==="AED"?"wio_aed":cur==="EUR"?(wise?"wise_eur":"wio_eur"):cur==="USD"?"wise_usd":cur==="CHF"?"wise_chf":"wio_eur";
+    const cat=acCsvCat(desc,ttype,amount);
+    let eur,rate=1;
+    if(cur==="EUR"){eur=amount;rate=1;}
+    else if(cur==="AED"){rate=AEDR;eur=amount*AEDR;}
+    else if(exto){ eur=(amount>0?1:-1)*Math.abs(parseFloat(exto)); rate=amount?eur/amount:1; }
+    else { rate=await acEurRate(cur,date); eur=amount*rate; }
+    const type = cat==="Transferts internes"?"transfer":(amount>0?"in":"out");
+    out.push({id:acUid(),extId,date,account,cur,cat,type,amount:Math.round(amount*100)/100,eur:Math.round(eur*100)/100,rate,label:(desc||"").replace(/\s+/g," ").trim().slice(0,60)});
+  }
+  return out;
+}
+async function importCSVFiles(){
+  const inp=$("acCsvFile"); const files=inp&&inp.files?[...inp.files]:[]; const m=$("acImpMsg");
+  if(!files.length){ m.className="msg err";m.style.display="block";m.textContent="Choisis au moins un fichier CSV."; return; }
+  m.className="msg";m.style.display="block";m.textContent="Lecture des relevés…";
+  try{
+    let lines=[];
+    for(const f of files){ const text=await f.text(); lines=lines.concat(await acMapCsv(text)); }
+    const existIds=new Set(ATX.map(t=>t.extId).filter(Boolean));
+    const seen=new Set(); const fresh=[];
+    for(const L of lines){ if(L.extId){ if(existIds.has(L.extId)||seen.has(L.extId)) continue; seen.add(L.extId);} fresh.push(L); }
+    if(!fresh.length){ m.className="msg ok"; m.textContent="Rien de nouveau (déjà importé)."; return; }
+    const byM={}; fresh.forEach(L=>{const mo=L.date.slice(0,7); (byM[mo]=byM[mo]||[]).push(L);});
+    let n=0;
+    for(const mo of Object.keys(byM)){ const ref=db.collection("setter_stats").doc("ATX_"+mo); const d=await ref.get(); const ex=d.exists&&Array.isArray(d.data().lines)?d.data().lines:[]; await ref.set({isAcctTx:true,month:mo,lines:ex.concat(byM[mo])},{merge:true}); n+=byM[mo].length; }
+    m.className="msg ok"; m.textContent=n+" opérations importées ✓ (classées + converties)"; if(inp)inp.value=""; await loadAccounts();
+  }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
+}
+async function resetAccounts(){
+  if(!confirm("⚠️ Vider TOUTES les opérations des comptes (pour repartir des relevés) ? Tes EOD / clients ne sont PAS touchés.")) return;
+  const m=$("acImpMsg");m.className="msg";m.style.display="block";m.textContent="Suppression…";
+  try{ const s=await db.collection("setter_stats").get(); let n=0; for(const d of s.docs){ if(d.data().isAcctTx){ await d.ref.delete(); n++; } } m.className="msg ok"; m.textContent=n+" mois supprimés ✓ — tu peux réimporter."; await loadAccounts(); }
+  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function importAcctJSON(){
   const m=$("acImpMsg"); let arr;
