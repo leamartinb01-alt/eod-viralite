@@ -276,6 +276,13 @@
   details.acmonth>summary .chev{margin-left:auto;color:var(--faint);transition:transform .2s}
   details.acmonth[open]>summary .chev{transform:rotate(90deg)}
   details.acmonth .body{padding:0 15px 14px}
+  details.accat>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0 6px}
+  details.accat>summary::-webkit-details-marker{display:none}
+  details.accat>summary .catsum{display:flex;align-items:center;gap:8px;min-width:0}
+  details.accat>summary .chev{transition:transform .2s;color:var(--faint);font-size:11px}
+  details.accat[open]>summary .chev{transform:rotate(90deg)}
+  details.accat .catdet{padding:2px 0 8px 26px}
+  details.accat .catdet .acrow{padding:6px 0;font-size:12.5px}
   .acrow{flex-wrap:wrap}
   /* mobile polish */
   @media(max-width:560px){
@@ -2343,7 +2350,17 @@ function renderAccounts(){
   rows.forEach(x=>{ const k=x.cat||"(sans cat.)"; catAgg[k]=catAgg[k]||{in:0,out:0,tr:0,n:0}; catAgg[k].n++; if(x.type==="in")catAgg[k].in+=+x.eur||0; else if(x.type==="out")catAgg[k].out+=+x.eur||0; else catAgg[k].tr+=+x.eur||0; });
   const cats=Object.entries(catAgg).map(([k,v])=>({k,...v,tot:v.in+v.out+v.tr})).sort((a,b)=>b.tot-a.tot);
   const maxv=Math.max(1,...cats.map(c=>c.tot));
-  $("acByCat").innerHTML=`<div class="card">${cats.length?cats.map(c=>{const col=c.in>0?"#34c759":c.tr>0?"#5aa9ff":"#e04c6b"; const val=c.in>0?c.in:c.out>0?c.out:c.tr; return `<div style="margin-top:13px"><div class="acrow" style="border:none;padding:0 0 5px"><span class="k" style="display:flex;align-items:center;gap:8px"><span style="font-size:16px;line-height:1">${acIcon(c.k)}</span><b style="color:var(--txt);font-weight:600">${escapeHtml(c.k)}</b><span style="color:var(--faint);font-size:11px">·${c.n}</span></span><span class="v">${eur0(val)}</span></div><div class="catbar"><span style="width:${Math.round(val/maxv*100)}%;background:${col}"></span></div></div>`;}).join(""):'<div class="sub2" style="margin:0">Aucune donnée.</div>'}</div>`;
+  $("acByCat").innerHTML=`<div class="card">${cats.length?cats.map(c=>{
+    const col=c.in>0?"#34c759":c.tr>0?"#5aa9ff":"#e04c6b"; const val=c.in>0?c.in:c.out>0?c.out:c.tr;
+    const ls=rows.filter(x=>(x.cat||"(sans cat.)")===c.k).sort((a,b)=>(b.eur||0)-(a.eur||0));
+    const det=ls.map(x=>`<div class="acrow"><span class="k" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(x.label||x.cat)}<span style="color:var(--faint)"> · ${escapeHtml(x.date)} · ${escapeHtml(acAccObj(x.account).label)}</span></span><span class="v">${eur0(x.eur)}</span></div>`).join("");
+    return `<div style="border-bottom:1px solid var(--line2)">
+      <details class="accat"><summary>
+        <span class="catsum"><span style="font-size:16px;line-height:1">${acIcon(c.k)}</span><b style="color:var(--txt);font-weight:600">${escapeHtml(c.k)}</b><span style="color:var(--faint);font-size:11px">·${c.n}</span><span class="chev">▸</span></span>
+        <span class="v">${eur0(val)}</span>
+      </summary><div class="catdet">${det}</div></details>
+      <div class="catbar" style="margin:0 0 10px"><span style="width:${Math.round(val/maxv*100)}%;background:${col}"></span></div>
+    </div>`;}).join(""):'<div class="sub2" style="margin:0">Aucune donnée.</div>'}</div>`;
   const byM={}; rows.forEach(x=>{(byM[x.month]=byM[x.month]||[]).push(x);});
   const months=Object.keys(byM).sort().reverse();
   $("acTxList").innerHTML=months.length?months.map(m=>{
