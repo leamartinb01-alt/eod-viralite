@@ -1653,6 +1653,9 @@ function renderFinance(){
       return {m:n, amount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)]], detail:det, callset:"Ilyas"}; }
     return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
   });
+  // Lignes d'ajustement manuel (éditables) : s'ajoutent au total auto et apparaissent dans le détail
+  pay.forEach(p=>{ const ln=(statOf(p.m,M).lines)||[]; p.lines=ln; const ms=ln.reduce((s,x)=>s+(Number(x.a)||0),0); p.manualSum=ms; p.amount=(p.amount||0)+ms;
+    if(ln.length) p.detail=(p.detail||[]).concat(ln.map(x=>["✏️ "+escapeHtml(x.l||"Ajustement"), eur(Number(x.a)||0)])); });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
@@ -1675,7 +1678,13 @@ function renderFinance(){
       </div>`;
     const ovVal=(statOf(p.m,M).override!=null&&statOf(p.m,M).override!=="")?statOf(p.m,M).override:"";
     const noteVal=statOf(p.m,M).note||"";
-    const editor=`${act}<div class="payin"><div><label>Commission à verser (€)</label><input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}"></div></div>
+    const mlHtml=`<div class="mlbox" id="ml_${p.m}" style="margin-top:10px">
+      <label style="display:block;font-size:12px;color:var(--muted)">✏️ Détail éditable — ajustements (s'ajoutent au total : prime, avance, retrait d'un lead en négatif…)</label>
+      <div class="mlRows">${(p.lines||[]).map(mlRow).join("")}</div>
+      <button type="button" class="addrow" onclick="addManualLine(this)">+ Ajouter une ligne</button>
+      ${p.manualSum?`<div class="hint">Ajustements : <b>${eur(p.manualSum)}</b> · total auto+ajustements : <b>${eur(p.amount)}</b>.</div>`:""}
+    </div>`;
+    const editor=`${act}${mlHtml}<div class="payin"><div><label>Commission à verser (€)</label><input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}"></div></div>
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
       <textarea id="st_${p.m}_note" rows="2" placeholder="Ex : prime, avance, ajustement…" style="width:100%;margin-top:4px">${escapeHtml(noteVal)}</textarea>
       <div class="hint">Laisse le montant vide = calcul auto. Mets ta valeur pour la garder. Tout est enregistré <b>par mois</b>.</div>
@@ -1720,7 +1729,8 @@ function setterCallsBlock(M, setter){
     <div class="sub2" style="margin:0 0 2px;color:var(--faint)">À vérifier (${pending.length}) — choisis le statut, coche « vérifié », puis Enregistrer.</div>
     <div class="ctRows">${pRows}</div>
     <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
-    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés — archive (${done.length})</summary>
+    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés — archive (${done.length}) · modifiable</summary>
+      <div class="sub2" style="margin:4px 0;color:var(--faint)">Tu peux modifier un call archivé (statut, setter, ✕ pour retirer) puis « Enregistrer / valider ».</div>
       <div class="arch-tools">
         <input class="archSearch" placeholder="🔎 Rechercher un client…" oninput="filterArchive(this)">
         <input type="date" class="archDate" onchange="filterArchive(this)">
@@ -1731,6 +1741,12 @@ function setterCallsBlock(M, setter){
   </div>`;
 }
 function addSetterCall(btn){ const ctb=btn.closest(".ctbox"); const box=ctb.querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false,setter:ctb.getAttribute("data-set")})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
+function mlRow(x){ return `<div class="mlrow" style="display:flex;gap:6px;align-items:center;margin:5px 0">
+    <input class="mlLabel" placeholder="Libellé (prime, avance, retrait d'un lead…)" value="${escapeHtml(x&&x.l||'')}" style="flex:1;min-width:0">
+    <input class="mlAmt" type="number" inputmode="numeric" placeholder="€ (+ / −)" value="${x&&x.a!=null&&x.a!==''?x.a:''}" style="width:110px">
+    <button type="button" class="xrow" onclick="this.closest('.mlrow').remove()">✕</button>
+  </div>`; }
+function addManualLine(btn){ const box=btn.closest(".mlbox").querySelector(".mlRows"); if(box){ box.insertAdjacentHTML("beforeend", mlRow({})); const i=box.lastElementChild.querySelector(".mlLabel"); if(i) i.focus(); } }
 function filterArchive(el){ const det=el.closest("details"); if(!det) return; const q=(det.querySelector(".archSearch").value||"").toLowerCase().trim(); const d=det.querySelector(".archDate").value||""; det.querySelectorAll(".archRows .ctrow").forEach(r=>{ const nm=((r.querySelector(".ctP")||{}).value||"").toLowerCase(); const dt=((r.querySelector(".ctDate")||{}).value||""); const ok=(!q||nm.includes(q))&&(!d||dt===d); r.style.display=ok?"":"none"; }); }
 async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
@@ -1757,6 +1773,8 @@ async function saveStat(name){
   if(po) obj.posts=Number(po.value)||0;
   if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
   if(noteEl) obj.note = noteEl.value.trim();
+  const mlBox=document.getElementById("ml_"+name);
+  if(mlBox){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(r=>({l:(r.querySelector(".mlLabel").value||"").trim(), a:Number(r.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
   try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
   catch(e){ alert("Erreur : "+e.message); }
 }
