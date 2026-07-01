@@ -477,13 +477,12 @@
         <div><label>Type</label><select id="acType" onchange="renderAccounts()">
           <option value="">Tout</option><option value="in">Entrées</option><option value="out">Sorties</option><option value="transfer">Transferts</option>
         </select></div>
+        <div><label>Catégorie</label><select id="acCatF" onchange="renderAccounts()"><option value="">Toutes</option></select></div>
       </div>
       <input id="acSearch" class="srch" placeholder="🔎 Rechercher (catégorie, libellé…)" oninput="renderAccounts()" style="margin-top:10px">
       <div class="stat" id="acKpis" style="margin-top:14px"></div>
       <div class="hint" id="acScope"></div>
     </div>
-    <div class="section-title">Par compte (net €)</div>
-    <div class="card" id="acByAcc"></div>
     <div class="section-title">Par catégorie</div>
     <div id="acByCat"></div>
     <div class="section-title">Opérations</div>
@@ -1541,7 +1540,7 @@ function junkName(s){ const t=String(s||"").trim(); return !t || /^\d+$/.test(t)
 function autoCallCandidates(M){
   const out=[];
   EODS.filter(x=>(x.report_date||"").slice(0,7)===M).forEach(e=>{
-    callsArr(e).forEach(c=>{ if(junkName(c.p)) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), verified:false}); });
+    callsArr(e).forEach(c=>{ if(junkName(c.p)) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), closed:c.res==="Closé", verified:false}); });
     bookedArr(e).forEach(b=>{ if(junkName(b.name)) return; out.push({prospect:b.name, setter:e.member||"", closer:"", date:e.report_date||"", show:null, verified:!!b.verified}); });
   });
   return out;
@@ -1555,10 +1554,14 @@ function mergeCalls(M){
   const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
   const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
   const cand=seedRows.concat(autoCallCandidates(M));
-  cand.forEach(c=>{ const k=normName(c.prospect); if(k && !seen.has(k)){ seen.add(k); saved.push(c); } });
+  cand.forEach(c=>{ const k=normName(c.prospect); if(!k) return;
+    // dédup souple : "ROHAN" (prénom seul) = "Rohan Enault" (nom complet) → même personne
+    const dup=[...seen].some(s=> s===k || s.startsWith(k+" ") || k.startsWith(s+" "));
+    if(!dup){ seen.add(k); saved.push(c); } });
   return saved;
 }
 function trackerLeads(M,setter){ return mergeCalls(M).filter(c=>c.setter===setter && c.show===true && c.verified===true).length; }
+function trackerCloses(M,setter){ return mergeCalls(M).filter(c=>c.setter===setter && c.closed===true && c.verified===true).length; }
 async function loadFinance(){
   if(!fbReady()){ $("finPay").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
@@ -1588,8 +1591,8 @@ function renderFinance(){
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
   const ilRdv = has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
-  const ilClose = has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
-  const luClose = has(stLu.closes)?Number(stLu.closes):agg.bySetter.Lucas.close;
+  const ilClose = has(stIl.closes)?Number(stIl.closes):(trackerCloses(M,"Ilyas")||agg.bySetter.Ilyas.close);
+  const luClose = has(stLu.closes)?Number(stLu.closes):(trackerCloses(M,"Lucas")||agg.bySetter.Lucas.close);
   const ilPrimeR=palier(ilRdv,C.palierRdv), ilPrimeC=palier(ilClose,C.palierClose);
   const ilAmount=C.ilyasPerLead*ilRdv + C.ilyasPerClose*ilClose + ilPrimeR + ilPrimeC;
   const luBase=lucasBase(M), lu5=lucasCA*C.lucasRate, luAmount=luBase+lu5;
@@ -1650,12 +1653,13 @@ function renderFinance(){
   renderFinTable();
 }
 function ctRow(c){
-  const showSel=v=>`<select class="ctShow"><option value=""${v==null?" selected":""}>— statut</option><option value="show"${v===true?" selected":""}>✅ Show-up</option><option value="no"${v===false?" selected":""}>❌ No-show</option></select>`;
+  const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
+  const showSel=`<select class="ctShow"><option value=""${cur===""?" selected":""}>— statut</option><option value="show"${cur==="show"?" selected":""}>✅ Show-up</option><option value="closed"${cur==="closed"?" selected":""}>🎯 Closé</option><option value="no"${cur==="no"?" selected":""}>❌ No-show</option></select>`;
   return `<div class="ctrow${(c.show===true&&c.verified)?' lead':''}" data-clo="${escapeHtml(c.closer||'')}">
     <input class="ctP" type="text" placeholder="Prospect" value="${escapeHtml(c.prospect||'')}" style="width:100%">
     <div class="ctline">
       <input class="ctDate" type="date" value="${escapeHtml(c.date||'')}">
-      ${showSel(c.show)}
+      ${showSel}
       <label class="ck"><input type="checkbox" class="ctVer" ${c.verified?'checked':''}>vérifié</label>
       <button type="button" class="xrow" onclick="this.closest('.ctrow').remove()">✕</button>
     </div>
@@ -1687,7 +1691,7 @@ async function saveSetterCalls(M,setter){
   if(!fbReady()) return; initFirebase();
   const box=document.querySelector('.ctbox[data-set="'+setter+'"]'); if(!box) return;
   const mine=[...box.querySelectorAll(".ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value;
-    return { prospect:r.querySelector(".ctP").value.trim(), setter:setter, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: sh==="show"?true:(sh==="no"?false:null), verified:r.querySelector(".ctVer").checked };
+    return { prospect:r.querySelector(".ctP").value.trim(), setter:setter, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: (sh==="show"||sh==="closed")?true:(sh==="no"?false:null), closed: sh==="closed", verified:r.querySelector(".ctVer").checked };
   }).filter(x=>x.prospect);
   const others=(CALLTRK[M]||[]).filter(c=>c.setter!==setter);
   const list=others.concat(mine);
@@ -2325,9 +2329,11 @@ function acFillSelectors(){
   $("acAcc").innerHTML='<option value="">Tous les comptes</option>'+ACCOUNTS.map(a=>`<option value="${a.id}">${escapeHtml(a.label)} · ${escapeHtml(a.company||"")}</option>`).join("");
   $("acAccSel").innerHTML=ACCOUNTS.map(a=>`<option value="${a.id}">${escapeHtml(a.label)} · ${escapeHtml(a.company||"")}</option>`).join("");
   $("acCatList").innerHTML=ACCT_CATS.map(c=>`<option value="${escapeHtml(c.name)}">`).join("");
+  const catsPresent=[...new Set(ATX.map(t=>t.cat).filter(Boolean))].sort();
+  if($("acCatF")) $("acCatF").innerHTML='<option value="">Toutes catégories</option>'+catsPresent.map(c=>`<option value="${escapeHtml(c)}">${acIcon(c)} ${escapeHtml(c)}</option>`).join("");
   if(!$("acDate").value) $("acDate").value=todayStr(); syncAcctCur();
 }
-function acFillKeep(){ const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value; acFillSelectors(); $("acMonth").value=m;$("acAcc").value=a;$("acType").value=t; }
+function acFillKeep(){ const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,cf=($("acCatF")&&$("acCatF").value)||""; acFillSelectors(); $("acMonth").value=m;$("acAcc").value=a;$("acType").value=t; if($("acCatF"))$("acCatF").value=cf; }
 function syncAcctCur(){ $("acCur").textContent=acAccObj($("acAccSel").value).cur; }
 async function acEurRate(cur,date){
   if(cur==="EUR") return 1;
@@ -2336,8 +2342,8 @@ async function acEurRate(cur,date){
   const m=prompt(`Taux ${cur}→EUR introuvable auto. Entre le taux (1 ${cur} = ? €) :`,""); return m?Number(m.replace(",","."))||0:0;
 }
 function acFiltered(){
-  const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,q=($("acSearch").value||"").toLowerCase().trim();
-  return ATX.filter(x=>(!m||x.month===m)&&(!a||x.account===a)&&(!t||x.type===t)&&(!q||((x.cat||"")+" "+(x.label||"")).toLowerCase().includes(q)));
+  const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,cf=($("acCatF")&&$("acCatF").value)||"",q=($("acSearch").value||"").toLowerCase().trim();
+  return ATX.filter(x=>(!m||x.month===m)&&(!a||x.account===a)&&(!t||x.type===t)&&(!cf||(x.cat||"")===cf)&&(!q||((x.cat||"")+" "+(x.label||"")).toLowerCase().includes(q)));
 }
 function renderAccounts(){
   if(!$("acKpis")) return;
@@ -2350,9 +2356,6 @@ function renderAccounts(){
     <div class="box"><div class="n grad-text">${eur0(ins-outs)}</div><div class="l">Net</div></div>
     <div class="box"><div class="n" style="color:#8fc4ff">${eur0(tr)}</div><div class="l">Transferts</div></div>`;
   $("acScope").textContent=`${rows.length} opération(s) · converti en € (taux figé). Les transferts internes ne comptent pas dans le Net.`;
-  const accAgg={};
-  rows.forEach(x=>{ const k=x.account; accAgg[k]=accAgg[k]||{in:0,out:0,tr:0}; if(x.type==="in")accAgg[k].in+=+x.eur||0; else if(x.type==="out")accAgg[k].out+=+x.eur||0; else accAgg[k].tr+=+x.eur||0; });
-  $("acByAcc").innerHTML=ACCOUNTS.filter(a=>accAgg[a.id]).map(a=>{const g=accAgg[a.id];return `<div class="acrow"><span class="k">${escapeHtml(a.label)} <span class="pill">${a.cur}</span></span><span class="v">${eur0(g.in-g.out)}<span style="color:var(--faint);font-weight:500;font-size:11px"> &nbsp;+${eur0(g.in)} / −${eur0(g.out)}</span></span></div>`;}).join("")||'<div class="sub2" style="margin:0">Aucune donnée.</div>';
   const catAgg={};
   rows.forEach(x=>{ const k=x.cat||"(sans cat.)"; catAgg[k]=catAgg[k]||{in:0,out:0,tr:0,n:0}; catAgg[k].n++; if(x.type==="in")catAgg[k].in+=+x.eur||0; else if(x.type==="out")catAgg[k].out+=+x.eur||0; else catAgg[k].tr+=+x.eur||0; });
   const cats=Object.entries(catAgg).map(([k,v])=>({k,...v,tot:v.in+v.out+v.tr})).sort((a,b)=>b.tot-a.tot);
