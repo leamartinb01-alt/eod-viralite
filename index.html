@@ -1074,8 +1074,9 @@ async function exportReport(){
   const commHtml=months.map(M=>{
     const arr=payForMonth(M,cls,eods,statMap); const tot=arr.reduce((s,p)=>s+p.eff,0);
     const rws=arr.map(p=>`<tr><td>${esc(p.n)}</td><td class="r">${eur(p.eff)}</td><td>${p.adj?'ajusté ✎':'auto'}</td><td class="sub">${esc(p.note)}</td></tr>`).join("");
-    return `<h3>${esc(monthLabel(M))} — total à verser ${eur(tot)}</h3><table><thead><tr><th>Membre</th><th class="r">À verser</th><th>Type</th><th>Note</th></tr></thead><tbody>${rws}</tbody></table>`;
+    return `<div class="cmonth" data-m="${esc(M)}"><h3>${esc(monthLabel(M))} — total à verser ${eur(tot)}</h3><table><thead><tr><th>Membre</th><th class="r">À verser</th><th>Type</th><th>Note</th></tr></thead><tbody>${rws}</tbody></table></div>`;
   }).join("")||'<p class="sub">Aucune commission.</p>';
+  const monthOpts=months.map(M=>`<option value="${esc(M)}">${esc(monthLabel(M))}</option>`).join("");
   const eodSorted=eods.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
   const eodHtml=eodSorted.map(x=>{
     const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
@@ -1085,7 +1086,7 @@ async function exportReport(){
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("Coaching: "+p2.join(" · ")); } return; }
       const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
     });
-    return `<tr><td style="white-space:nowrap">${esc(x.report_date)}</td><td>${esc(x.member)}</td><td class="sub2c">${parts.join(" · ")||'—'}</td></tr>`;
+    return `<tr data-m="${esc((x.report_date||'').slice(0,7))}"><td style="white-space:nowrap">${esc(x.report_date)}</td><td>${esc(x.member)}</td><td class="sub2c">${parts.join(" · ")||'—'}</td></tr>`;
   }).join("")||'<tr><td colspan="3">Aucun EOD.</td></tr>';
   const html=`<!doctype html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapport complet Écosystème Viral — ${todayStr()}</title>
 <style>
@@ -1107,7 +1108,10 @@ async function exportReport(){
   .sub2c{font-size:11px;color:#bdbbc6;line-height:1.5}
   tr{page-break-inside:avoid}
   .foot{margin-top:24px;color:#6c6a76;font-size:11px;text-align:center}
-  @media print{body{background:#fff;color:#111} .box,th,td{border-color:#ddd} .box{background:#f6f6f8} h1{color:#e04c6b;-webkit-text-fill-color:#e04c6b} h2.sec{border-color:#ccc} h3{color:#c2410c} .sub,.sub2c,.date,th{color:#555} .sched{color:#444}}
+  .ctrls{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 4px;position:sticky;top:0;background:#0b0b0e;padding:10px 0;z-index:5}
+  .ctrls select,.ctrls input,.ctrls button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#f4f2ee;border-radius:10px;padding:9px 12px;font-size:13px}
+  .ctrls input{flex:1;min-width:180px} .ctrls button{cursor:pointer}
+  @media print{body{background:#fff;color:#111} .box,th,td{border-color:#ddd} .box{background:#f6f6f8} h1{color:#e04c6b;-webkit-text-fill-color:#e04c6b} h2.sec{border-color:#ccc} h3{color:#c2410c} .sub,.sub2c,.date,th{color:#555} .sched{color:#444} .no-print{display:none!important}}
 </style></head><body><div class="doc">
   <h1>Écosystème Viral — Rapport complet</h1>
   <div class="date">Édité le ${dnow}</div>
@@ -1118,6 +1122,11 @@ async function exportReport(){
     <div class="box"><div class="n due">${eur(totalC-encC)}</div><div class="l">Reste à encaisser</div></div>
     <div class="box"><div class="n">${eods.length}</div><div class="l">EOD enregistrés</div></div>
   </div>
+  <div class="ctrls no-print">
+    <select id="fMonth" onchange="applyF()"><option value="">📅 Tous les mois</option>${monthOpts}</select>
+    <input id="fSearch" type="text" placeholder="🔎 Rechercher (nom, membre, note…)" oninput="applyF()">
+    <button type="button" onclick="document.getElementById('fMonth').value='';document.getElementById('fSearch').value='';applyF()">Réinitialiser</button>
+  </div>
   <h2 class="sec">Clients & encaissements</h2>
   <table><thead><tr><th>Client</th><th>Programme</th><th>Statut</th><th>Setter / Closer</th><th class="r">Montant</th><th class="r">Encaissé</th><th class="r">Reste</th><th>Coaching</th><th>Échéancier</th></tr></thead>
   <tbody>${clientsHtml||'<tr><td colspan="9">Aucun client.</td></tr>'}</tbody></table>
@@ -1126,7 +1135,24 @@ async function exportReport(){
   <h2 class="sec">EOD — historique complet (${eods.length})</h2>
   <table><thead><tr><th>Date</th><th>Membre</th><th>Détail</th></tr></thead><tbody>${eodHtml}</tbody></table>
   <div class="foot">Écosystème Viral · sauvegarde générée le ${dnow}. Conserve ce fichier. Astuce : Cmd/Ctrl + P → « Enregistrer en PDF ».</div>
-</div></body></html>`;
+</div>
+<script>
+function applyF(){
+  var mo=document.getElementById('fMonth').value;
+  var q=(document.getElementById('fSearch').value||'').toLowerCase().trim();
+  // Commissions : blocs par mois
+  document.querySelectorAll('.cmonth').forEach(function(d){ d.style.display=(!mo||d.getAttribute('data-m')===mo)?'':'none'; });
+  // Lignes de tableaux (clients + EOD) : filtre mois (si la ligne a un data-m) + recherche texte
+  document.querySelectorAll('table tbody tr').forEach(function(tr){
+    if(tr.closest('.cmonth')) return; // géré au niveau du bloc
+    var dm=tr.getAttribute('data-m');
+    var okM=(!mo)|| (dm? dm===mo : true); // les lignes sans mois (clients) restent visibles quand on filtre par mois
+    var okQ=(!q)|| tr.textContent.toLowerCase().indexOf(q)>-1;
+    tr.style.display=(okM&&okQ)?'':'none';
+  });
+}
+</script>
+</body></html>`;
   dl("rapport-complet-ecosysteme-viral-"+todayStr()+".html", html, "text/html");
   m.className="msg ok"; m.textContent="Rapport complet téléchargé ✓ — ouvre-le, puis Cmd/Ctrl+P pour le PDF.";
 }
@@ -1539,25 +1565,34 @@ function normName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g,"
 function junkName(s){ const t=String(s||"").trim(); return !t || /^\d+$/.test(t) || t.length<2; }
 function autoCallCandidates(M){
   const out=[];
-  EODS.filter(x=>(x.report_date||"").slice(0,7)===M).forEach(e=>{
-    callsArr(e).forEach(c=>{ if(junkName(c.p)) return; out.push({prospect:c.p, setter:SRC_SETTER[c.src]||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), closed:c.res==="Closé", verified:false}); });
-    bookedArr(e).forEach(b=>{ if(junkName(b.name)) return; out.push({prospect:b.name, setter:e.member||"", closer:"", date:e.report_date||"", show:null, verified:!!b.verified}); });
-  });
+  const monthE=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
+  // 1) QUI A BOOKÉ QUI = source d'autorité pour le setter (RDV pris des EOD setter). Prime sur le tag "source" d'Antho.
+  const bookedBy={}; // normName -> {setter, date, name}
+  monthE.forEach(e=>{ bookedArr(e).forEach(b=>{ if(junkName(b.name)) return; const k=normName(b.name); if(!k) return;
+    if(!bookedBy[k]) bookedBy[k]={setter:e.member||"", date:e.report_date||"", name:b.name}; }); });
+  // 2) CALLS des closers = le résultat (show / no-show / closé). Setter = celui qui a booké si connu, sinon la source taguée.
+  const called=new Set();
+  monthE.forEach(e=>{ callsArr(e).forEach(c=>{ if(junkName(c.p)) return; const k=normName(c.p); const bk=bookedBy[k];
+    out.push({prospect:c.p, setter:(bk?bk.setter:SRC_SETTER[c.src])||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), closed:c.res==="Closé", verified:false});
+    if(k) called.add(k); }); });
+  // 3) RDV pris SANS call encore trouvé (booké mais pas de résultat) -> statut vide, chez son setter
+  Object.keys(bookedBy).forEach(k=>{ if(called.has(k)) return; const b=bookedBy[k]; out.push({prospect:b.name, setter:b.setter, closer:"", date:b.date, show:null, verified:false}); });
   return out;
 }
 function mergeCalls(M){
   const saved=(CALLTRK[M]||[]).map(x=>({...x}));
-  const seen=new Set(saved.map(x=>normName(x.prospect)).filter(Boolean));
+  // dédup PAR SETTER : un même nom peut exister chez deux setters différents (ne pas fusionner entre setters)
+  const seen=new Set(saved.map(x=>(x.setter||"")+"§"+normName(x.prospect)).filter(k=>k.split("§")[1]));
   // Le SEED (jan→mai pré-rempli) ne se re-greffe plus pour un setter dès que tu as enregistré sa fiche.
   // Mais les calls AUTO des EOD (ce qu'Antho/les setters rentrent) remontent TOUJOURS dans "à vérifier"
   // (dédupliqués par nom : ta ligne enregistrée prime, donc ta validation n'est jamais écrasée).
   const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
   const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
   const cand=seedRows.concat(autoCallCandidates(M));
-  cand.forEach(c=>{ const k=normName(c.prospect); if(!k) return;
-    // dédup souple : "ROHAN" (prénom seul) = "Rohan Enault" (nom complet) → même personne
-    const dup=[...seen].some(s=> s===k || s.startsWith(k+" ") || k.startsWith(s+" "));
-    if(!dup){ seen.add(k); saved.push(c); } });
+  cand.forEach(c=>{ const k=normName(c.prospect); if(!k) return; const st=c.setter||"";
+    // dédup souple MAIS au sein du même setter : "ROHAN"="Rohan Enault" chez Ilyas ; mais "Lucas Mariacourt" (Ilyas) n'est PAS avalé par un "Lucas" (setter Lucas)
+    const dup=[...seen].some(x=>{ const i=x.indexOf("§"); const xs=x.slice(0,i), s=x.slice(i+1); return xs===st && (s===k || s.startsWith(k+" ") || k.startsWith(s+" ")); });
+    if(!dup){ seen.add(st+"§"+k); saved.push(c); } });
   return saved;
 }
 function trackerLeads(M,setter){ return mergeCalls(M).filter(c=>c.setter===setter && c.show===true && c.verified===true).length; }
@@ -1655,11 +1690,14 @@ function renderFinance(){
 function ctRow(c){
   const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
   const showSel=`<select class="ctShow"><option value=""${cur===""?" selected":""}>— statut</option><option value="show"${cur==="show"?" selected":""}>✅ Show-up</option><option value="closed"${cur==="closed"?" selected":""}>🎯 Closé</option><option value="no"${cur==="no"?" selected":""}>❌ No-show</option></select>`;
+  const setters=CONFIG.TEAM.filter(m=>m.role==="setter").map(m=>m.name); if(c.setter&&!setters.includes(c.setter))setters.unshift(c.setter);
+  const setSel=`<select class="ctSet" title="Setter (source)">${setters.map(s=>`<option ${s===c.setter?"selected":""}>${escapeHtml(s)}</option>`).join("")}</select>`;
   return `<div class="ctrow${(c.show===true&&c.verified)?' lead':''}" data-clo="${escapeHtml(c.closer||'')}">
     <input class="ctP" type="text" placeholder="Prospect" value="${escapeHtml(c.prospect||'')}" style="width:100%">
     <div class="ctline">
       <input class="ctDate" type="date" value="${escapeHtml(c.date||'')}">
       ${showSel}
+      ${setSel}
       <label class="ck"><input type="checkbox" class="ctVer" ${c.verified?'checked':''}>vérifié</label>
       <button type="button" class="xrow" onclick="this.closest('.ctrow').remove()">✕</button>
     </div>
@@ -1684,16 +1722,18 @@ function setterCallsBlock(M, setter){
     <div class="ctMsg msg"></div>
   </div>`;
 }
-function addSetterCall(btn){ const box=btn.closest(".ctbox").querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
+function addSetterCall(btn){ const ctb=btn.closest(".ctbox"); const box=ctb.querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false,setter:ctb.getAttribute("data-set")})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
 function filterArchive(el){ const det=el.closest("details"); if(!det) return; const q=(det.querySelector(".archSearch").value||"").toLowerCase().trim(); const d=det.querySelector(".archDate").value||""; det.querySelectorAll(".archRows .ctrow").forEach(r=>{ const nm=((r.querySelector(".ctP")||{}).value||"").toLowerCase(); const dt=((r.querySelector(".ctDate")||{}).value||""); const ok=(!q||nm.includes(q))&&(!d||dt===d); r.style.display=ok?"":"none"; }); }
 async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
   const box=document.querySelector('.ctbox[data-set="'+setter+'"]'); if(!box) return;
-  const mine=[...box.querySelectorAll(".ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value;
-    return { prospect:r.querySelector(".ctP").value.trim(), setter:setter, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: (sh==="show"||sh==="closed")?true:(sh==="no"?false:null), closed: sh==="closed", verified:r.querySelector(".ctVer").checked };
+  const mine=[...box.querySelectorAll(".ctrow")].map(r=>{ const sh=r.querySelector(".ctShow").value; const st=(r.querySelector(".ctSet")&&r.querySelector(".ctSet").value)||setter;
+    return { prospect:r.querySelector(".ctP").value.trim(), setter:st, closer:r.getAttribute("data-clo")||"", date:r.querySelector(".ctDate").value, show: (sh==="show"||sh==="closed")?true:(sh==="no"?false:null), closed: sh==="closed", verified:r.querySelector(".ctVer").checked };
   }).filter(x=>x.prospect);
-  const others=(CALLTRK[M]||[]).filter(c=>c.setter!==setter);
+  // On retire de l'existant toute ligne portée par CE bloc (même setter, ou réaffectée via le sélecteur) pour éviter les doublons lors d'un changement de setter
+  const mineKeys=new Set(mine.map(x=>normName(x.prospect)+"|"+(x.date||"")));
+  const others=(CALLTRK[M]||[]).filter(c=>c.setter!==setter && !mineKeys.has(normName(c.prospect)+"|"+(c.date||"")));
   const list=others.concat(mine);
   const m=box.querySelector(".ctMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("setter_stats").doc("CALLS_"+M).set({isCalls:true, month:M, list},{merge:true});
