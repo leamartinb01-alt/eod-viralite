@@ -1588,7 +1588,15 @@ function mergeCalls(M){
   // (dédupliqués par nom : ta ligne enregistrée prime, donc ta validation n'est jamais écrasée).
   const savedSetters=new Set(saved.map(x=>x.setter).filter(Boolean));
   const seedRows=CALL_SEED.filter(s=>s.month===M && !savedSetters.has(s.setter)).map(s=>({prospect:s.prospect,setter:s.setter,closer:s.closer,date:s.date,show:s.show!=null?s.show:null,verified:!!s.verified}));
-  const cand=seedRows.concat(autoCallCandidates(M));
+  const autoCand=autoCallCandidates(M);
+  // ENRICHISSEMENT : si l'EOD d'un closer marque quelqu'un Closé (ou Show-up), on le reflète sur TA ligne déjà enregistrée
+  // (upgrade seulement, jamais de downgrade ; ta case "vérifié" n'est jamais touchée). Ex. Romain Molinaro (Closé chez Anthony) devient un close même si tu l'avais validé en show-up.
+  const eodBy={};
+  autoCand.forEach(c=>{ const key=(c.setter||"")+"§"+normName(c.prospect); const p=eodBy[key];
+    if(!p){ eodBy[key]={closed:!!c.closed, show:c.show}; } else { if(c.closed)p.closed=true; if(c.show===true)p.show=true; else if(c.show===false&&p.show==null)p.show=false; } });
+  saved.forEach(s=>{ const e=eodBy[(s.setter||"")+"§"+normName(s.prospect)]; if(!e) return;
+    if(e.closed){ s.closed=true; s.show=true; } if(e.show===true && s.show!==true) s.show=true; });
+  const cand=seedRows.concat(autoCand);
   cand.forEach(c=>{ const k=normName(c.prospect); if(!k) return; const st=c.setter||"";
     // dédup souple MAIS au sein du même setter : "ROHAN"="Rohan Enault" chez Ilyas ; mais "Lucas Mariacourt" (Ilyas) n'est PAS avalé par un "Lucas" (setter Lucas)
     const dup=[...seen].some(x=>{ const i=x.indexOf("§"); const xs=x.slice(0,i), s=x.slice(i+1); return xs===st && (s===k || s.startsWith(k+" ") || k.startsWith(s+" ")); });
