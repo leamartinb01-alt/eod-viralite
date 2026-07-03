@@ -1642,20 +1642,21 @@ function renderFinance(){
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
-    if(t==="coach"){ const det=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(C.coachPerClient*(e/mt))]; }); return {m:n, amount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detail:det}; }
-    if(t==="closer"){ const ca=byCloser[n]||0; const det=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.closerRate)]; }); return {m:n, amount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detail:det}; }
-    if(t==="lucas"){ const det=CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return [escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", eur(e*C.lucasRate)]; }); det.unshift(["Base fixe du mois", eur(luBase)]); return {m:n, amount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detail:det, callset:"Lucas"}; }
+    if(t==="coach"){ const dn=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(C.coachPerClient*(e/mt)*100)/100}; }); return {m:n, autoAmount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detailNum:dn}; }
+    if(t==="closer"){ const ca=byCloser[n]||0; const dn=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.closerRate*100)/100}; }); return {m:n, autoAmount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detailNum:dn}; }
+    if(t==="lucas"){ const dn=[{l:"Base fixe du mois", a:Math.round(luBase*100)/100}]; CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.lucasRate*100)/100}); }); return {m:n, autoAmount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detailNum:dn, callset:"Lucas"}; }
     if(t==="ilyas"){ const ld=mergeCalls(M).filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified===true).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
-      const det=ld.map(c=>[escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), eur(C.ilyasPerLead)]);
-      if(ilClose) det.push([ilClose+" close × 50 €", eur(C.ilyasPerClose*ilClose)]);
-      if(ilPrimeR) det.push(["🎁 Prime palier "+ilRdv+" leads", eur(ilPrimeR)]);
-      if(ilPrimeC) det.push(["🎁 Prime palier "+ilClose+" close", eur(ilPrimeC)]);
-      return {m:n, amount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)]], detail:det, callset:"Ilyas"}; }
-    return {m:n, amount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]]};
+      const dn=ld.map(c=>({l:escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), a:C.ilyasPerLead}));
+      if(ilClose) dn.push({l:ilClose+" close × 50 €", a:C.ilyasPerClose*ilClose});
+      if(ilPrimeR) dn.push({l:"🎁 Prime palier "+ilRdv+" leads", a:ilPrimeR});
+      if(ilPrimeC) dn.push({l:"🎁 Prime palier "+ilClose+" close", a:ilPrimeC});
+      return {m:n, autoAmount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)]], detailNum:dn, callset:"Ilyas"}; }
+    return {m:n, autoAmount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]], detailNum:[]};
   });
-  // Lignes d'ajustement manuel (éditables) : s'ajoutent au total auto et apparaissent dans le détail
-  pay.forEach(p=>{ const ln=(statOf(p.m,M).lines)||[]; p.lines=ln; const ms=ln.reduce((s,x)=>s+(Number(x.a)||0),0); p.manualSum=ms; p.amount=(p.amount||0)+ms;
-    if(ln.length) p.detail=(p.detail||[]).concat(ln.map(x=>["✏️ "+escapeHtml(x.l||"Ajustement"), eur(Number(x.a)||0)])); });
+  // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
+  pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
+    p.edited=isEd; p.effDetail=isEd?saved.map(x=>({l:x.l||"",a:Number(x.a)||0})):(p.detailNum||[]);
+    p.amount=isEd?p.effDetail.reduce((s,x)=>s+(Number(x.a)||0),0):(p.autoAmount||0); });
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
@@ -1666,7 +1667,7 @@ function renderFinance(){
   $("finPay").innerHTML = pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
-    const detHtml=(p.detail&&p.detail.length)?`<details class="cdet"><summary>🔎 Détail du calcul</summary>${p.detail.map(d=>`<div class="kv"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join("")}</details>`:"";
+    const detHtml="";
     let act="";
     if(p.edit==="ilyas") act=`<div class="payin">
         <div><label>Forcer nb leads</label><input type="number" inputmode="numeric" id="st_${p.m}_rdv" value="${has(stIl.rdv)?Number(stIl.rdv):''}" placeholder="auto : ${ilRdv}"></div>
@@ -1678,11 +1679,18 @@ function renderFinance(){
       </div>`;
     const ovVal=(statOf(p.m,M).override!=null&&statOf(p.m,M).override!=="")?statOf(p.m,M).override:"";
     const noteVal=statOf(p.m,M).note||"";
-    const mlHtml=`<div class="mlbox" id="ml_${p.m}" style="margin-top:10px">
-      <label style="display:block;font-size:12px;color:var(--muted)">✏️ Détail éditable — ajustements (s'ajoutent au total : prime, avance, retrait d'un lead en négatif…)</label>
-      <div class="mlRows">${(p.lines||[]).map(mlRow).join("")}</div>
-      <button type="button" class="addrow" onclick="addManualLine(this)">+ Ajouter une ligne</button>
-      ${p.manualSum?`<div class="hint">Ajustements : <b>${eur(p.manualSum)}</b> · total auto+ajustements : <b>${eur(p.amount)}</b>.</div>`:""}
+    const mlHtml=`<div class="mlbox" id="ml_${p.m}" data-on="${p.edited?'1':'0'}" style="margin-top:10px">
+      <label style="display:block;font-size:12px;color:var(--muted)">🔎 Détail du calcul${p.edited?" — modifié à la main ✎":""}</label>
+      <div class="rodet" style="${p.edited?'display:none':''}">
+        ${(p.detailNum&&p.detailNum.length)?p.detailNum.map(d=>`<div class="kv"><span class="k">${d.l}</span><span class="v">${eur(d.a)}</span></div>`).join(""):'<div class="hint">Aucune ligne automatique.</div>'}
+        <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="editDetail(this)">✏️ Modifier le détail</button>
+      </div>
+      <div class="edet" style="${p.edited?'':'display:none'}">
+        <div class="mlRows">${(p.effDetail||[]).map(mlRow).join("")}</div>
+        <button type="button" class="addrow" onclick="addManualLine(this)">+ Ajouter une ligne</button>
+        <div class="hint">Total du détail : <b>${eur(p.amount)}</b>. Modifie un montant, retire une ligne (✕) ou ajoute-en, puis Enregistre.</div>
+        <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="resetDetail('${p.m}')">↺ Revenir au calcul auto</button>
+      </div>
     </div>`;
     const editor=`${act}${mlHtml}<div class="payin"><div><label>Commission à verser (€)</label><input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}"></div></div>
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
@@ -1747,6 +1755,11 @@ function mlRow(x){ return `<div class="mlrow" style="display:flex;gap:6px;align-
     <button type="button" class="xrow" onclick="this.closest('.mlrow').remove()">✕</button>
   </div>`; }
 function addManualLine(btn){ const box=btn.closest(".mlbox").querySelector(".mlRows"); if(box){ box.insertAdjacentHTML("beforeend", mlRow({})); const i=box.lastElementChild.querySelector(".mlLabel"); if(i) i.focus(); } }
+function editDetail(btn){ const box=btn.closest(".mlbox"); box.dataset.on="1"; const ro=box.querySelector(".rodet"), ed=box.querySelector(".edet"); if(ro)ro.style.display="none"; if(ed)ed.style.display=""; }
+async function resetDetail(name){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
+  const M=$("finMonth").value||monthStr();
+  try{ await db.collection("setter_stats").doc(name+"_"+M).set({member:name,month:M,lines:[]},{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),lines:[]}; renderFinance(); }
+  catch(e){ alert("Erreur : "+e.message); } }
 function filterArchive(el){ const det=el.closest("details"); if(!det) return; const q=(det.querySelector(".archSearch").value||"").toLowerCase().trim(); const d=det.querySelector(".archDate").value||""; det.querySelectorAll(".archRows .ctrow").forEach(r=>{ const nm=((r.querySelector(".ctP")||{}).value||"").toLowerCase(); const dt=((r.querySelector(".ctDate")||{}).value||""); const ok=(!q||nm.includes(q))&&(!d||dt===d); r.style.display=ok?"":"none"; }); }
 async function saveSetterCalls(M,setter){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
@@ -1774,7 +1787,7 @@ async function saveStat(name){
   if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
   if(noteEl) obj.note = noteEl.value.trim();
   const mlBox=document.getElementById("ml_"+name);
-  if(mlBox){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(r=>({l:(r.querySelector(".mlLabel").value||"").trim(), a:Number(r.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
+  if(mlBox && mlBox.dataset.on==="1"){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(r=>({l:(r.querySelector(".mlLabel").value||"").trim(), a:Number(r.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
   try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
   catch(e){ alert("Erreur : "+e.message); }
 }
