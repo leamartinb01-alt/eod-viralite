@@ -2594,7 +2594,7 @@ async function forceAcctSeed(){
 async function resetAccounts(){
   if(!confirm("⚠️ Vider TOUTES les opérations des comptes (pour repartir des relevés) ? Tes EOD / clients ne sont PAS touchés.")) return;
   const m=$("acImpMsg");m.className="msg";m.style.display="block";m.textContent="Suppression…";
-  try{ const s=await db.collection("setter_stats").get(); let n=0; for(const d of s.docs){ if(d.data().isAcctTx){ await d.ref.delete(); n++; } } m.className="msg ok"; m.textContent=n+" mois supprimés ✓ — tu peux réimporter."; await loadAccounts(); }
+  try{ const s=await db.collection("setter_stats").get(); let n=0; for(const d of s.docs){ if(d.data().isAcctTx){ await d.ref.set({isAcctTx:true,month:d.data().month||d.id.replace("ATX_",""),lines:[]}); n++; } } m.className="msg ok"; m.textContent=n+" mois vidés ✓ — tu peux réimporter."; await loadAccounts(); }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function importAcctJSON(){
@@ -2602,8 +2602,9 @@ async function importAcctJSON(){
   try{ arr=JSON.parse($("acImpBox").value); if(!Array.isArray(arr)) throw 0; }catch(e){ m.className="msg err";m.style.display="block";m.textContent="JSON invalide."; return; }
   m.className="msg";m.style.display="block";m.textContent="Import…"; const byM={};
   for(const s of arr){ const date=s.date||todayStr(); const cur=s.cur||acAccObj(s.account).cur; const rate=cur==="AED"?AEDR:(cur==="EUR"?1:(s.rate||await acEurRate(cur,date))); const e=s.eur!=null?s.eur:Math.round((s.amount||0)*rate*100)/100; const mo=date.slice(0,7); (byM[mo]=byM[mo]||[]).push({id:acUid(),date,account:s.account,cur,cat:s.cat||"",type:s.type||"out",amount:Number(s.amount)||0,eur:e,rate,label:s.label||""}); }
-  try{ let n=0; for(const mo of Object.keys(byM)){ const ref=db.collection("setter_stats").doc("ATX_"+mo); const d=await ref.get(); const lines=d.exists&&Array.isArray(d.data().lines)?d.data().lines:[]; byM[mo].forEach(l=>lines.push(l)); await ref.set({isAcctTx:true,month:mo,lines},{merge:true}); n+=byM[mo].length; }
-    m.className="msg ok";m.textContent=n+" lignes importées ✓"; $("acImpBox").value=""; await loadAccounts();
+  // REMPLACE chaque mois par les lignes importées (pas d'ajout) → réimporter est idempotent, jamais de doublon, et aucune suppression requise
+  try{ let n=0; for(const mo of Object.keys(byM)){ const ref=db.collection("setter_stats").doc("ATX_"+mo); await ref.set({isAcctTx:true,month:mo,lines:byM[mo]}); n+=byM[mo].length; }
+    m.className="msg ok";m.textContent=n+" lignes importées ✓ (mois remplacés, zéro doublon)"; $("acImpBox").value=""; await loadAccounts();
   }catch(e){m.className="msg err";m.textContent="Erreur : "+e.message;}
 }
 function exportAcct(){
