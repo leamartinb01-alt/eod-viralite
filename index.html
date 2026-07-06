@@ -616,12 +616,23 @@ const FORMS = {
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
   ],
   coach:[
-    { key:"wins",      label:"Wins de la semaine 🏆",                 type:"textarea" },
-    { key:"blockers",  label:"Clients à risque / blocages",           type:"textarea" },
+    { key:"clientlog", label:"📋 Suivi clients du jour — coche l'action faite pour chaque client touché", type:"clientlog" },
+    { key:"wins",      label:"Wins du jour 🏆 (optionnel)",           type:"textarea" },
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
   ],
 };
+const CLIENT_ACTIONS=["✅ Relancé","📞 Call fait","💬 Message","📊 Scoring envoyé","🟢 RAS / à jour","⚠️ À risque"];
+function clientLogRow(c,val){ const act=(val&&val.action)||""; const note=(val&&val.note)||"";
+  const opts=`<option value=""${act===""?" selected":""}>— action</option>`+CLIENT_ACTIONS.map(o=>`<option${o===act?" selected":""}>${o}</option>`).join("");
+  return `<div class="cllog" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml((c.nom||"")+" "+(c.prenom||""))}" style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:6px 0">
+    <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}<span class="sub2" style="font-weight:400"> · ${escapeHtml(c.programme||"")}</span></div>
+    <div class="payin">
+      <div><select class="clAct">${opts}</select></div>
+      <div><input class="clNote" type="text" placeholder="note (optionnel)" value="${escapeHtml(note)}"></div>
+    </div>
+  </div>`; }
+function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),action:r.querySelector(".clAct").value,note:(r.querySelector(".clNote").value||"").trim()})).filter(x=>x.action||x.note); }
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
@@ -642,7 +653,15 @@ function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-co
 function monthLabel(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }catch(e){ return ym; } }
 function monthShort(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}); }catch(e){ return ym; } }
 function monthsBetween(a,b){ if(!a||!b) return 0; const d1=new Date(a+"T00:00:00"), d2=new Date(b+"T00:00:00"); if(isNaN(d1)||isNaN(d2)) return 0; return Math.max(0,(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth())); }
-function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
+function normOffer(s){ return String(s||"").toLowerCase().normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").replace(/\s+/g," ").trim(); }
+function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=SETTINGS.offers||[];
+  let o=off.find(x=>normOffer(x.name)===p); if(o) return o;
+  o=off.find(x=>{ const k=normOffer(x.name); return k&&(p.includes(k)||k.includes(p)); }); if(o) return o;
+  if(p.includes("mentorat")) return off.find(x=>normOffer(x.name).includes("mentorat"))||null;
+  if(p.includes("elite")) return off.find(x=>normOffer(x.name).includes("elite"))||null;
+  if(p.includes("viral")) return off.find(x=>normOffer(x.name).includes("viral"))||null;
+  return null; }
+function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
 function isoWeekStr(d){ d=d?new Date(d):new Date(); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wn=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-W"+String(wn).padStart(2,"0"); }
 function weekDates(wstr){ const m=/^(\d{4})-W(\d{2})$/.exec(wstr||""); if(!m) return null; const y=+m[1], w=+m[2]; const simple=new Date(Date.UTC(y,0,1+(w-1)*7)); const dow=simple.getUTCDay(); const start=new Date(simple); if(dow<=4) start.setUTCDate(simple.getUTCDate()-dow+1); else start.setUTCDate(simple.getUTCDate()+8-dow); const end=new Date(start); end.setUTCDate(start.getUTCDate()+6); return [start,end]; }
@@ -767,7 +786,8 @@ function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type===
 
 /* ===================== RÉGLAGES (listes éditables partagées) ===================== */
 const SETTINGS_DEFAULT={
-  programmes:["VIRAL PRO","MENTORAT CÉLINE & LOÏC","ÉLITE VIRALE","Autre"],
+  programmes:["Viral Pro","Élite Virale","Mentorat","Autre"],
+  offers:[{name:"Viral Pro",price:4000,sessions:9},{name:"Élite Virale",price:8000,sessions:12},{name:"Mentorat",price:15000,sessions:18}],
   statuts:["Actif","Terminé","Annulé / Litige"],
   cgvTypes:["CGV JOTFORM","CGV WHOP"],
   setters:["Ilyas","Lucas","N/A"],
@@ -792,6 +812,7 @@ async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
+      if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -800,10 +821,18 @@ function fieldOptions(key){
   const map={programme:'programmes',statut:'statuts',cgv:'cgvTypes',setter:'setters',closer:'closers'};
   const k=map[key]; if(!k) return null;
   let arr=(SETTINGS[k]||[]).slice();
+  if(key==='programme'){ const offNames=(SETTINGS.offers||[]).map(o=>o.name).filter(Boolean); arr=offNames.concat(arr.filter(p=>p&&!offNames.includes(p))); if(!arr.some(p=>String(p).toLowerCase()==="autre")) arr.push("Autre"); }
   if(key==='setter'||key==='closer') arr=[""].concat(arr);
   return arr;
 }
 function liRow(v){ return `<div class="lirow"><input value="${escapeHtml(v||'')}"><button type="button" class="xrow" onclick="this.closest('.lirow').remove()">✕</button></div>`; }
+function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:flex;gap:6px;align-items:center;margin:5px 0">
+    <input class="ofName" type="text" placeholder="Nom de l'offre" value="${escapeHtml(o.name||'')}" style="flex:2;min-width:110px">
+    <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:90px">
+    <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:90px">
+    <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
+  </div>`; }
+function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
 function payRow(it){ it=it||{name:"",type:"manual"}; return `<div class="drow pyrow">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:120px">
@@ -827,6 +856,11 @@ function renderSettings(){
     return `<div class="setblock"><h3>${SET_LABELS[k]}</h3><div class="li-${k}">${rows}</div>
       <button type="button" class="addrow" onclick="addLi('${k}')">+ Ajouter</button></div>`;
   }).join("");
+  const offr=(SETTINGS.offers||[]).map(offerRow).join("");
+  html+=`<div class="setblock"><h3>🎓 Offres (prix + nb de séances)</h3>
+    <div id="offerBox">${offr}</div>
+    <button type="button" class="addrow" onclick="addOffer()">+ Ajouter une offre</button>
+    <div class="hint">Le <b>nom</b> = le programme choisi sur la fiche client. Le <b>nb de séances</b> alimente le suivi coaching (X / total), le <b>prix</b> pré-remplit le montant du contrat.</div></div>`;
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
@@ -842,6 +876,7 @@ function renderSettings(){
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
+  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -955,6 +990,7 @@ function renderCoachingTab(){
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <details class="calwrap" open><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
+      ${scoreBlock(c)}
       <div class="cgadd">
         <div class="payin">
           <div><label>Jour du coaching</label><input type="date" class="cgDate" value="${todayStr()}"></div>
@@ -969,6 +1005,40 @@ function renderCoachingTab(){
       </div>
     </div>`; }).join("");
 }
+function isoWeek(ds){ const d=new Date(ds+"T00:00:00"); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wk=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-S"+String(wk).padStart(2,"0"); }
+function curWeek(){ return isoWeek(todayStr()); }
+function scoreOf(c){ const wk=curWeek(); return (c&&c.scoring&&c.scoring[wk])||{}; }
+function scoreBlock(c){ const sc=scoreOf(c); const st=["🟢 En forme","🟠 À surveiller","🔴 En difficulté"];
+  return `<details class="cdet" style="margin-top:10px"><summary>📊 Scoring de la semaine (${curWeek()})</summary>
+    <div class="scbox" data-id="${escapeHtml(c.id)}">
+      <div class="payin">
+        <div><label>Statut global</label><select class="scStatus">${st.map(o=>`<option${o===(sc.status||st[0])?" selected":""}>${o}</option>`).join("")}</select></div>
+        <div><label>Calls & RDV pris</label><input class="scCalls" type="text" value="${escapeHtml(sc.calls||'')}" placeholder="ex : 3 calls, 1 RDV"></div>
+      </div>
+      <label>Progression / avancement</label><textarea class="scProg" rows="2" placeholder="Où en est le client…">${escapeHtml(sc.prog||'')}</textarea>
+      <label>Motivation / ressenti</label><input class="scMoti" type="text" value="${escapeHtml(sc.moti||'')}" placeholder="ex : 🔥 motivé, coup de mou mardi">
+      <label>Blocages + prochaine action</label><textarea class="scBlock" rows="2" placeholder="Ce qui coince + la prochaine étape décidée">${escapeHtml(sc.block||'')}</textarea>
+      <div class="row2" style="margin-top:10px"><button type="button" class="btn ghost sm" onclick="saveScore('${c.id}')">💾 Enregistrer</button><button type="button" class="btn ghost sm" onclick="copyScore('${c.id}')">📋 Copier le récap (groupe WA)</button></div>
+      <div class="scMsg msg"></div>
+    </div></details>`; }
+async function saveScore(id){ if(!fbReady()) return; initFirebase();
+  const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.scbox[data-id="'+id+'"]'); if(!c||!card) return;
+  const sc={status:card.querySelector(".scStatus").value, calls:card.querySelector(".scCalls").value.trim(), prog:card.querySelector(".scProg").value.trim(), moti:card.querySelector(".scMoti").value.trim(), block:card.querySelector(".scBlock").value.trim(), updated:todayStr()};
+  const scoring=Object.assign({},c.scoring||{}); scoring[curWeek()]=sc;
+  const m=card.querySelector(".scMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({scoring}); c.scoring=scoring; m.className="msg ok"; m.textContent="Scoring enregistré ✓"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+function copyScore(id){ const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.scbox[data-id="'+id+'"]'); if(!c||!card) return;
+  const status=card.querySelector(".scStatus").value, calls=card.querySelector(".scCalls").value.trim(), prog=card.querySelector(".scProg").value.trim(), moti=card.querySelector(".scMoti").value.trim(), block=card.querySelector(".scBlock").value.trim();
+  const nom=((c.nom||"")+" "+(c.prenom||"")).trim();
+  let t="📊 Point de la semaine — "+nom+"\n\nStatut : "+status+"\n";
+  if(calls) t+="📞 Calls/RDV : "+calls+"\n";
+  if(prog) t+="📈 Progression : "+prog+"\n";
+  if(moti) t+="⚡ Motivation : "+moti+"\n";
+  if(block) t+="🚧 Focus / prochaine action : "+block+"\n";
+  t+="\n👉 Dis-nous comment tu te sens cette semaine et si tu as un blocage 💬";
+  const m=card.querySelector(".scMsg");
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(()=>{ m.className="msg ok"; m.style.display="block"; m.textContent="Récap copié ✓ — colle-le dans le groupe WhatsApp du client."; }).catch(()=>{ m.className="msg"; m.style.display="block"; m.innerHTML="Copie manuelle :<br><textarea rows='7' style='width:100%'>"+escapeHtml(t)+"</textarea>"; }); }
+  else { m.className="msg"; m.style.display="block"; m.innerHTML="Copie manuelle :<br><textarea rows='7' style='width:100%'>"+escapeHtml(t)+"</textarea>"; } }
 async function addCoachWeek(btn,id){
   if(!fbReady()) return; initFirebase();
   const card=btn.closest(".cwkcard"); const c=CLIENTS.find(x=>x.id===id); if(!c||!card) return;
@@ -1183,12 +1253,18 @@ function onMember(){
       inp=`<div id="callRows"></div><button type="button" class="addrow" onclick="addCallRow()">+ Ajouter un call</button>`;
     } else if(f.type==="booked"){
       inp=`<div id="bookRows"></div><button type="button" class="addrow" onclick="addBookRow()">+ Ajouter un RDV pris</button>`;
+    } else if(f.type==="clientlog"){
+      const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client actif — ajoute des clients dans l\'onglet Clients.</div>'}</div>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
+  // Le suivi clients du coach a besoin de la liste clients (pas encore chargée sur l'onglet EOD) → on la charge puis on rafraîchit
+  if(role==="coach" && $("clientLog") && !CLIENTS.length && fbReady()){ initFirebase();
+    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client actif — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
 }
 function fillEodForm(x){
   const role=member(x.member).role;
@@ -1196,6 +1272,7 @@ function fillEodForm(x){
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
+    else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const s=r.querySelector(".clAct"), nt=r.querySelector(".clNote"); if(s)s.value=v.action||""; if(nt)nt.value=v.note||""; } }); } }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
@@ -1211,7 +1288,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -1341,6 +1418,7 @@ function openMember(name){
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
       if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
+      if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>`<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${escapeHtml(a.action||'')}${a.note?" · "+escapeHtml(a.note):""}</span></div>`).join(""); }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
     const del=isAdmin()?`<button class="btn danger sm" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
@@ -1400,13 +1478,18 @@ function renderClientForm(data){
   CLIENT_FIELDS.forEach(f=>{
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
-    if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; inp=`<select id="cf_${f.key}">${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>`; }
+    if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
     else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
+  onOfferPick(true);
+}
+function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
+  if(h) h.textContent=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances de coaching"+(o.price?" · "+o.price+" €":"")):"";
+  if(!initial && o){ const mEl=$("cf_montant"); if(mEl && (!mEl.value || Number(mEl.value)===0) && o.price) mEl.value=o.price; }
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   `<div class="drow schedRow">
