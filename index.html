@@ -1006,7 +1006,7 @@ function renderCoachingTab(){
         <span class="gbadge">${escapeHtml(stat)}</span>
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}% du parcours</span>
       </div>
-      <div class="cwk-in"><label>📅 Calendrier éditorial envoyé le</label><input type="date" value="${escapeHtml(c.calendrier_edito||'')}" onchange="saveEdito('${c.id}',this.value)"></div>
+      <div class="cwk-in"><label>📅 Calendrier éditorial envoyé le</label><input type="date" value="${escapeHtml(c.calendrier_edito||'')}" onchange="saveEdito('${c.id}',this.value,this)"><span class="editoMsg sub2" style="margin-left:6px">${c.calendrier_edito?'✓ noté le '+escapeHtml(dayLabel(c.calendrier_edito)):''}</span></div>
       <details class="calwrap" open><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       ${scoreBlock(c)}
@@ -1024,12 +1024,16 @@ function renderCoachingTab(){
       </div>
     </div>`; }).join("");
 }
-async function saveEdito(id,val){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
-  try{ await db.collection("clients").doc(id).update({calendrier_edito:val||""}); if(c) c.calendrier_edito=val||""; }catch(e){ alert("Erreur : "+e.message); } }
+async function saveEdito(id,val,el){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
+  if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Enregistrement…"; s.style.color="var(--muted)"; } }
+  try{ await db.collection("clients").doc(id).update({calendrier_edito:val||""}); if(c) c.calendrier_edito=val||"";
+    if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent=val?("✓ noté le "+dayLabel(val)):"✓ effacé"; s.style.color="var(--green)"; } }
+    const rr=document.querySelector('.rcrow[data-id="'+id+'"] .rced'); if(rr){ rr.innerHTML=val?('📅 '+escapeHtml(dayLabel(val))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>'; }
+  }catch(e){ if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Erreur"; s.style.color="var(--red)"; } } alert("Erreur : "+e.message); } }
 function coachRecap(cs){ if(!cs||!cs.length) return "";
   const rows=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c); const sc=scoreOf(c); const stEmoji=(sc.status||"⚪").split(" ")[0];
     const ed=c.calendrier_edito?('📅 '+escapeHtml(dayLabel(c.calendrier_edito))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>';
-    return `<div class="rcrow"><span class="rcn">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</span><span class="rcsc">${stEmoji} ${done}/${tot}</span><span class="rced">${ed}</span></div>`; }).join("");
+    return `<div class="rcrow" data-id="${escapeHtml(c.id)}"><span class="rcn">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</span><span class="rcsc">${stEmoji} ${done}/${tot}</span><span class="rced">${ed}</span></div>`; }).join("");
   const nb=cs.filter(c=>!c.calendrier_edito).length;
   return `<details class="card" open style="margin:0 0 12px"><summary style="cursor:pointer;font-weight:700;list-style:none">📋 Récap clients — calendrier éditorial & statut${nb?` · <span style="color:var(--red)">${nb} à envoyer</span>`:""}</summary>
     <div class="rctable" style="margin-top:10px">${rows}</div></details>`; }
