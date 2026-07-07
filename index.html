@@ -198,6 +198,7 @@
   .cwk-bar{height:7px; border-radius:6px; background:rgba(255,255,255,.08); margin-top:8px; overflow:hidden}
   .cwk-bar span{display:block; height:100%; background:linear-gradient(90deg,#ff8b47,#e04c6b)}
   .cwk-in{margin-top:9px}
+  .gbadge{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);color:var(--txt);background:rgba(255,255,255,.04)}
   .cwk-in label{margin:0 0 4px}
   .cwk-in input{padding:9px 11px}
   /* checkbox client (onboarding) */
@@ -555,7 +556,7 @@ const CONFIG = {
     messagingSenderId:"605349501477",
     appId:"1:605349501477:web:8659ddb89f1f512d92fdcc",
   },
-  PASSWORD_TEAM : "VIRALITE2026@01",
+  PASSWORD_TEAM : "ECOVIRAL2026@1",
   PASSWORD_ADMIN: "ADMIN-VIRALITE2026@01",
   PASSWORD_CLIENT: "CLIENTS-VIRALITE2026@01",
   TEAM : [
@@ -564,6 +565,7 @@ const CONFIG = {
     { name:"Ilyas",   title:"Setter Insta",    role:"setter" },
     { name:"Lucas",   title:"Setter LinkedIn", role:"setter" },
     { name:"Clément", title:"Coach",    role:"coach"  },
+    { name:"Romain",  title:"Coach Conversion & Viralité", role:"coach" },
   ],
   /* règles de commission */
   COMM : {
@@ -616,7 +618,10 @@ const FORMS = {
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
   ],
   coach:[
-    { key:"clientlog", label:"📋 Suivi clients du jour — coche l'action faite pour chaque client touché", type:"clientlog" },
+    { key:"clientlog", label:"📋 Suivi clients du jour — action + note + lien Fathom pour chaque client coaché", type:"clientlog" },
+    { key:"skool_pass",   label:"🎓 Passe Skool faite — questions clients checkées & répondues", type:"check" },
+    { key:"coach_done",   label:"✅ Tous les coachings du jour pointés (chaque client)", type:"check" },
+    { key:"scoring_done", label:"📊 Scoring hebdo fait (le vendredi, pour chaque client)", type:"check" },
     { key:"wins",      label:"Wins du jour 🏆 (optionnel)",           type:"textarea" },
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
@@ -631,8 +636,9 @@ function clientLogRow(c,val){ const act=(val&&val.action)||""; const note=(val&&
       <div><select class="clAct">${opts}</select></div>
       <div><input class="clNote" type="text" placeholder="note (optionnel)" value="${escapeHtml(note)}"></div>
     </div>
+    <input class="clFathom" type="url" placeholder="🎬 Lien Fathom du call (optionnel)" value="${escapeHtml((val&&val.fathom)||'')}" style="margin-top:6px">
   </div>`; }
-function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),action:r.querySelector(".clAct").value,note:(r.querySelector(".clNote").value||"").trim()})).filter(x=>x.action||x.note); }
+function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),action:r.querySelector(".clAct").value,note:(r.querySelector(".clNote").value||"").trim(),fathom:((r.querySelector(".clFathom")&&r.querySelector(".clFathom").value)||"").trim()})).filter(x=>x.action||x.note||x.fathom); }
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
@@ -787,12 +793,12 @@ function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type===
 /* ===================== RÉGLAGES (listes éditables partagées) ===================== */
 const SETTINGS_DEFAULT={
   programmes:["Viral Pro","Élite Virale","Mentorat","Autre"],
-  offers:[{name:"Viral Pro",price:4000,sessions:9},{name:"Élite Virale",price:8000,sessions:12},{name:"Mentorat",price:15000,sessions:18}],
+  offers:[{name:"Viral Pro",price:4000,sessions:9,months:3},{name:"Élite Virale",price:8000,sessions:12,months:4},{name:"Mentorat",price:15000,sessions:18,months:6}],
   statuts:["Actif","Terminé","Annulé / Litige"],
   cgvTypes:["CGV JOTFORM","CGV WHOP"],
   setters:["Ilyas","Lucas","N/A"],
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
-  coachs:["Coach Viralité","Coach Conversion","Loïc"],
+  coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
@@ -826,10 +832,11 @@ function fieldOptions(key){
   return arr;
 }
 function liRow(v){ return `<div class="lirow"><input value="${escapeHtml(v||'')}"><button type="button" class="xrow" onclick="this.closest('.lirow').remove()">✕</button></div>`; }
-function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:flex;gap:6px;align-items:center;margin:5px 0">
+function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
     <input class="ofName" type="text" placeholder="Nom de l'offre" value="${escapeHtml(o.name||'')}" style="flex:2;min-width:110px">
-    <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:90px">
-    <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:90px">
+    <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:80px">
+    <input class="ofMonths" type="number" inputmode="numeric" placeholder="mois" value="${o.months!=null?o.months:''}" style="width:70px">
+    <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:80px">
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
@@ -876,7 +883,7 @@ function renderSettings(){
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
-  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
+  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -967,7 +974,7 @@ function calMove(btn,id,ym,delta){
 }
 function coachLogHtml(c, withDel){ const id=c.id, log=(c.coaching&&c.coaching.log)||[]; if(!log.length) return '<div class="sub2" style="margin:8px 0 0">Aucune séance pointée pour l\'instant.</div>';
   const ord=log.map((e,i)=>({e,i})).sort((a,b)=>String((entryDay(b.e))).localeCompare(String((entryDay(a.e)))));
-  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const dd=e.date?dayLabel(e.date):(e.week?cgWeekLabel(e.week):""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(dd)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
+  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const dd=e.date?dayLabel(e.date):(e.week?cgWeekLabel(e.week):""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; const fl=e.fathom?` · <a href="${escapeHtml(e.fathom)}" target="_blank" rel="noopener">🎬 Fathom</a>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(dd)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}${fl}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
 async function loadCoaching(){
   const box=$("coachingList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -984,10 +991,18 @@ function renderCoachingTab(){
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const coachOpts=SETTINGS.coachs||[];
   box.innerHTML=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
+    const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
+    const lv=clientLevel(done), sc=scoreOf(c), stat=sc.status||"⚪ pas encore scoré";
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
-      <div class="cwk-sub">${escapeHtml(c.programme||"")}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
+      <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
+      <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
+        <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
+        <span class="gbadge">${escapeHtml(stat)}</span>
+        <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}% du parcours</span>
+      </div>
+      <div class="cwk-in"><label>📅 Calendrier éditorial envoyé le</label><input type="date" value="${escapeHtml(c.calendrier_edito||'')}" onchange="saveEdito('${c.id}',this.value)"></div>
       <details class="calwrap" open><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       ${scoreBlock(c)}
@@ -1000,11 +1015,20 @@ function renderCoachingTab(){
           <div><label>Motivation</label><select class="cgMot"><option>🔥 Motivé·e</option><option>😐 Moyen</option><option>😮‍💨 Peu motivé·e</option></select></div>
           <div><label>Note (optionnel)</label><input type="text" class="cgNote" placeholder="Ex : à relancer…"></div>
         </div>
+        <label>🎬 Lien Fathom du call (optionnel) — le client pourra revisionner</label><input type="url" class="cgFathom" placeholder="https://fathom.video/…">
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
         <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
       </div>
     </div>`; }).join("");
 }
+async function saveEdito(id,val){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
+  try{ await db.collection("clients").doc(id).update({calendrier_edito:val||""}); if(c) c.calendrier_edito=val||""; }catch(e){ alert("Erreur : "+e.message); } }
+function clientLevel(done){ done=Number(done)||0;
+  if(done>=15) return {lvl:"🏆 Légende",cl:"#ffcf7a"};
+  if(done>=10) return {lvl:"🔥 En feu",cl:"#ff8b47"};
+  if(done>=5)  return {lvl:"🚀 Lancé",cl:"#7ee2a3"};
+  if(done>=1)  return {lvl:"🌱 Démarrage",cl:"#5aa9ff"};
+  return {lvl:"⚪ À lancer",cl:"#9b9aa3"}; }
 function isoWeek(ds){ const d=new Date(ds+"T00:00:00"); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wk=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-S"+String(wk).padStart(2,"0"); }
 function curWeek(){ return isoWeek(todayStr()); }
 function scoreOf(c){ const wk=curWeek(); return (c&&c.scoring&&c.scoring[wk])||{}; }
@@ -1046,9 +1070,10 @@ async function addCoachWeek(btn,id){
   const coach=card.querySelector(".cgCoach").value;
   const motive=card.querySelector(".cgMot").value;
   const note=card.querySelector(".cgNote").value.trim();
+  const fathom=(card.querySelector(".cgFathom")&&card.querySelector(".cgFathom").value.trim())||"";
   const total=Math.max(0,Number(card.querySelector(".cgTot").value)||coachTotal(c));
   const prev=c.coaching||{}; const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
-  log.push({date, coach, motive, note});
+  log.push({date, coach, motive, note, fathom});
   const co={total, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), note:prev.note||"", log, updated:todayStr()};
   try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); }
 }
@@ -1246,6 +1271,7 @@ function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
   FORMS[role].forEach(f=>{
     let inp;
+    if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
     if(f.type==="mood"){
       const chips=MOODS.map(mo=>`<button type="button" class="mood" data-for="f_${f.key}" data-v="${mo.v}" onclick="pickMood(this,'${mo.v}')">${mo.e}<span class="ml">${mo.l}</span></button>`).join("");
       inp=`<div class="moods">${chips}</div><input type="hidden" id="f_${f.key}" value="">`;
@@ -1272,7 +1298,8 @@ function fillEodForm(x){
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
-    else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const s=r.querySelector(".clAct"), nt=r.querySelector(".clNote"); if(s)s.value=v.action||""; if(nt)nt.value=v.note||""; } }); } }
+    else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const s=r.querySelector(".clAct"), nt=r.querySelector(".clNote"), ft=r.querySelector(".clFathom"); if(s)s.value=v.action||""; if(nt)nt.value=v.note||""; if(ft)ft.value=v.fathom||""; } }); } }
+    else if(f.type==="check"){ const el=$("f_"+f.key); if(el) el.checked=!!v; }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
@@ -1288,7 +1315,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -1418,7 +1445,8 @@ function openMember(name){
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
       if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
-      if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>`<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${escapeHtml(a.action||'')}${a.note?" · "+escapeHtml(a.note):""}</span></div>`).join(""); }
+      if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>`<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${escapeHtml(a.action||'')}${a.note?" · "+escapeHtml(a.note):""}${a.fathom?` · <a href="${escapeHtml(a.fathom)}" target="_blank" rel="noopener">🎬 Fathom</a>`:""}</span></div>`).join(""); }
+      if(f.type==="check"){ return (x.payload&&x.payload[f.key])?`<div class="kv"><span class="k">${f.label}</span><span class="v">✅</span></div>`:""; }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
     const del=isAdmin()?`<button class="btn danger sm" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
@@ -1488,7 +1516,7 @@ function renderClientForm(data){
   onOfferPick(true);
 }
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
-  if(h) h.textContent=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances de coaching"+(o.price?" · "+o.price+" €":"")):"";
+  if(h) h.textContent=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):"";
   if(!initial && o){ const mEl=$("cf_montant"); if(mEl && (!mEl.value || Number(mEl.value)===0) && o.price) mEl.value=o.price; }
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
