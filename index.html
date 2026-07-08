@@ -56,7 +56,7 @@
   .pill.gold{color:#ffcf7a; border-color:rgba(255,180,71,.45); background:rgba(255,180,71,.08)}
   .pill.warn{color:#ff8f85; border-color:rgba(255,90,77,.4); background:rgba(255,90,77,.08)}
   .pill.ok{color:#7ee2a3; border-color:rgba(52,199,89,.4); background:rgba(52,199,89,.1)}
-  .moods{display:flex; gap:8px; margin-top:6px}
+  .moods{display:flex; gap:8px; margin-top:6px; flex-wrap:wrap}
   .mood{flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:10px 4px 8px; font-size:24px; cursor:pointer; transition:transform .1s,border-color .15s,background .15s; line-height:1}
   .mood .ml{display:block; font-size:9.5px; color:var(--muted); margin-top:5px; font-weight:600}
   .mood:active{transform:scale(.92)}
@@ -159,6 +159,13 @@
   .drow{flex-wrap:wrap}
   .drow>*{min-width:0}
   .drow .cP,.drow .sMonth{flex:1 1 130px}
+  /* téléphone : on empile les champs 2-colonnes pour un alignement net */
+  @media (max-width:440px){
+    .payin{flex-direction:column; gap:6px}
+    .payin>div{flex:1 1 auto; width:100%; min-width:0}
+    .edrow .edDate{flex:1 1 auto; max-width:none}
+    .cmood{min-width:0}
+  }
   .drow .cS,.drow .cR{flex:1 1 92px}
   #fields input,#fields select,#fields textarea,#clientFields input,#clientFields select,#clientFields textarea{max-width:100%}
   /* recherche + coaching hebdo */
@@ -204,6 +211,17 @@
   .rcn{flex:1 1 auto;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rcsc{flex:0 0 auto;color:var(--muted)}
   .rced{flex:0 0 auto;font-size:12px;text-align:right;min-width:90px}
+  .cmoods{display:flex;gap:7px;flex-wrap:wrap}
+  .cmood{flex:1 1 0;min-width:88px;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 8px;font-size:13px;cursor:pointer;font-weight:600}
+  .cmood.sel{border-color:var(--gold);background:rgba(212,175,55,.14);color:var(--gold-soft)}
+  .cllog-checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:9px}
+  .cllog-checks .ck{font-size:13.5px}
+  .edrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line2)}
+  .edrow:first-child{border-top:none}
+  .edm-lab{flex:1 1 auto;font-size:14px;white-space:nowrap}
+  .edrow .edDate{flex:0 0 150px;max-width:55%}
+  .digline{padding:9px 0;border-top:1px solid var(--line2)}
+  .digline:first-child{border-top:none}
   .cwk-in label{margin:0 0 4px}
   .cwk-in input{padding:9px 11px}
   /* checkbox client (onboarding) */
@@ -386,6 +404,8 @@
         <p class="sub2" id="teamToday" style="margin-top:8px">—</p>
         <div class="stat" id="teamStats"></div>
       </div>
+      <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
+      <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
       <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
       <div class="section-title">Membres · clique pour le suivi</div>
       <div class="grid" id="teamGrid"></div>
@@ -402,6 +422,21 @@
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
     </div>
     <div id="coachingList"></div>
+  </div>
+
+  <!-- JOURNÉE IMMERSIVE -->
+  <div id="view-immersive" class="wrap hide">
+    <div class="card">
+      <h2>🎟️ Prochaine journée immersive</h2>
+      <div class="payin">
+        <div><label>Date</label><input type="date" id="immDate"></div>
+        <div><label>Lieu</label><input type="text" id="immLieu" placeholder="Ex : Paris, Mouratoglou…"></div>
+      </div>
+      <button class="btn ghost sm" style="margin-top:10px" onclick="saveImmersive()">💾 Enregistrer la prochaine journée</button>
+      <div id="immCfgMsg" class="msg"></div>
+      <p class="sub2" style="margin-top:12px">Coche « inscrit(e) à la journée immersive » sur une fiche client → il apparaît ici automatiquement.</p>
+    </div>
+    <div id="immersiveList"></div>
   </div>
 
   <!-- CLIENTS -->
@@ -544,6 +579,7 @@
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
+  <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
   <button id="nav-accounts" class="hide" onclick="show('accounts')"><span class="ic">💰</span>Comptes</button>
@@ -632,17 +668,20 @@ const FORMS = {
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
   ],
 };
-const CLIENT_ACTIONS=["✅ Relancé","📞 Call fait","💬 Message","📊 Scoring envoyé","🟢 RAS / à jour","⚠️ À risque"];
-function clientLogRow(c,val){ const act=(val&&val.action)||""; const note=(val&&val.note)||"";
-  const opts=`<option value=""${act===""?" selected":""}>— action</option>`+CLIENT_ACTIONS.map(o=>`<option${o===act?" selected":""}>${o}</option>`).join("");
-  return `<div class="cllog" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml((c.nom||"")+" "+(c.prenom||""))}" style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:6px 0">
-    <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}<span class="sub2" style="font-weight:400"> · ${escapeHtml(c.programme||"")}</span></div>
-    <div class="payin">
-      <div><select class="clAct">${opts}</select></div>
-      <div><input class="clNote" type="text" placeholder="note (optionnel)" value="${escapeHtml(note)}"></div>
+const MOOD_CLIENT=[{v:"Bien",e:"😄"},{v:"Moyen",e:"😐"},{v:"Pas bien",e:"😟"}];
+function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.warning, wr=val.warnReason||"", ras=!!val.ras;
+  const moodBtns=MOOD_CLIENT.map(m=>`<button type="button" class="cmood${mood===m.v?' sel':''}" data-v="${m.v}" onclick="pickCMood(this)">${m.e} ${m.v}</button>`).join("");
+  return `<div class="cllog" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml((c.nom||"")+" "+(c.prenom||""))}" style="border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin:7px 0">
+    <div style="font-weight:600;font-size:14px;margin-bottom:7px">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}<span class="sub2" style="font-weight:400"> · ${escapeHtml(c.programme||"")}</span></div>
+    <div class="cmoods">${moodBtns}</div><input type="hidden" class="clMood" value="${escapeHtml(mood)}">
+    <div class="cllog-checks">
+      <label class="ck"><input type="checkbox" class="clRas" ${ras?'checked':''}> ✅ RAS / à jour</label>
+      <label class="ck"><input type="checkbox" class="clWarn" ${warn?'checked':''} onchange="this.closest('.cllog').querySelector('.clWarnWrap').style.display=this.checked?'block':'none'"> ⚠️ Warning</label>
     </div>
+    <div class="clWarnWrap" style="display:${warn?'block':'none'};margin-top:7px"><input class="clWarnR" type="text" placeholder="Pourquoi le warning ? (obligatoire)" value="${escapeHtml(wr)}"></div>
   </div>`; }
-function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),action:r.querySelector(".clAct").value,note:(r.querySelector(".clNote").value||"").trim()})).filter(x=>x.action||x.note); }
+function pickCMood(btn){ const box=btn.parentNode; box.querySelectorAll(".cmood").forEach(b=>b.classList.remove("sel")); btn.classList.add("sel"); const h=box.parentNode.querySelector(".clMood"); if(h) h.value=btn.getAttribute("data-v"); }
+function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),mood:(r.querySelector(".clMood").value||""),ras:r.querySelector(".clRas").checked,warning:r.querySelector(".clWarn").checked,warnReason:(r.querySelector(".clWarnR").value||"").trim()})).filter(x=>x.mood||x.ras||x.warning||x.warnReason); }
 const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
@@ -823,6 +862,7 @@ async function loadSettings(){
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
+      if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -994,20 +1034,21 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const coachOpts=SETTINGS.coachs||[];
-  box.innerHTML=coachRecap(cs)+cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
+  box.innerHTML=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
-    const lv=clientLevel(done), sc=scoreOf(c), stat=sc.status||"⚪ pas encore scoré";
+    const lv=clientLevel(done), sc=scoreOf(c);
+    const statBadge=sc.status?`<span class="gbadge">${escapeHtml(sc.status)}</span>`:"";
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        <span class="gbadge">${escapeHtml(stat)}</span>
+        ${statBadge}
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}% du parcours</span>
       </div>
-      <div class="cwk-in"><label>📅 Calendrier éditorial envoyé le</label><input type="date" value="${escapeHtml(c.calendrier_edito||'')}" onchange="saveEdito('${c.id}',this.value,this)"><span class="editoMsg sub2" style="margin-left:6px">${c.calendrier_edito?'✓ noté le '+escapeHtml(dayLabel(c.calendrier_edito)):''}</span></div>
-      <details class="calwrap" open><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
+      ${editoMonths(c)}
+      <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       ${scoreBlock(c)}
       <div class="cgadd">
@@ -1030,13 +1071,18 @@ async function saveEdito(id,val,el){ if(!fbReady()) return; initFirebase(); cons
     if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent=val?("✓ noté le "+dayLabel(val)):"✓ effacé"; s.style.color="var(--green)"; } }
     const rr=document.querySelector('.rcrow[data-id="'+id+'"] .rced'); if(rr){ rr.innerHTML=val?('📅 '+escapeHtml(dayLabel(val))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>'; }
   }catch(e){ if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Erreur"; s.style.color="var(--red)"; } } alert("Erreur : "+e.message); } }
-function coachRecap(cs){ if(!cs||!cs.length) return "";
-  const rows=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c); const sc=scoreOf(c); const stEmoji=(sc.status||"⚪").split(" ")[0];
-    const ed=c.calendrier_edito?('📅 '+escapeHtml(dayLabel(c.calendrier_edito))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>';
-    return `<div class="rcrow" data-id="${escapeHtml(c.id)}"><span class="rcn">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</span><span class="rcsc">${stEmoji} ${done}/${tot}</span><span class="rced">${ed}</span></div>`; }).join("");
-  const nb=cs.filter(c=>!c.calendrier_edito).length;
-  return `<details class="card" open style="margin:0 0 12px"><summary style="cursor:pointer;font-weight:700;list-style:none">📋 Récap clients — calendrier éditorial & statut${nb?` · <span style="color:var(--red)">${nb} à envoyer</span>`:""}</summary>
-    <div class="rctable" style="margin-top:10px">${rows}</div></details>`; }
+function editoNb(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
+function editoDone(c){ const em=(c&&c.edito)||{}; return Object.keys(em).filter(k=>em[k]&&em[k].sent).length; }
+function editoMonths(c){ const n=editoNb(c); const em=c.edito||{}; let rows="";
+  for(let i=1;i<=n;i++){ const e=em[i]||{}; rows+=`<div class="edrow"><label class="ck edm-lab"><input type="checkbox" class="edSent" ${e.sent?'checked':''}> Mois ${i}</label><input type="date" class="edDate" value="${escapeHtml(e.date||'')}"></div>`; }
+  return `<details class="cdet" style="margin-top:10px"><summary>🗓 Calendriers éditoriaux — ${editoDone(c)}/${n} envoyés</summary>
+    <div class="edbox" data-id="${escapeHtml(c.id)}">${rows}
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveEditoM('${c.id}')">💾 Enregistrer les calendriers</button>
+      <div class="edMsg msg"></div></div></details>`; }
+async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.edbox[data-id="'+id+'"]'); if(!c||!box) return;
+  const edito={}; [...box.querySelectorAll(".edrow")].forEach((r,i)=>{ const sent=r.querySelector(".edSent").checked; const date=r.querySelector(".edDate").value||""; if(sent||date) edito[i+1]={sent,date}; });
+  const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({edito}); c.edito=edito; m.className="msg ok"; m.textContent="Calendriers enregistrés ✓ ("+editoDone(c)+"/"+editoNb(c)+")"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 function clientLevel(done){ done=Number(done)||0;
   if(done>=15) return {lvl:"🏆 Légende",cl:"#ffcf7a"};
   if(done>=10) return {lvl:"🔥 En feu",cl:"#ff8b47"};
@@ -1313,7 +1359,7 @@ function fillEodForm(x){
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
-    else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const s=r.querySelector(".clAct"), nt=r.querySelector(".clNote"); if(s)s.value=v.action||""; if(nt)nt.value=v.note||""; } }); } }
+    else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const h=r.querySelector(".clMood"); if(h)h.value=v.mood||""; r.querySelectorAll(".cmood").forEach(b=>b.classList.toggle("sel",b.getAttribute("data-v")===(v.mood||""))); const ra=r.querySelector(".clRas"); if(ra)ra.checked=!!v.ras; const w=r.querySelector(".clWarn"); if(w)w.checked=!!v.warning; const wr=r.querySelector(".clWarnR"); if(wr)wr.value=v.warnReason||""; const ww=r.querySelector(".clWarnWrap"); if(ww)ww.style.display=v.warning?"block":"none"; } }); } }
     else if(f.type==="check"){ const el=$("f_"+f.key); if(el) el.checked=!!v; }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
@@ -1365,8 +1411,8 @@ function show(v){
   // Sécurité accès : Finance & Réglages = admin uniquement ; Clients = admin ou accès clients
   if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="clients" && !canClients()) v="form";
-  ["form","team","coaching","clients","finance","accounts","settings"].forEach(k=> $("view-"+k).classList.toggle("hide",k!==v));
-  ["form","team","coaching","clients","finance","accounts","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","coaching","immersive","clients","finance","accounts","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","coaching","immersive","clients","finance","accounts","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="coaching") loadCoaching();
@@ -1374,7 +1420,36 @@ function show(v){
   if(v==="finance") loadFinance();
   if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
+  if(v==="immersive") loadImmersive();
 }
+async function loadImmersive(){
+  const box=$("immersiveList"); if(!box) return;
+  if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase();
+  if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  const im=SETTINGS.immersive||{}; if($("immDate"))$("immDate").value=im.date||""; if($("immLieu"))$("immLieu").value=im.lieu||"";
+  renderImmersive();
+}
+function renderImmersive(){
+  const box=$("immersiveList"); if(!box) return;
+  const parts=CLIENTS.filter(c=>c.immersive_participe).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  const im=SETTINGS.immersive||{};
+  const head=`<div class="card"><div style="font-weight:800;font-size:16px">👥 ${parts.length} participant(s)</div><div class="sub2" style="margin-top:2px">${im.date?"📅 "+escapeHtml(dayLabel(im.date)):"Date à définir"}${im.lieu?" · 📍 "+escapeHtml(im.lieu):""}</div></div>`;
+  if(!parts.length){ box.innerHTML=head+'<div class="empty">Personne d\'inscrit pour l\'instant — coche « inscrit à la journée immersive » sur une fiche client.</div>'; return; }
+  box.innerHTML=head+parts.map(c=>`<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openClientFromImm('${c.id}')">
+    <div class="avatar sm av-coach">${initials((c.nom||"")+" "+(c.prenom||""))}</div>
+    <div style="flex:1 1 auto;min-width:0"><div style="font-weight:700">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</div><div class="sub2">${escapeHtml(c.programme||"")}${c.immersive_lieu?" · "+escapeHtml(c.immersive_lieu):""}${c.immersive_date?" · "+escapeHtml(dayLabel(c.immersive_date)):""}</div></div>
+    <button class="btn ghost sm" style="flex:0 0 auto;width:auto" onclick="event.stopPropagation();toggleImm('${c.id}',false)">Retirer</button>
+  </div>`).join("");
+}
+function openClientFromImm(id){ show("clients"); setTimeout(()=>{ if(typeof editClient==="function") editClient(id); },250); }
+async function toggleImm(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
+  try{ await db.collection("clients").doc(id).update({immersive_participe:!!val}); if(c)c.immersive_participe=!!val; renderImmersive(); }catch(e){ alert("Erreur : "+e.message); } }
+async function saveImmersive(){ if(!fbReady())return; initFirebase();
+  SETTINGS.immersive={date:($("immDate").value||""),lieu:($("immLieu").value||"").trim()};
+  const m=$("immCfgMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, immersive:SETTINGS.immersive},{merge:true}); m.className="msg ok"; m.textContent="Prochaine journée enregistrée ✓"; renderImmersive(); }
+  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 
 /* ===================== ÉQUIPE ===================== */
 let EODS=[];
@@ -1398,6 +1473,7 @@ function renderTeam(){
     <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté</div></div>
     <div class="box"><div class="n">${closed}</div><div class="l">Closés</div></div>`;
   renderInsights(selM, doneSet);
+  renderTeamDigest();
   $("teamGrid").innerHTML=CONFIG.TEAM.map(m=>{
     const on=doneSet.has(m.name); const list=EODS.filter(x=>x.member===m.name);
     const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
@@ -1408,6 +1484,29 @@ function renderTeam(){
       <div class="mlevel">🔥 ${streak} j · ${pts} pts</div></div>`;
   }).join("");
   renderTeamManage();
+}
+function renderTeamDigest(){
+  const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  const warns=[];
+  EODS.filter(x=>(x.report_date||"")>=wk && x.payload && Array.isArray(x.payload.clientlog)).forEach(x=>{ x.payload.clientlog.forEach(a=>{ if(a.warning) warns.push({name:a.name,reason:a.warnReason,by:x.member,date:x.report_date}); }); });
+  const wc=$("warnCard"), wl=$("warnList");
+  if(wc&&wl){ if(warns.length){ wc.classList.remove("hide"); wl.innerHTML=warns.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(w=>`<div class="insight"><span>⚠️</span><span><b>${escapeHtml(w.name||"")}</b> — ${escapeHtml(w.reason||"warning")} <span class="sub2">(${escapeHtml(w.by||"")} · ${escapeHtml(dayLabel(w.date))})</span></span></div>`).join(""); } else { wc.classList.add("hide"); wl.innerHTML=""; } }
+  const dl=$("digestList"); if(!dl) return;
+  const days=[]; for(let i=0;i<6;i++){ days.push(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); }
+  dl.innerHTML=days.map(d=>{
+    const dayE=EODS.filter(x=>x.report_date===d); const isToday=d===todayStr();
+    const posted=[...new Set(dayE.map(x=>x.member))];
+    const missing=CONFIG.TEAM.filter(m=>!posted.includes(m.name)).map(m=>m.name);
+    if(!dayE.length){ const miss=(!isToday)?` · <span style="color:var(--red)">aucun EOD${missing.length<CONFIG.TEAM.length?"":""}</span>`:""; return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}</div><div class="sub2" style="margin-top:2px">Aucun EOD${!isToday?" — manquant : "+escapeHtml(CONFIG.TEAM.map(m=>m.name).join(", ")):""}</div></div>`; }
+    const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
+    const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0),0);
+    const booked=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
+    const nwarn=dayE.reduce((s,x)=>s+((x.payload&&Array.isArray(x.payload.clientlog))?x.payload.clientlog.filter(a=>a.warning).length:0),0);
+    const bits=[`🎯 ${closes} closé(s)`,`👥 ${contacted} contactées`,`📅 ${booked} RDV pris`];
+    if(nwarn) bits.push(`<span style="color:var(--red)">⚠️ ${nwarn} warning(s)</span>`);
+    const miss=(!isToday && missing.length && missing.length<CONFIG.TEAM.length)?`<div class="sub2" style="color:var(--red);margin-top:2px">EOD manquant : ${escapeHtml(missing.join(", "))}</div>`:"";
+    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""} <span class="sub2" style="font-weight:400">· ${posted.length}/${CONFIG.TEAM.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
+  }).join("");
 }
 function renderInsights(selM, doneSet){
   const ins=[];
@@ -1460,7 +1559,7 @@ function openMember(name){
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
       if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
-      if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>`<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${escapeHtml(a.action||'')}${a.note?" · "+escapeHtml(a.note):""}</span></div>`).join(""); }
+      if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; const me=m=>({"Bien":"😄","Moyen":"😐","Pas bien":"😟"}[m]||""); return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>{ const bits=[]; if(a.mood)bits.push(me(a.mood)+" "+escapeHtml(a.mood)); if(a.ras)bits.push("✅ RAS"); if(a.warning)bits.push('<span style="color:var(--red)">⚠️ '+escapeHtml(a.warnReason||"warning")+'</span>'); return `<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${bits.join(" · ")||"—"}</span></div>`; }).join(""); }
       if(f.type==="check"){ return (x.payload&&x.payload[f.key])?`<div class="kv"><span class="k">${f.label}</span><span class="v">✅</span></div>`:""; }
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
@@ -1513,7 +1612,7 @@ const CLIENT_FIELDS=[
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
   { key:"immersive_lieu",label:"🎟️ Journée immersive — lieu (Mentorat / Élite Virale)",type:"text" },
   { key:"immersive_date",label:"Journée immersive — date",type:"date" },
-  { key:"immersive_participe",label:"🎟️ A participé à la journée immersive",type:"check" },
+  { key:"immersive_participe",label:"🎟️ Inscrit(e) à la prochaine journée immersive",type:"check" },
 ];
 let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
@@ -1650,6 +1749,7 @@ function renderClients(){
       ${line("Note paiement",c.paiement)}
       ${line("Journée immersive",(c.immersive_lieu||"")+(c.immersive_date?" · "+c.immersive_date:""))}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés${(()=>{const em=c.edito||{};const s=[];for(let i=1;i<=editoNb(c);i++){const e=em[i]||{};s.push(e.sent?("M"+i+(e.date?" ("+escapeHtml(dayLabel(e.date))+")":"")+" ✓"):("M"+i+" ⬜"));}return s.length?"<div class='sub2' style='margin-top:2px'>"+s.join(" · ")+"</div>":"";})()}</span></div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
