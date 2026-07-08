@@ -216,12 +216,18 @@
   .cmood.sel{border-color:var(--gold);background:rgba(212,175,55,.14);color:var(--gold-soft)}
   .cllog-checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:9px}
   .cllog-checks .ck{font-size:13.5px}
-  .edrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line2)}
-  .edrow:first-child{border-top:none}
-  .edm-lab{flex:1 1 auto;font-size:14px;white-space:nowrap}
-  .edrow .edDate{flex:0 0 150px;max-width:55%}
+  .edrow{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:6px 0;border:1px solid var(--line);border-radius:11px;background:var(--card2)}
+  .edrow.on{border-color:rgba(52,199,89,.5);background:rgba(52,199,89,.07)}
+  .edm{flex:0 0 62px;font-weight:700;font-size:13.5px}
+  .edtoggle{flex:0 0 auto;font-size:13px;white-space:nowrap;color:var(--muted)}
+  .edrow .edDate{flex:1 1 auto;min-width:0}
   .digline{padding:9px 0;border-top:1px solid var(--line2)}
   .digline:first-child{border-top:none}
+  .offleg{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 2px 12px}
+  .offleg span{white-space:nowrap}
+  .immday{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  .immchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px;margin:3px 4px 0 0}
+  .immchip button{background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:14px;width:auto;margin:0;box-shadow:none}
   .cwk-in label{margin:0 0 4px}
   .cwk-in input{padding:9px 11px}
   /* checkbox client (onboarding) */
@@ -427,14 +433,10 @@
   <!-- JOURNÉE IMMERSIVE -->
   <div id="view-immersive" class="wrap hide">
     <div class="card">
-      <h2>🎟️ Prochaine journée immersive</h2>
-      <div class="payin">
-        <div><label>Date</label><input type="date" id="immDate"></div>
-        <div><label>Lieu</label><input type="text" id="immLieu" placeholder="Ex : Paris, Mouratoglou…"></div>
-      </div>
-      <button class="btn ghost sm" style="margin-top:10px" onclick="saveImmersive()">💾 Enregistrer la prochaine journée</button>
+      <h2>🎟️ Journées immersives</h2>
+      <p class="sub2">Crée une ou plusieurs journées et assigne les clients directement ici (pas besoin de la fiche client).</p>
+      <button class="btn" onclick="addImmDay()">+ Ajouter une journée immersive</button>
       <div id="immCfgMsg" class="msg"></div>
-      <p class="sub2" style="margin-top:12px">Coche « inscrit(e) à la journée immersive » sur une fiche client → il apparaît ici automatiquement.</p>
     </div>
     <div id="immersiveList"></div>
   </div>
@@ -710,6 +712,9 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
   if(p.includes("elite")) return off.find(x=>normOffer(x.name).includes("elite"))||null;
   if(p.includes("viral")) return off.find(x=>normOffer(x.name).includes("viral"))||null;
   return null; }
+function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
+function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
+function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
 function isoWeekStr(d){ d=d?new Date(d):new Date(); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wn=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-W"+String(wn).padStart(2,"0"); }
@@ -836,7 +841,7 @@ function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type===
 /* ===================== RÉGLAGES (listes éditables partagées) ===================== */
 const SETTINGS_DEFAULT={
   programmes:["Viral Pro","Élite Virale","Mentorat","Autre"],
-  offers:[{name:"Viral Pro",price:4000,sessions:9,months:3},{name:"Élite Virale",price:8000,sessions:12,months:4},{name:"Mentorat",price:15000,sessions:18,months:6}],
+  offers:[{name:"Viral Pro",price:4000,sessions:9,months:3,emoji:"🚀"},{name:"Élite Virale",price:8000,sessions:12,months:4,emoji:"⭐"},{name:"Mentorat",price:15000,sessions:18,months:6,emoji:"👑"}],
   statuts:["Actif","Terminé","Annulé / Litige"],
   cgvTypes:["CGV JOTFORM","CGV WHOP"],
   setters:["Ilyas","Lucas","N/A"],
@@ -863,6 +868,7 @@ async function loadSettings(){
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(x.immersive) SETTINGS.immersive=x.immersive;
+      if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -877,10 +883,11 @@ function fieldOptions(key){
 }
 function liRow(v){ return `<div class="lirow"><input value="${escapeHtml(v||'')}"><button type="button" class="xrow" onclick="this.closest('.lirow').remove()">✕</button></div>`; }
 function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
-    <input class="ofName" type="text" placeholder="Nom de l'offre" value="${escapeHtml(o.name||'')}" style="flex:2;min-width:110px">
-    <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:80px">
-    <input class="ofMonths" type="number" inputmode="numeric" placeholder="mois" value="${o.months!=null?o.months:''}" style="width:70px">
-    <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:80px">
+    <input class="ofEmoji" type="text" placeholder="🙂" value="${escapeHtml(o.emoji||'')}" style="width:46px;text-align:center">
+    <input class="ofName" type="text" placeholder="Nom de l'offre" value="${escapeHtml(o.name||'')}" style="flex:2;min-width:100px">
+    <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:76px">
+    <input class="ofMonths" type="number" inputmode="numeric" placeholder="mois" value="${o.months!=null?o.months:''}" style="width:66px">
+    <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:76px">
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
@@ -927,7 +934,7 @@ function renderSettings(){
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
-  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
+  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -1074,10 +1081,14 @@ async function saveEdito(id,val,el){ if(!fbReady()) return; initFirebase(); cons
 function editoNb(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
 function editoDone(c){ const em=(c&&c.edito)||{}; return Object.keys(em).filter(k=>em[k]&&em[k].sent).length; }
 function editoMonths(c){ const n=editoNb(c); const em=c.edito||{}; let rows="";
-  for(let i=1;i<=n;i++){ const e=em[i]||{}; rows+=`<div class="edrow"><label class="ck edm-lab"><input type="checkbox" class="edSent" ${e.sent?'checked':''}> Mois ${i}</label><input type="date" class="edDate" value="${escapeHtml(e.date||'')}"></div>`; }
+  for(let i=1;i<=n;i++){ const e=em[i]||{}; rows+=`<div class="edrow${e.sent?' on':''}">
+      <span class="edm">Mois ${i}</span>
+      <label class="ck edtoggle"><input type="checkbox" class="edSent" ${e.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
+      <input type="date" class="edDate" value="${escapeHtml(e.date||'')}" title="Date d'envoi">
+    </div>`; }
   return `<details class="cdet" style="margin-top:10px"><summary>🗓 Calendriers éditoriaux — ${editoDone(c)}/${n} envoyés</summary>
-    <div class="edbox" data-id="${escapeHtml(c.id)}">${rows}
-      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveEditoM('${c.id}')">💾 Enregistrer les calendriers</button>
+    <div class="edbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
+      <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveEditoM('${c.id}')">💾 Enregistrer</button>
       <div class="edMsg msg"></div></div></details>`; }
 async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.edbox[data-id="'+id+'"]'); if(!c||!box) return;
   const edito={}; [...box.querySelectorAll(".edrow")].forEach((r,i)=>{ const sent=r.querySelector(".edSent").checked; const date=r.querySelector(".edDate").value||""; if(sent||date) edito[i+1]={sent,date}; });
@@ -1427,29 +1438,41 @@ async function loadImmersive(){
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
   initFirebase();
   if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
-  const im=SETTINGS.immersive||{}; if($("immDate"))$("immDate").value=im.date||""; if($("immLieu"))$("immLieu").value=im.lieu||"";
+  if(!Array.isArray(SETTINGS.immersives)){ // migration de l'ancien format (1 seule journée + cases fiche)
+    const old=SETTINGS.immersive; const seed=CLIENTS.filter(c=>c.immersive_participe).map(c=>c.id);
+    SETTINGS.immersives = ((old&&(old.date||old.lieu))||seed.length) ? [{id:immUid(), date:(old&&old.date)||"", lieu:(old&&old.lieu)||"", clients:seed}] : [];
+  }
   renderImmersive();
 }
+function immUid(){ return "im"+Date.now()+Math.floor(Math.random()*1000); }
 function renderImmersive(){
   const box=$("immersiveList"); if(!box) return;
-  const parts=CLIENTS.filter(c=>c.immersive_participe).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
-  const im=SETTINGS.immersive||{};
-  const head=`<div class="card"><div style="font-weight:800;font-size:16px">👥 ${parts.length} participant(s)</div><div class="sub2" style="margin-top:2px">${im.date?"📅 "+escapeHtml(dayLabel(im.date)):"Date à définir"}${im.lieu?" · 📍 "+escapeHtml(im.lieu):""}</div></div>`;
-  if(!parts.length){ box.innerHTML=head+'<div class="empty">Personne d\'inscrit pour l\'instant — coche « inscrit à la journée immersive » sur une fiche client.</div>'; return; }
-  box.innerHTML=head+parts.map(c=>`<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openClientFromImm('${c.id}')">
-    <div class="avatar sm av-coach">${initials((c.nom||"")+" "+(c.prenom||""))}</div>
-    <div style="flex:1 1 auto;min-width:0"><div style="font-weight:700">${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</div><div class="sub2">${escapeHtml(c.programme||"")}${c.immersive_lieu?" · "+escapeHtml(c.immersive_lieu):""}${c.immersive_date?" · "+escapeHtml(dayLabel(c.immersive_date)):""}</div></div>
-    <button class="btn ghost sm" style="flex:0 0 auto;width:auto" onclick="event.stopPropagation();toggleImm('${c.id}',false)">Retirer</button>
-  </div>`).join("");
+  const days=SETTINGS.immersives||[];
+  if(!days.length){ box.innerHTML='<div class="empty">Aucune journée pour l\'instant — clique « + Ajouter une journée immersive ».</div>'; return; }
+  const actives=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  box.innerHTML=days.map((d,di)=>{
+    const chips=(d.clients||[]).map(id=>{ const c=CLIENTS.find(x=>x.id===id); if(!c) return ""; return `<span class="immchip">${offerEmoji(c.programme)} ${escapeHtml((c.nom||"")+" "+(c.prenom||""))}<button onclick="immRemoveClient(${di},'${id}')">✕</button></span>`; }).join("")||'<span class="sub2">Aucun participant</span>';
+    const opts=actives.filter(c=>!(d.clients||[]).includes(c.id)).map(c=>`<option value="${escapeHtml(c.id)}">${offerEmoji(c.programme)} ${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</option>`).join("");
+    return `<div class="immday" data-i="${di}">
+      <div class="payin">
+        <div><label>Date</label><input type="date" value="${escapeHtml(d.date||'')}" onchange="immSetField(${di},'date',this.value)"></div>
+        <div><label>Lieu</label><input type="text" value="${escapeHtml(d.lieu||'')}" placeholder="Ex : Mouratoglou, Paris…" onchange="immSetField(${di},'lieu',this.value)"></div>
+      </div>
+      <div style="margin-top:10px;font-weight:700">👥 ${(d.clients||[]).length} participant(s)</div>
+      <div style="margin:6px 0">${chips}</div>
+      <select onchange="immAddClient(${di},this.value);this.value='';" style="margin-top:6px"><option value="">+ Ajouter un client…</option>${opts}</select>
+      <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="delImmDay(${di})">🗑 Supprimer cette journée</button>
+    </div>`; }).join("");
 }
-function openClientFromImm(id){ show("clients"); setTimeout(()=>{ if(typeof editClient==="function") editClient(id); },250); }
-async function toggleImm(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
-  try{ await db.collection("clients").doc(id).update({immersive_participe:!!val}); if(c)c.immersive_participe=!!val; renderImmersive(); }catch(e){ alert("Erreur : "+e.message); } }
-async function saveImmersive(){ if(!fbReady())return; initFirebase();
-  SETTINGS.immersive={date:($("immDate").value||""),lieu:($("immLieu").value||"").trim()};
-  const m=$("immCfgMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, immersive:SETTINGS.immersive},{merge:true}); m.className="msg ok"; m.textContent="Prochaine journée enregistrée ✓"; renderImmersive(); }
-  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+async function saveImmersives(){ if(!fbReady())return; initFirebase();
+  const m=$("immCfgMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, immersives:SETTINGS.immersives},{merge:true}); if(m){ m.className="msg ok"; m.textContent="Journées enregistrées ✓"; } }
+  catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } } }
+function addImmDay(){ if(!Array.isArray(SETTINGS.immersives)) SETTINGS.immersives=[]; SETTINGS.immersives.unshift({id:immUid(),date:"",lieu:"",clients:[]}); renderImmersive(); saveImmersives(); }
+function delImmDay(i){ if(!confirm("Supprimer cette journée immersive ?")) return; SETTINGS.immersives.splice(i,1); renderImmersive(); saveImmersives(); }
+function immSetField(i,k,v){ if(SETTINGS.immersives[i]){ SETTINGS.immersives[i][k]=v; saveImmersives(); } }
+function immAddClient(i,id){ if(!id||!SETTINGS.immersives[i]) return; const arr=SETTINGS.immersives[i].clients||(SETTINGS.immersives[i].clients=[]); if(!arr.includes(id)) arr.push(id); renderImmersive(); saveImmersives(); }
+function immRemoveClient(i,id){ if(!SETTINGS.immersives[i]) return; SETTINGS.immersives[i].clients=(SETTINGS.immersives[i].clients||[]).filter(x=>x!==id); renderImmersive(); saveImmersives(); }
 
 /* ===================== ÉQUIPE ===================== */
 let EODS=[];
@@ -1610,9 +1633,6 @@ const CLIENT_FIELDS=[
   { key:"statut",label:"Statut",type:"select" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
-  { key:"immersive_lieu",label:"🎟️ Journée immersive — lieu (Mentorat / Élite Virale)",type:"text" },
-  { key:"immersive_date",label:"Journée immersive — date",type:"date" },
-  { key:"immersive_participe",label:"🎟️ Inscrit(e) à la prochaine journée immersive",type:"check" },
 ];
 let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
@@ -1721,8 +1741,9 @@ function renderClients(){
     <div class="box"><div class="n">${eur(total-enc)}</div><div class="l">Reste à venir</div></div>`;
   const wrap=$("clientList");
   if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client${fm?" pour "+monthLabel(fm):""}.</div>`; return; }
+  const legend=(SETTINGS.offers||[]).some(o=>o.emoji)?`<div class="offleg">${(SETTINGS.offers||[]).filter(o=>o.emoji).map(o=>`<span>${o.emoji} ${escapeHtml(o.name)}</span>`).join("")}<span style="opacity:.7">🎟️ = journée immersive</span></div>`:"";
   const tools=`<div class="cltools"><button onclick="toggleAllClients(true)">⬇️ Tout déplier</button><button onclick="toggleAllClients(false)">⬆️ Tout replier</button></div>`;
-  wrap.innerHTML=tools+rows.map(c=>{
+  wrap.innerHTML=legend+tools+rows.map(c=>{
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=(Number(c.montant)||0)-encC;
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
@@ -1730,7 +1751,7 @@ function renderClients(){
       .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
     return `<details class="clcard">
       <summary>
-        <span class="who">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+        <span class="who">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
         <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
         <span class="chev">▸</span>
@@ -1747,13 +1768,13 @@ function renderClients(){
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
-      ${line("Journée immersive",(c.immersive_lieu||"")+(c.immersive_date?" · "+c.immersive_date:""))}
+      ${inImmersive(c.id)?line("🎟️ Journée immersive",immDaysFor(c.id)):""}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés${(()=>{const em=c.edito||{};const s=[];for(let i=1;i<=editoNb(c);i++){const e=em[i]||{};s.push(e.sent?("M"+i+(e.date?" ("+escapeHtml(dayLabel(e.date))+")":"")+" ✓"):("M"+i+" ⬜"));}return s.length?"<div class='sub2' style='margin-top:2px'>"+s.join(" · ")+"</div>":"";})()}</span></div>`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés</span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 6px">${(()=>{const em=c.edito||{};let s="";for(let i=1;i<=editoNb(c);i++){const e=em[i]||{};s+=`<span class="pill ${e.sent?'ok':''}" style="font-size:11px">${e.sent?'✅':'⬜'} M${i}${e.sent&&e.date?' '+escapeHtml(dayLabel(e.date)):''}</span>`;}return s;})()}</div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
-        ${c.immersive_participe?`<span class="pill ok">✅ Journée immersive</span>`:""}
+        ${inImmersive(c.id)?`<span class="pill ok">🎟️ Journée immersive</span>`:""}
       </div>
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       ${!isAdmin()&&c.verified_note?line("📝 Note de Léa",c.verified_note):""}
