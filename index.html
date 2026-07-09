@@ -713,6 +713,8 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
   if(p.includes("viral")) return off.find(x=>normOffer(x.name).includes("viral"))||null;
   return null; }
 function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
+function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s); } // tous en suivi sauf terminé / annulé
+function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
@@ -1036,7 +1038,7 @@ async function loadCoaching(){
 function renderCoachingTab(){
   const box=$("coachingList"); if(!box) return;
   const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
-  let cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif");
+  let cs=CLIENTS.filter(isSuivi);
   if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
@@ -1352,17 +1354,17 @@ function onMember(){
     } else if(f.type==="booked"){
       inp=`<div id="bookRows"></div><button type="button" class="addrow" onclick="addBookRow()">+ Ajouter un RDV pris</button>`;
     } else if(f.type==="clientlog"){
-      const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
-      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client actif — ajoute des clients dans l\'onglet Clients.</div>'}</div>`;
+      const cs=coachClients();
+      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'}</div>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
-  // Le suivi clients du coach a besoin de la liste clients (pas encore chargée sur l'onglet EOD) → on la charge puis on rafraîchit
-  if(role==="coach" && $("clientLog") && !CLIENTS.length && fbReady()){ initFirebase();
-    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client actif — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
+  // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
+  if(role==="coach" && $("clientLog") && fbReady()){ initFirebase();
+    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClients(); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
 }
 function fillEodForm(x){
   const role=member(x.member).role;
@@ -1449,7 +1451,7 @@ function renderImmersive(){
   const box=$("immersiveList"); if(!box) return;
   const days=SETTINGS.immersives||[];
   if(!days.length){ box.innerHTML='<div class="empty">Aucune journée pour l\'instant — clique « + Ajouter une journée immersive ».</div>'; return; }
-  const actives=CLIENTS.filter(c=>(c.statut||"Actif")==="Actif").sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  const actives=coachClients();
   box.innerHTML=days.map((d,di)=>{
     const chips=(d.clients||[]).map(id=>{ const c=CLIENTS.find(x=>x.id===id); if(!c) return ""; return `<span class="immchip">${offerEmoji(c.programme)} ${escapeHtml((c.nom||"")+" "+(c.prenom||""))}<button onclick="immRemoveClient(${di},'${id}')">✕</button></span>`; }).join("")||'<span class="sub2">Aucun participant</span>';
     const opts=actives.filter(c=>!(d.clients||[]).includes(c.id)).map(c=>`<option value="${escapeHtml(c.id)}">${offerEmoji(c.programme)} ${escapeHtml((c.nom||"")+" "+(c.prenom||""))}</option>`).join("");
