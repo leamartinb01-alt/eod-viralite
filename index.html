@@ -715,6 +715,12 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
 function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
 function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s); } // tous en suivi sauf terminé / annulé
 function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); }
+function setterGoalsBlock(name){ const goals=SETTINGS.setterGoals||[]; if(!goals.length) return "";
+  const M=monthStr(); const mine=EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M);
+  const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
+    return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
+  return `<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs — ${monthLabel(M)}</h2>${rows}<div class="hint">Se met à jour tout seul quand tu envoies tes EOD du mois.</div></div>`; }
+function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=setterGoalsBlock(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
@@ -844,6 +850,7 @@ function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type===
 const SETTINGS_DEFAULT={
   programmes:["Viral Pro","Élite Virale","Mentorat","Autre"],
   offers:[{name:"Viral Pro",price:4000,sessions:9,months:3,emoji:"🚀"},{name:"Élite Virale",price:8000,sessions:12,months:4,emoji:"⭐"},{name:"Mentorat",price:15000,sessions:18,months:6,emoji:"👑"}],
+  setterGoals:[{label:"Personnes contactées",key:"contacted",target:200},{label:"En contact (conversations)",key:"in_contact",target:60},{label:"Calls pris (RDV calés)",key:"calls_booked",target:30}],
   statuts:["Actif","Terminé","Annulé / Litige"],
   cgvTypes:["CGV JOTFORM","CGV WHOP"],
   setters:["Ilyas","Lucas","N/A"],
@@ -871,6 +878,7 @@ async function loadSettings(){
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
+      if(Array.isArray(x.setterGoals)) SETTINGS.setterGoals=x.setterGoals;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -893,6 +901,13 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
+function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]]; return `<div class="drow goalrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
+    <input class="glLabel" type="text" placeholder="Nom de l'objectif" value="${escapeHtml(g.label||'')}" style="flex:2;min-width:110px">
+    <select class="glKey" style="flex:1;min-width:120px">${keys.map(o=>`<option value="${o[0]}"${o[0]===(g.key||'')?' selected':''}>${o[1]}</option>`).join("")}</select>
+    <input class="glTarget" type="number" inputmode="numeric" placeholder="cible" value="${g.target!=null?g.target:''}" style="width:74px">
+    <button type="button" class="xrow" onclick="this.closest('.goalrow').remove()">✕</button>
+  </div>`; }
+function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
 function payRow(it){ it=it||{name:"",type:"manual"}; return `<div class="drow pyrow">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:120px">
@@ -921,6 +936,11 @@ function renderSettings(){
     <div id="offerBox">${offr}</div>
     <button type="button" class="addrow" onclick="addOffer()">+ Ajouter une offre</button>
     <div class="hint">Le <b>nom</b> = le programme choisi sur la fiche client. Le <b>nb de séances</b> alimente le suivi coaching (X / total), le <b>prix</b> pré-remplit le montant du contrat.</div></div>`;
+  const gl=(SETTINGS.setterGoals||[]).map(goalRow).join("");
+  html+=`<div class="setblock"><h3>🎯 Objectifs setters (par mois)</h3>
+    <div id="goalBox">${gl}</div>
+    <button type="button" class="addrow" onclick="addGoal()">+ Ajouter un objectif</button>
+    <div class="hint">S'affichent dans l'EOD des setters avec la progression du mois (fait / cible).</div></div>`;
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
@@ -937,6 +957,7 @@ async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
+  SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value})).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -1343,6 +1364,7 @@ function initApp(){
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
+  if(role==="setter") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
@@ -1362,6 +1384,9 @@ function onMember(){
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
+  // Objectifs du setter (progression du mois) — charge les EOD si besoin
+  if(role==="setter" && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
+    if(!EODS.length && fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase();
     db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClients(); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
