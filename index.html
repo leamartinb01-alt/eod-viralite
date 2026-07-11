@@ -216,9 +216,11 @@
   .cmood.sel{border-color:var(--gold);background:rgba(212,175,55,.14);color:var(--gold-soft)}
   .cllog-checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:9px}
   .cllog-checks .ck{font-size:13.5px}
-  .edrow{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:6px 0;border:1px solid var(--line);border-radius:11px;background:var(--card2)}
+  .edmonth{margin:10px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.02)}
+  .edmh{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+  .edrow{display:flex;align-items:center;gap:9px;padding:7px 9px;margin:5px 0;border:1px solid var(--line);border-radius:10px;background:var(--card2)}
   .edrow.on{border-color:rgba(52,199,89,.5);background:rgba(52,199,89,.07)}
-  .edm{flex:0 0 62px;font-weight:700;font-size:13.5px}
+  .edm{flex:0 0 30px;font-weight:800;font-size:13px;color:var(--gold-soft)}
   .edtoggle{flex:0 0 auto;font-size:13px;white-space:nowrap;color:var(--muted)}
   .edrow .edDate{flex:1 1 auto;min-width:0}
   .digline{padding:9px 0;border-top:1px solid var(--line2)}
@@ -1101,16 +1103,22 @@ async function saveEdito(id,val,el){ if(!fbReady()) return; initFirebase(); cons
     if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent=val?("✓ noté le "+dayLabel(val)):"✓ effacé"; s.style.color="var(--green)"; } }
     const rr=document.querySelector('.rcrow[data-id="'+id+'"] .rced'); if(rr){ rr.innerHTML=val?('📅 '+escapeHtml(dayLabel(val))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>'; }
   }catch(e){ if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Erreur"; s.style.color="var(--red)"; } } alert("Erreur : "+e.message); } }
-function editoNb(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
+function editoMonthsCount(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
+function editoNb(c){ return editoMonthsCount(c)*2; } // 2 calendriers par mois = 1 par quinzaine
 function editoDone(c){ const em=(c&&c.edito)||{}; return Object.keys(em).filter(k=>em[k]&&em[k].sent).length; }
-function editoMonths(c){ const n=editoNb(c); const em=c.edito||{}; let rows="";
-  for(let i=1;i<=n;i++){ const e=em[i]||{}; rows+=`<div class="edrow${e.sent?' on':''}">
-      <span class="edm">Mois ${i}</span>
-      <label class="ck edtoggle"><input type="checkbox" class="edSent" ${e.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
-      <input type="date" class="edDate" value="${escapeHtml(e.date||'')}" title="Date d'envoi">
-    </div>`; }
-  return `<details class="cdet" style="margin-top:10px"><summary>🗓 Calendriers éditoriaux — ${editoDone(c)}/${n} envoyés</summary>
-    <div class="edbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
+function editoMonths(c){ const months=editoMonthsCount(c), n=months*2, em=c.edito||{}; let html="";
+  for(let m=1;m<=months;m++){
+    let rows="";
+    for(let q=1;q<=2;q++){ const i=(m-1)*2+q; const e=em[i]||{};
+      rows+=`<div class="edrow${e.sent?' on':''}">
+        <span class="edm">Q${q}</span>
+        <label class="ck edtoggle"><input type="checkbox" class="edSent" ${e.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
+        <input type="date" class="edDate" value="${escapeHtml(e.date||'')}" title="Date d'envoi">
+      </div>`; }
+    html+=`<div class="edmonth"><div class="edmh">Mois ${m}</div>${rows}</div>`;
+  }
+  return `<details class="cdet" style="margin-top:10px"><summary>🗓 Calendriers éditoriaux — ${editoDone(c)}/${n} envoyés <span class="sub2">(1 par quinzaine)</span></summary>
+    <div class="edbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${html}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveEditoM('${c.id}')">💾 Enregistrer</button>
       <div class="edMsg msg"></div></div></details>`; }
 async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.edbox[data-id="'+id+'"]'); if(!c||!box) return;
@@ -1807,7 +1815,7 @@ function renderClients(){
       ${line("Note paiement",c.paiement)}
       ${inImmersive(c.id)?line("🎟️ Journée immersive",immDaysFor(c.id)):""}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés</span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 6px">${(()=>{const em=c.edito||{};let s="";for(let i=1;i<=editoNb(c);i++){const e=em[i]||{};s+=`<span class="pill ${e.sent?'ok':''}" style="font-size:11px">${e.sent?'✅':'⬜'} M${i}${e.sent&&e.date?' '+escapeHtml(dayLabel(e.date)):''}</span>`;}return s;})()}</div>`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés <span class="sub2">(quinzaines)</span></span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 6px">${(()=>{const em=c.edito||{};const months=editoMonthsCount(c);let s="";for(let m=1;m<=months;m++){for(let q=1;q<=2;q++){const i=(m-1)*2+q;const e=em[i]||{};s+=`<span class="pill ${e.sent?'ok':''}" style="font-size:11px">${e.sent?'✅':'⬜'} M${m}·Q${q}${e.sent&&e.date?' '+escapeHtml(dayLabel(e.date)):''}</span>`;}}return s;})()}</div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
         ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
