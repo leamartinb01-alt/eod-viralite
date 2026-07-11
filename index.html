@@ -235,6 +235,8 @@
   .cwk-in label{margin:0 0 4px}
   .cwk-in input{padding:9px 11px}
   /* checkbox client (onboarding) */
+  /* FIX global : les cases à cocher ne doivent PAS hériter du width:100%/padding des inputs (cassait le tap sur mobile) */
+  input[type=checkbox]{width:19px!important; min-width:19px; height:19px; padding:0!important; margin:0; flex:0 0 auto; accent-color:#34c759; cursor:pointer}
   .ckline{display:flex; align-items:center; gap:9px; margin:12px 0 0; font-size:14px; color:var(--txt); font-weight:500; cursor:pointer}
   .ckline input{width:20px; height:20px; flex:0 0 auto}
   /* calendrier coaching */
@@ -1794,7 +1796,7 @@ function renderClients(){
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
       .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
-    return `<details class="clcard">
+    return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <span class="who">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
         <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
@@ -1824,7 +1826,8 @@ function renderClients(){
       ${sched?`<div class="section-title" style="margin:12px 2px 2px">Échéancier</div><div class="minimonths">${sched}</div>`:""}
       ${!isAdmin()&&c.verified_note?line("📝 Note de Léa",c.verified_note):""}
       ${isAdmin()?`<div class="vbox">
-        <label class="ckline" style="margin:0"><input type="checkbox" ${c.verified?'checked':''} onchange="setVerified('${c.id}',this.checked)"> ✅ Vérifié par Léa ${c.verified&&c.verified_at?`<span style="font-size:11px;color:var(--muted);font-weight:400">(${escapeHtml(c.verified_at)})</span>`:""}</label>
+        ${clientIssues(c).length?`<div class="sub2" style="color:#ffcf7a;margin-bottom:8px">⚠️ Encore signalé : ${clientIssues(c).map(escapeHtml).join(" · ")}</div>`:`<div class="sub2" style="color:var(--green);margin-bottom:8px">✅ Fiche complète et vérifiée</div>`}
+        <button class="btn ${c.verified?'ghost':''} sm" style="margin:0" onclick="setVerified('${c.id}',${c.verified?'false':'true'})">${c.verified?`↩︎ Retirer la vérification (vérifié le ${escapeHtml(c.verified_at||'—')})`:'✅ Marquer comme vérifié'}</button>
         <textarea id="vn_${c.id}" rows="2" placeholder="Note de vérification (optionnel) — ex : montant à recouper, CGV à revoir…" style="margin-top:8px">${escapeHtml(c.verified_note||"")}</textarea>
         <button class="btn ghost sm" style="margin-top:8px" onclick="saveVerifyNote('${c.id}')">💾 Enregistrer la note</button>
       </div>`:""}
@@ -1836,10 +1839,12 @@ function renderClients(){
 function toggleAllClients(open){ document.querySelectorAll('#clientList details.clcard').forEach(d=>d.open=open); }
 async function setVerified(id,val){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  if(!fbReady()){ alert("Backend non connecté."); return; }
   initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   const obj={verified:!!val, verified_by:"Léa", verified_at:val?todayStr():""};
-  try{ await db.collection("clients").doc(id).update(obj); Object.assign(c,obj); renderClients(); }
-  catch(e){ alert("Erreur : "+e.message); }
+  try{ await db.collection("clients").doc(id).update(obj); Object.assign(c,obj); renderClients();
+    const d=document.querySelector('#clientList details.clcard[data-id="'+id+'"]'); if(d){ d.open=true; d.scrollIntoView({block:"center",behavior:"smooth"}); }
+  }catch(e){ alert("Erreur : "+e.message); }
 }
 async function saveVerifyNote(id){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
