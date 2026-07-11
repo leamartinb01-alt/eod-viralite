@@ -1757,17 +1757,32 @@ function clientIssues(c){
 }
 function clientEncaisse(c){ return (Number(c.encaisse)||0) + (c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function payMonthCard(M){
-  const rows=[];
-  CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige").forEach(c=>{ (c.schedule||[]).forEach((s,i)=>{ if(s.month===M) rows.push({c,s,i}); }); });
-  if(!rows.length) return `<div class="card" style="margin-top:14px"><h2 style="margin:0">💰 Paiements — ${monthLabel(M)}</h2><p class="sub2" style="margin:6px 0 0">Aucune échéance prévue ce mois-ci.</p></div>`;
-  const due=rows.filter(r=>!r.s.paid), ok=rows.filter(r=>r.s.paid);
-  const tot=rows.reduce((a,r)=>a+(Number(r.s.amount)||0),0), totOk=ok.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
-  const ln=r=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${escapeHtml(((r.c.nom||"")+" "+(r.c.prenom||"")).trim())}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
-  return `<div class="card" style="margin-top:14px;border-color:${due.length?'rgba(255,180,71,.4)':'rgba(52,199,89,.35)'}">
+  const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
+  const mois=[], late=[];
+  act.forEach(c=>{ (c.schedule||[]).forEach((s,i)=>{
+    if(s.month===M) mois.push({c,s,i});
+    else if(!s.paid && String(s.month||"")<M) late.push({c,s,i});
+  }); });
+  // Clients qui doivent encore de l'argent mais SANS aucune échéance impayée planifiée (ex : échéancier incomplet)
+  const orphans=act.filter(c=>{
+    const reste=(Number(c.montant)||0)-clientEncaisse(c);
+    if(reste<=0.5) return false;
+    return !(c.schedule||[]).some(s=>!s.paid);
+  }).map(c=>({c,reste:(Number(c.montant)||0)-clientEncaisse(c)}));
+  const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
+  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
+  const due=mois.filter(r=>!r.s.paid), ok=mois.filter(r=>r.s.paid);
+  const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0), totOk=ok.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
+  const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
+  const totOrph=orphans.reduce((a,o)=>a+o.reste,0);
+  const enAttente=due.length+late.length+orphans.length;
+  return `<div class="card" style="margin-top:14px;border-color:${enAttente?'rgba(255,180,71,.45)':'rgba(52,199,89,.35)'}">
     <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
-    <p class="sub2" style="margin:0 0 10px">${ok.length}/${rows.length} encaissés · <b>${eur(totOk)}</b> sur ${eur(tot)}${due.length?` · <span style="color:#ffcf7a">${due.length} en attente ⏳</span>`:" · tout est rentré ✅"}</p>
-    ${due.map(ln).join("")}
-    ${ok.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Déjà encaissés (${ok.length})</summary>${ok.map(ln).join("")}</details>`:""}
+    <p class="sub2" style="margin:0 0 10px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · ${eur(totOk)} encaissé ce mois</p>
+    ${late.length?`<div class="section-title" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
+    ${due.length?`<div class="section-title" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
+    ${orphans.length?`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
+    ${ok.length?`<details class="cdet" style="margin-top:10px"><summary>✅ Déjà encaissés ce mois (${ok.length}) — ${eur(totOk)}</summary>${ok.map(r=>ln(r,"")).join("")}</details>`:""}
   </div>`;
 }
 async function toggleSched(id,i){
