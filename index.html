@@ -1756,6 +1756,28 @@ function clientIssues(c){
   return iss;
 }
 function clientEncaisse(c){ return (Number(c.encaisse)||0) + (c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
+function payMonthCard(M){
+  const rows=[];
+  CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige").forEach(c=>{ (c.schedule||[]).forEach((s,i)=>{ if(s.month===M) rows.push({c,s,i}); }); });
+  if(!rows.length) return `<div class="card" style="margin-top:14px"><h2 style="margin:0">💰 Paiements — ${monthLabel(M)}</h2><p class="sub2" style="margin:6px 0 0">Aucune échéance prévue ce mois-ci.</p></div>`;
+  const due=rows.filter(r=>!r.s.paid), ok=rows.filter(r=>r.s.paid);
+  const tot=rows.reduce((a,r)=>a+(Number(r.s.amount)||0),0), totOk=ok.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
+  const ln=r=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${escapeHtml(((r.c.nom||"")+" "+(r.c.prenom||"")).trim())}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
+  return `<div class="card" style="margin-top:14px;border-color:${due.length?'rgba(255,180,71,.4)':'rgba(52,199,89,.35)'}">
+    <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
+    <p class="sub2" style="margin:0 0 10px">${ok.length}/${rows.length} encaissés · <b>${eur(totOk)}</b> sur ${eur(tot)}${due.length?` · <span style="color:#ffcf7a">${due.length} en attente ⏳</span>`:" · tout est rentré ✅"}</p>
+    ${due.map(ln).join("")}
+    ${ok.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Déjà encaissés (${ok.length})</summary>${ok.map(ln).join("")}</details>`:""}
+  </div>`;
+}
+async function toggleSched(id,i){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  if(!fbReady()) return; initFirebase();
+  const c=CLIENTS.find(x=>x.id===id); if(!c||!Array.isArray(c.schedule)||!c.schedule[i]) return;
+  const sch=c.schedule.map((s,j)=> j===i?{...s,paid:!s.paid}:s);
+  try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); }
+  catch(e){ alert("Erreur : "+e.message); }
+}
 function renderClients(){
   const fp=$("cfProg").value, fs=$("cfStatut").value, fm=($("cfMonth")&&$("cfMonth").value)||"";
   const q=(($("cfSearch")&&$("cfSearch").value)||"").toLowerCase();
@@ -1763,12 +1785,13 @@ function renderClients(){
   const al=$("clientAlert");
   if(al){
     if(isAdmin()){
+      const payCard=payMonthCard(fm||monthStr());
       const flagged=CLIENTS.map(c=>({c,iss:clientIssues(c)})).filter(o=>o.iss.length);
-      al.innerHTML = flagged.length ? `<div class="card" style="border-color:rgba(255,180,71,.4);background:rgba(255,180,71,.06);margin-top:14px">
+      al.innerHTML = payCard + (flagged.length ? `<div class="card" style="border-color:rgba(255,180,71,.4);background:rgba(255,180,71,.06);margin-top:14px">
         <h2 style="margin:0 0 6px">⚠️ À checker (${flagged.length})</h2>
         <p class="sub2" style="margin:0 0 8px">Fiches non vérifiées ou avec une incohérence — clique pour ouvrir.</p>
         ${flagged.map(o=>`<div class="kv" style="cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">${escapeHtml((o.c.nom||"")+" "+(o.c.prenom||"")).trim()}</span><span class="v" style="color:#ffcf7a">${o.iss.map(escapeHtml).join(" · ")}</span></div>`).join("")}
-      </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Tout est vérifié et cohérent</h2></div>`;
+      </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Tout est vérifié et cohérent</h2></div>`);
     } else al.innerHTML="";
   }
   let rows=CLIENTS.slice();
