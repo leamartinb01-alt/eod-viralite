@@ -666,7 +666,6 @@ const FORMS = {
     { key:"clientlog", label:"📋 Suivi clients du jour — action + note pour chaque client coaché", type:"clientlog" },
     { key:"skool_pass",   label:"🎓 Passe Skool faite — questions clients checkées & répondues", type:"check" },
     { key:"coach_done",   label:"✅ Tous les coachings du jour pointés (chaque client)", type:"check" },
-    { key:"scoring_done", label:"📊 Scoring hebdo fait (le vendredi, pour chaque client)", type:"check" },
     { key:"wins",      label:"Wins du jour 🏆 (optionnel)",           type:"textarea" },
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
@@ -1050,7 +1049,7 @@ function calMove(btn,id,ym,delta){
 }
 function coachLogHtml(c, withDel){ const id=c.id, log=(c.coaching&&c.coaching.log)||[]; if(!log.length) return '<div class="sub2" style="margin:8px 0 0">Aucune séance pointée pour l\'instant.</div>';
   const ord=log.map((e,i)=>({e,i})).sort((a,b)=>String((entryDay(b.e))).localeCompare(String((entryDay(a.e)))));
-  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const dd=e.date?dayLabel(e.date):(e.week?cgWeekLabel(e.week):""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(dd)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
+  return '<div class="cglog">'+ord.map(o=>{ const e=o.e; const dd=e.date?dayLabel(e.date):(e.week?cgWeekLabel(e.week):""); const del=withDel?`<button type="button" class="xrow" onclick="delCoachWeek('${id}',${o.i})">✕</button>`:""; const fl=e.fathom?` · <a href="${escapeHtml(e.fathom)}" target="_blank" rel="noopener">🎬 Fathom</a>`:""; return `<div class="cglog-row"><span><span class="cgw">${escapeHtml(dd)}</span>${e.coach?" · "+escapeHtml(e.coach):""}${e.note?" · "+escapeHtml(e.note):""}${fl}</span><span style="display:flex;align-items:center;gap:8px">${e.motive?`<span class="cgmot">${escapeHtml(e.motive)}</span>`:""}${del}</span></div>`; }).join("")+'</div>'; }
 async function loadCoaching(){
   const box=$("coachingList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -1068,21 +1067,18 @@ function renderCoachingTab(){
   const coachOpts=SETTINGS.coachs||[];
   box.innerHTML=cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
-    const lv=clientLevel(done), sc=scoreOf(c);
-    const statBadge=sc.status?`<span class="gbadge">${escapeHtml(sc.status)}</span>`:"";
+    const lv=clientLevel(done);
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        ${statBadge}
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}% du parcours</span>
       </div>
       ${editoMonths(c)}
       <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
-      ${scoreBlock(c)}
       <div class="cgadd">
         <div class="payin">
           <div><label>Jour du coaching</label><input type="date" class="cgDate" value="${todayStr()}"></div>
@@ -1092,6 +1088,7 @@ function renderCoachingTab(){
           <div><label>Motivation</label><select class="cgMot"><option>🔥 Motivé·e</option><option>😐 Moyen</option><option>😮‍💨 Peu motivé·e</option><option>🤷 RAS / je ne sais pas</option></select></div>
           <div><label>Note (optionnel)</label><input type="text" class="cgNote" placeholder="Ex : à relancer…"></div>
         </div>
+        <label>🎬 Lien Fathom du call (optionnel) — le client pourra revisionner</label><input type="url" class="cgFathom" placeholder="https://fathom.video/…">
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
         <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
       </div>
@@ -1174,9 +1171,10 @@ async function addCoachWeek(btn,id){
   const coach=card.querySelector(".cgCoach").value;
   const motive=card.querySelector(".cgMot").value;
   const note=card.querySelector(".cgNote").value.trim();
+  const fathom=(card.querySelector(".cgFathom")&&card.querySelector(".cgFathom").value.trim())||"";
   const total=Math.max(0,Number(card.querySelector(".cgTot").value)||coachTotal(c));
   const prev=c.coaching||{}; const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
-  log.push({date, coach, motive, note});
+  log.push({date, coach, motive, note, fathom});
   const co={total, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), note:prev.note||"", log, updated:todayStr()};
   try{ await db.collection("clients").doc(id).update({coaching:co}); c.coaching=co; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); }
 }
