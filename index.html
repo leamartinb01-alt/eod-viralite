@@ -871,7 +871,7 @@ const PAYLIST_DEFAULT=[
   {name:"Ilyas",type:"ilyas"},
   {name:"Céline",type:"manual"},
 ];
-const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients (+ base)"},{v:"coach",l:"Coach — 400 €/client"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
+const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
 const SET_KEYS=["setters","closers","coachs","programmes","statuts","cgvTypes"];
@@ -952,7 +952,10 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint">Type « Manuel » = tu mets le montant à la main dans Finance. Les autres se calculent tout seuls.<br><b>%</b> = pourcentage de l'encaissé (ex : Ilyas en « Setter — % » avec <b>5</b> → 5 % de l'encaissé de SES clients). <b>base €</b> = fixe mensuel qui s'ajoute (ex : Lucas 700). Laisse vide si non applicable. Flèches ↑↓ pour l'ordre.</div></div>`;
+    <div class="hint"><b>Fixe mensuel</b> → mets le montant dans <b>base €</b> (ex : Romain 2000).<br>
+      <b>Closer / Setter — %</b> → mets le pourcentage dans <b>%</b> (ex : closer 10, Ilyas 5). Le % s'applique à l'encaissé de SES clients (closer = champ Closer de la fiche ; setter = champ Setter). Ajoute une <b>base €</b> si fixe + variable (ex : Lucas 5 % + 700).<br>
+      <b>Coach — € par client</b> → mets le montant par client dans <b>%</b> (ex : 400), au prorata de l'encaissé.<br>
+      <b>Manuel</b> → tu saisis le montant dans Finance. Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
     <div id="checkBox">${ck}</div>
@@ -1759,7 +1762,7 @@ function clientIssues(c){
   if(m>0 && !(c.schedule||[]).length && !(Number(c.encaisse)||0)) iss.push("pas d'échéancier");
   return iss;
 }
-function clientEncaisse(c){ if(hasSched(c)) return c.schedule.filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); return Number(c&&c.encaisse)||0; }
+function clientEncaisse(c){ return schedPaidAll(c) + encExtra(c); }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -1985,18 +1988,24 @@ function renderFinance(){
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
-    if(t==="coach"){ const dn=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(C.coachPerClient*(e/mt)*100)/100}; }); return {m:n, autoAmount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detailNum:dn}; }
-    if(t==="closer"){ const pct=(it.rate!=null&&it.rate!=="")?Number(it.rate)/100:C.closerRate; const ca=byCloser[n]||0; const cls=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0);
-      const dn=cls.map(c=>{ const e=paidInMonth(c,M); return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*pct*100)/100}; });
+    if(t==="fixe"){ const base=Number(it.base)||0; return {m:n, autoAmount:base, rows:[["Type","Fixe mensuel"],["Montant", eur(base)]], detailNum: base?[{l:"Fixe mensuel", a:base}]:[]}; }
+    if(t==="coach"){ const per=(it.rate!=null&&it.rate!=="")?Number(it.rate):C.coachPerClient; const base=Number(it.base)||0;
+      const cls=CLIENTS.filter(c=>paidInMonth(c,M)>0); const dn=[]; let tot=base; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
+      cls.forEach(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; const a=Math.round(per*(e/mt)*100)/100; tot+=a; dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a}); });
+      return {m:n, autoAmount:tot, rows:[["Clients encaissés ce mois", cls.length],["Règle", eur(per)+" / client au prorata"],["Base fixe", eur(base)]], detailNum:dn}; }
+    if(t==="closer"){ const pct=(it.rate!=null&&it.rate!=="")?Number(it.rate)/100:C.closerRate; const base=Number(it.base)||0;
+      const ca=byCloser[n]||0; const cls=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0);
+      const dn=[]; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
+      cls.forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*pct*100)/100}); });
       const enc=cls.map(c=>[escapeHtml(c.nom||""), eur(paidInMonth(c,M))]);
-      return {m:n, autoAmount:ca*pct, rows:[["CA encaissé", eur(ca)],["Commission",(pct*100).toFixed(pct*100%1?1:0)+" %"]].concat(enc.map(e=>["↳ "+e[0], e[1]])), detailNum:dn}; }
+      return {m:n, autoAmount:base+ca*pct, rows:[["💼 Clients qu'il a closés (encaissé ce mois)", cls.length],["CA encaissé", eur(ca)],["Commission",(pct*100).toFixed(pct*100%1?1:0)+" %"],["Base fixe", eur(base)]].concat(enc.map(e=>["↳ "+e[0], e[1]])), detailNum:dn}; }
     if(t==="setter_pct"){ const pct=(Number(it.rate)||0)/100, base=Number(it.base)||0;
       const cls=CLIENTS.filter(c=>c.setter===n && paidInMonth(c,M)>0);
       const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
       const dn=[]; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
       cls.forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*pct*100)/100}); });
-      const isSet=(SETTINGS.setters||[]).includes(n);
-      return {m:n, autoAmount:base+ca*pct, rows:[["CA encaissé de ses clients", eur(ca)],["Commission",(Number(it.rate)||0)+" %"],["Base fixe", eur(base)]].concat(cls.map(c=>["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])), detailNum:dn, callset:isSet?n:null}; }
+      const isSet=member(n).role==="setter"; // le bloc "calls" est réservé aux vrais setters
+      return {m:n, autoAmount:base+ca*pct, rows:[["CA encaissé de ses clients (setter)", eur(ca)],["Commission",(Number(it.rate)||0)+" %"],["Base fixe", eur(base)]].concat(cls.map(c=>["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])), detailNum:dn, callset:isSet?n:null}; }
     if(t==="lucas"){ const dn=[{l:"Base fixe du mois", a:Math.round(luBase*100)/100}]; CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.lucasRate*100)/100}); }); return {m:n, autoAmount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detailNum:dn, callset:"Lucas"}; }
     if(t==="ilyas"){ const ld=mergeCalls(M).filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified===true).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
       const dn=ld.map(c=>({l:escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), a:C.ilyasPerLead}));
@@ -2086,7 +2095,7 @@ function setterCallsBlock(M, setter){
   const leads=done.filter(c=>c.show===true).length;
   const pRows=pending.length?pending.map(ctRow).join(""):'<div class="sub2" style="margin:8px 0">Rien à vérifier 👌 — les nouveaux calls remonteront ici.</div>';
   return `<div class="ctbox" data-set="${setter}" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
-    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b> (${setter==="Ilyas"?"Instagram":"LinkedIn"}) · ${leads} lead(s) payé(s) ce mois.</div>
+    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b>${(()=>{const src=Object.keys(SRC_SETTER).find(k=>SRC_SETTER[k]===setter); return src?" ("+escapeHtml(src)+")":"";})()} · ${leads} lead(s) payé(s) ce mois.</div>
     <div class="sub2" style="margin:0 0 2px;color:var(--faint)">À vérifier (${pending.length}) — choisis le statut, coche « vérifié », puis Enregistrer.</div>
     <div class="ctRows">${pRows}</div>
     <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
@@ -2145,12 +2154,16 @@ async function saveStat(name){
   catch(e){ alert("Erreur : "+e.message); }
 }
 function startMonth(c){ return (c.date_debut||"").slice(0,7); }
-// RÈGLE UNIQUE (partout dans l'app) : si le client a un échéancier, il fait foi (seules les échéances cochées "payé" comptent).
-// Le champ "Déjà encaissé global" ne sert QUE pour les clients sans échéancier. → plus de double comptage.
+/* RÈGLE UNIQUE (partout dans l'app) — ni double comptage, ni argent perdu :
+   - encaissé total = échéances cochées "payé"  +  la part du champ "Déjà encaissé global" NON couverte par ces échéances.
+   - donc si les deux sont remplis pour le même argent (cas fréquent), on ne compte qu'une fois ;
+   - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
+function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
+function encExtra(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
 function paidInMonth(c,M){
-  if(hasSched(c)) return c.schedule.filter(s=>s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
-  return startMonth(c)===M ? (Number(c.encaisse)||0) : 0;
+  const s=(c&&c.schedule||[]).filter(x=>x.paid&&x.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
+  return s + (startMonth(c)===M ? encExtra(c) : 0);
 }
 function dueInMonth(c,M){
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
