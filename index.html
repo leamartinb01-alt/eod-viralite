@@ -864,22 +864,24 @@ const SETTINGS_DEFAULT={
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
-  {name:"Julie",   role:"closer", pct:10, fixe:0},
-  {name:"Anthony", role:"closer", pct:10, fixe:0},
-  {name:"Ilyas",   role:"setter", pct:5,  fixe:0},
-  {name:"Lucas",   role:"setter", pct:5,  fixe:700},
-  {name:"Romain",  role:"coach",  pct:0,  fixe:2000},
-  {name:"Léa",     role:"autre",  pct:0,  fixe:0},
+  {name:"Julie",   label:"Closeuse",                  role:"closer", pct:10, fixe:0},
+  {name:"Anthony", label:"Closer",                    role:"closer", pct:10, fixe:0},
+  {name:"Ilyas",   label:"Setter Instagram",          role:"setter", pct:5,  fixe:0},
+  {name:"Lucas",   label:"Setter LinkedIn",           role:"setter", pct:5,  fixe:700},
+  {name:"Romain",  label:"Coach Conversion & Viralité", role:"coach", pct:0, fixe:2000},
+  {name:"Léa",     label:"COO",                       role:"autre",  pct:0,  fixe:0},
 ];
 const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"autre",l:"Autre"}];
 const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
 // Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
 function normPay(it){
   if(!it) return null;
-  if(it.role) return {name:it.name, role:it.role, pct:Number(it.pct)||0, fixe:Number(it.fixe)||0};
+  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0};
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
+  // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
+  const teamRole=(member(it.name)||{}).role;
   if(t==="closer")     return {name:it.name, role:"closer", pct:isNaN(rate)?10:rate, fixe:base};
-  if(t==="setter_pct") return {name:it.name, role:"setter", pct:isNaN(rate)?5:rate,  fixe:base};
+  if(t==="setter_pct") return {name:it.name, role:(teamRole==="closer"?"closer":(teamRole==="coach"?"coach":"setter")), pct:isNaN(rate)?5:rate, fixe:base};
   if(t==="lucas")      return {name:it.name, role:"setter", pct:5, fixe:base||700};
   if(t==="ilyas")      return {name:it.name, role:"setter", pct:5, fixe:0};
   if(t==="coach")      return {name:it.name, role:"coach",  pct:0, fixe:base};
@@ -929,9 +931,10 @@ function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
-function payRow(it){ it=normPay(it)||{name:"",role:"autre",pct:0,fixe:0}; return `<div class="drow pyrow" style="flex-wrap:wrap">
+function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0}; return `<div class="drow pyrow" style="flex-wrap:wrap">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
-    <select class="pyRole" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
+    <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
+    <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
     <input class="pyPct" type="number" inputmode="decimal" step="0.5" placeholder="%" title="% de l'encaissé de ses clients" value="${it.pct?it.pct:''}" style="width:62px">
     <input class="pyFixe" type="number" inputmode="numeric" placeholder="fixe €" title="Montant fixe mensuel" value="${it.fixe?it.fixe:''}" style="width:76px">
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
@@ -985,6 +988,7 @@ async function saveSettings(){
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
     name:r.querySelector('.pyName').value.trim(),
+    label:(r.querySelector('.pyLabel').value||"").trim(),
     role:r.querySelector('.pyRole').value,
     pct: Number(r.querySelector('.pyPct').value)||0,
     fixe:Number(r.querySelector('.pyFixe').value)||0
@@ -2021,7 +2025,7 @@ function renderFinance(){
     if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
       cls.forEach(c=>rows.push(["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])); }
     if(!fixe && !pct) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
-    return {m:n, autoAmount: fixe + ca*pct, custom:(!fixe&&!pct), rows, detailNum:dn, callset: (role==="setter"?n:null)};
+    return {m:n, autoAmount: fixe + ca*pct, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
   pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
@@ -2070,8 +2074,8 @@ function renderFinance(){
     const adj=(ov(p.m)!=null)?' · ajusté ✎':'';
     return `<details class="clcard paycard">
       <summary>
-        <div class="avatar sm ${avClass(mb.role)}">${initials(p.m)}</div>
-        <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${p.custom?"À payer (manuel)":mb.title}</div></div>
+        <div class="avatar sm ${avClass(p.role==="coach"?"coach":(p.role==="closer"?"closer":(p.role==="setter"?"setter":"")))}">${initials(p.m)}</div>
+        <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${escapeHtml(p.label||"")}${p.custom?" · manuel":""}</div></div>
         <div style="text-align:right"><div style="font-size:18px;font-weight:800" class="grad-text">${eur(p.eff)}</div><div style="font-size:10px;color:var(--muted)">à verser${adj}</div></div>
         <span class="chev">▸</span>
       </summary>
