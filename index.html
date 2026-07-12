@@ -864,13 +864,28 @@ const SETTINGS_DEFAULT={
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
-  {name:"Clément",type:"coach"},
-  {name:"Julie",type:"closer"},
-  {name:"Anthony",type:"closer"},
-  {name:"Lucas",type:"lucas"},
-  {name:"Ilyas",type:"ilyas"},
-  {name:"Céline",type:"manual"},
+  {name:"Julie",   role:"closer", pct:10, fixe:0},
+  {name:"Anthony", role:"closer", pct:10, fixe:0},
+  {name:"Ilyas",   role:"setter", pct:5,  fixe:0},
+  {name:"Lucas",   role:"setter", pct:5,  fixe:700},
+  {name:"Romain",  role:"coach",  pct:0,  fixe:2000},
+  {name:"Léa",     role:"autre",  pct:0,  fixe:0},
 ];
+const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"autre",l:"Autre"}];
+const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
+// Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
+function normPay(it){
+  if(!it) return null;
+  if(it.role) return {name:it.name, role:it.role, pct:Number(it.pct)||0, fixe:Number(it.fixe)||0};
+  const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
+  if(t==="closer")     return {name:it.name, role:"closer", pct:isNaN(rate)?10:rate, fixe:base};
+  if(t==="setter_pct") return {name:it.name, role:"setter", pct:isNaN(rate)?5:rate,  fixe:base};
+  if(t==="lucas")      return {name:it.name, role:"setter", pct:5, fixe:base||700};
+  if(t==="ilyas")      return {name:it.name, role:"setter", pct:5, fixe:0};
+  if(t==="coach")      return {name:it.name, role:"coach",  pct:0, fixe:base};
+  if(t==="fixe")       return {name:it.name, role:"autre",  pct:0, fixe:base};
+  return {name:it.name, role:"autre", pct:0, fixe:0};
+}
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
@@ -914,11 +929,11 @@ function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
-function payRow(it){ it=it||{name:"",type:"manual"}; return `<div class="drow pyrow" style="flex-wrap:wrap">
-    <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:110px">
-    <select class="pyType" style="flex:1.8;min-width:130px">${PAY_TYPES.map(t=>`<option value="${t.v}" ${t.v===(it.type||'manual')?'selected':''}>${t.l}</option>`).join("")}</select>
-    <input class="pyRate" type="number" inputmode="decimal" step="0.1" placeholder="% " title="Pourcentage de l'encaissé" value="${it.rate!=null&&it.rate!==""?it.rate:''}" style="width:64px">
-    <input class="pyBase" type="number" inputmode="numeric" placeholder="base €" title="Base fixe mensuelle" value="${it.base!=null&&it.base!==""?it.base:''}" style="width:78px">
+function payRow(it){ it=normPay(it)||{name:"",role:"autre",pct:0,fixe:0}; return `<div class="drow pyrow" style="flex-wrap:wrap">
+    <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
+    <select class="pyRole" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
+    <input class="pyPct" type="number" inputmode="decimal" step="0.5" placeholder="%" title="% de l'encaissé de ses clients" value="${it.pct?it.pct:''}" style="width:62px">
+    <input class="pyFixe" type="number" inputmode="numeric" placeholder="fixe €" title="Montant fixe mensuel" value="${it.fixe?it.fixe:''}" style="width:76px">
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
     <button type="button" class="xrow" onclick="this.closest('.pyrow').remove()">✕</button>
@@ -952,10 +967,10 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint"><b>Fixe mensuel</b> → mets le montant dans <b>base €</b> (ex : Romain 2000).<br>
-      <b>Closer / Setter — %</b> → mets le pourcentage dans <b>%</b> (ex : closer 10, Ilyas 5). Le % s'applique à l'encaissé de SES clients (closer = champ Closer de la fiche ; setter = champ Setter). Ajoute une <b>base €</b> si fixe + variable (ex : Lucas 5 % + 700).<br>
-      <b>Coach — € par client</b> → mets le montant par client dans <b>%</b> (ex : 400), au prorata de l'encaissé.<br>
-      <b>Manuel</b> → tu saisis le montant dans Finance. Flèches ↑↓ pour l'ordre.</div></div>`;
+    <div class="hint">Pour chacun : son <b>rôle</b>, puis son <b>%</b> et/ou son <b>fixe €</b>.<br>
+      Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
+      Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
+      Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
     <div id="checkBox">${ck}</div>
@@ -968,8 +983,12 @@ async function saveSettings(){
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
-  SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>{ const rt=r.querySelector('.pyRate').value, bs=r.querySelector('.pyBase').value;
-    return {name:r.querySelector('.pyName').value.trim(), type:r.querySelector('.pyType').value, rate: rt===""?null:Number(rt), base: bs===""?null:Number(bs)}; }).filter(x=>x.name);
+  SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
+    name:r.querySelector('.pyName').value.trim(),
+    role:r.querySelector('.pyRole').value,
+    pct: Number(r.querySelector('.pyPct').value)||0,
+    fixe:Number(r.querySelector('.pyFixe').value)||0
+  })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, ...SETTINGS},{merge:true});
@@ -1987,33 +2006,22 @@ function renderFinance(){
   const luBase=lucasBase(M), lu5=lucasCA*C.lucasRate, luAmount=luBase+lu5;
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
-  const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
-    if(t==="fixe"){ const base=Number(it.base)||0; return {m:n, autoAmount:base, rows:[["Type","Fixe mensuel"],["Montant", eur(base)]], detailNum: base?[{l:"Fixe mensuel", a:base}]:[]}; }
-    if(t==="coach"){ const per=(it.rate!=null&&it.rate!=="")?Number(it.rate):C.coachPerClient; const base=Number(it.base)||0;
-      const cls=CLIENTS.filter(c=>paidInMonth(c,M)>0); const dn=[]; let tot=base; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
-      cls.forEach(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; const a=Math.round(per*(e/mt)*100)/100; tot+=a; dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a}); });
-      return {m:n, autoAmount:tot, rows:[["Clients encaissés ce mois", cls.length],["Règle", eur(per)+" / client au prorata"],["Base fixe", eur(base)]], detailNum:dn}; }
-    if(t==="closer"){ const pct=(it.rate!=null&&it.rate!=="")?Number(it.rate)/100:C.closerRate; const base=Number(it.base)||0;
-      const ca=byCloser[n]||0; const cls=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0);
-      const dn=[]; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
-      cls.forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*pct*100)/100}); });
-      const enc=cls.map(c=>[escapeHtml(c.nom||""), eur(paidInMonth(c,M))]);
-      return {m:n, autoAmount:base+ca*pct, rows:[["💼 Clients qu'il a closés (encaissé ce mois)", cls.length],["CA encaissé", eur(ca)],["Commission",(pct*100).toFixed(pct*100%1?1:0)+" %"],["Base fixe", eur(base)]].concat(enc.map(e=>["↳ "+e[0], e[1]])), detailNum:dn}; }
-    if(t==="setter_pct"){ const pct=(Number(it.rate)||0)/100, base=Number(it.base)||0;
-      const cls=CLIENTS.filter(c=>c.setter===n && paidInMonth(c,M)>0);
-      const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
-      const dn=[]; if(base) dn.push({l:"Base fixe du mois", a:Math.round(base*100)/100});
-      cls.forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*pct*100)/100}); });
-      const isSet=member(n).role==="setter"; // le bloc "calls" est réservé aux vrais setters
-      return {m:n, autoAmount:base+ca*pct, rows:[["CA encaissé de ses clients (setter)", eur(ca)],["Commission",(Number(it.rate)||0)+" %"],["Base fixe", eur(base)]].concat(cls.map(c=>["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])), detailNum:dn, callset:isSet?n:null}; }
-    if(t==="lucas"){ const dn=[{l:"Base fixe du mois", a:Math.round(luBase*100)/100}]; CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.lucasRate*100)/100}); }); return {m:n, autoAmount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detailNum:dn, callset:"Lucas"}; }
-    if(t==="ilyas"){ const ld=mergeCalls(M).filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified===true).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
-      const dn=ld.map(c=>({l:escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), a:C.ilyasPerLead}));
-      if(ilClose) dn.push({l:ilClose+" close × 50 €", a:C.ilyasPerClose*ilClose});
-      if(ilPrimeR) dn.push({l:"🎁 Prime palier "+ilRdv+" leads", a:ilPrimeR});
-      if(ilPrimeC) dn.push({l:"🎁 Prime palier "+ilClose+" close", a:ilPrimeC});
-      return {m:n, autoAmount:ilAmount, edit:"ilyas", rows:[["Leads vérifiés (= show-up ✓)", ilRdv],["Closes"+autoTag(stIl.closes), ilClose],["20 € × lead", eur(C.ilyasPerLead*ilRdv)],["50 € × close", eur(C.ilyasPerClose*ilClose)]], detailNum:dn, callset:"Ilyas"}; }
-    return {m:n, autoAmount:0, custom:true, rows:[["Type","Paiement manuel — mets le montant ci-dessous"]], detailNum:[]};
+  /* CALCUL UNIQUE : rôle → quels clients sont "les siens" ; puis  fixe + % de l'encaissé de ces clients. */
+  const pay=payList.map(normPay).filter(it=>it&&it.name).map(it=>{
+    const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
+    let cls=[];
+    if(role==="closer")      cls=CLIENTS.filter(c=>c.closer===n && paidInMonth(c,M)>0);   // ses closings
+    else if(role==="setter") cls=CLIENTS.filter(c=>c.setter===n && paidInMonth(c,M)>0);   // ses leads
+    else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];            // tous les clients encaissés (si %)
+    const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
+    const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
+    cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; if(a) dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a}); });
+    const rows=[["Rôle", ROLE_LBL[role]||role]];
+    if(fixe) rows.push(["Fixe mensuel", eur(fixe)]);
+    if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
+      cls.forEach(c=>rows.push(["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])); }
+    if(!fixe && !pct) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
+    return {m:n, autoAmount: fixe + ca*pct, custom:(!fixe&&!pct), rows, detailNum:dn, callset: (role==="setter"?n:null)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
   pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
