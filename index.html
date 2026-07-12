@@ -1673,7 +1673,7 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
   { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
-  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé global (€)",type:"number" },
+  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé global (€) — ⚠️ utilisé UNIQUEMENT si aucun échéancier ci-dessous",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
@@ -1746,6 +1746,7 @@ function fillClientMonths(){
 }
 function clientIssues(c){
   const iss=[];
+  if(!isSuivi(c)) return iss; // client terminé ou annulé → on ne le signale plus
   const m=Number(c.montant)||0, e=clientEncaisse(c);
   if(!c.verified) iss.push("à vérifier");
   if(m<=0) iss.push("montant manquant");
@@ -1755,7 +1756,7 @@ function clientIssues(c){
   if(m>0 && !(c.schedule||[]).length && !(Number(c.encaisse)||0)) iss.push("pas d'échéancier");
   return iss;
 }
-function clientEncaisse(c){ return (Number(c.encaisse)||0) + (c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
+function clientEncaisse(c){ if(hasSched(c)) return c.schedule.filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); return Number(c&&c.encaisse)||0; }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -1814,21 +1815,22 @@ function renderClients(){
   if(fs) rows=rows.filter(x=>x.statut===fs);
   if(fm) rows=rows.filter(x=>paidInMonth(x,fm)>0 || dueInMonth(x,fm)>0);
   if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
-  const total=rows.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=rows.reduce((s,x)=>s+clientEncaisse(x),0);
-  const monthEnc=fm?rows.reduce((s,x)=>s+paidInMonth(x,fm),0):0;
-  const monthDue=fm?rows.reduce((s,x)=>s+dueInMonth(x,fm),0):0;
+  const active=rows.filter(isSuivi), old=rows.filter(x=>!isSuivi(x));
+  const total=active.reduce((s,x)=>s+(Number(x.montant)||0),0), enc=active.reduce((s,x)=>s+clientEncaisse(x),0);
+  const monthEnc=fm?active.reduce((s,x)=>s+paidInMonth(x,fm),0):0;
+  const monthDue=fm?active.reduce((s,x)=>s+dueInMonth(x,fm),0):0;
   $("clientStats").innerHTML=fm?`
-    <div class="box"><div class="n">${rows.length}</div><div class="l">Clients actifs en ${monthShort(fm)}</div></div>
+    <div class="box"><div class="n">${active.length}</div><div class="l">Clients actifs en ${monthShort(fm)}</div></div>
     <div class="box"><div class="n grad-text">${eur(monthEnc)}</div><div class="l">Rentré ${monthShort(fm)}</div></div>
     <div class="box"><div class="n">${eur(monthDue)}</div><div class="l">Attendu ${monthShort(fm)}</div></div>`:`
-    <div class="box"><div class="n">${rows.length}</div><div class="l">Clients</div></div>
+    <div class="box"><div class="n">${active.length}</div><div class="l">Clients actifs</div></div>
     <div class="box"><div class="n grad-text">${eur(enc)}</div><div class="l">Encaissé</div></div>
     <div class="box"><div class="n">${eur(total-enc)}</div><div class="l">Reste à venir</div></div>`;
   const wrap=$("clientList");
   if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client${fm?" pour "+monthLabel(fm):""}.</div>`; return; }
   const legend=(SETTINGS.offers||[]).some(o=>o.emoji)?`<div class="offleg">${(SETTINGS.offers||[]).filter(o=>o.emoji).map(o=>`<span>${o.emoji} ${escapeHtml(o.name)}</span>`).join("")}<span style="opacity:.7">🎟️ = journée immersive</span></div>`:"";
   const tools=`<div class="cltools"><button onclick="toggleAllClients(true)">⬇️ Tout déplier</button><button onclick="toggleAllClients(false)">⬆️ Tout replier</button></div>`;
-  wrap.innerHTML=legend+tools+rows.map(c=>{
+  const cardHtml = c => {
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=(Number(c.montant)||0)-encC;
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
@@ -1872,7 +1874,10 @@ function renderClients(){
       <button class="btn ghost sm" style="margin-top:12px" onclick="editClient('${c.id}')">✎ ${isAdmin()?"Modifier":"Compléter / modifier la fiche"}</button>
       </div>
     </details>`;
-  }).join("");
+  };
+  wrap.innerHTML = legend + tools
+    + (active.length ? active.map(cardHtml).join("") : `<div class="empty">Aucun client actif${fm?" pour "+monthLabel(fm):""}.</div>`)
+    + (old.length ? `<details class="cdet" style="margin-top:16px"><summary>🗂 OLD — anciens clients (terminés / annulés) · ${old.length}</summary><div style="margin-top:8px">${old.map(cardHtml).join("")}</div></details>` : "");
 }
 function toggleAllClients(open){ document.querySelectorAll('#clientList details.clcard').forEach(d=>d.open=open); }
 async function setVerified(id,val){
@@ -1978,7 +1983,10 @@ function renderFinance(){
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   const pay=payList.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual";
     if(t==="coach"){ const dn=CLIENTS.filter(c=>paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M), mt=Number(c.montant)||e; return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(C.coachPerClient*(e/mt)*100)/100}; }); return {m:n, autoAmount:coachTot, rows:[["Clients encaissés ce mois", nbCoachClients],["Règle","400 €/client au prorata"]], detailNum:dn}; }
-    if(t==="closer"){ const ca=byCloser[n]||0; const dn=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0).map(c=>{ const e=paidInMonth(c,M); return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.closerRate*100)/100}; }); return {m:n, autoAmount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]], detailNum:dn}; }
+    if(t==="closer"){ const ca=byCloser[n]||0; const cls=CLIENTS.filter(c=>c.closer===n&&paidInMonth(c,M)>0);
+      const dn=cls.map(c=>{ const e=paidInMonth(c,M); return {l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.closerRate*100)/100}; });
+      const enc=cls.map(c=>[escapeHtml(c.nom||""), eur(paidInMonth(c,M))]);
+      return {m:n, autoAmount:ca*C.closerRate, rows:[["CA encaissé", eur(ca)],["Commission","10 %"]].concat(enc.map(e=>["↳ "+e[0], e[1]])), detailNum:dn}; }
     if(t==="lucas"){ const dn=[{l:"Base fixe du mois", a:Math.round(luBase*100)/100}]; CLIENTS.filter(c=>c.setter==="Lucas"&&paidInMonth(c,M)>0).forEach(c=>{ const e=paidInMonth(c,M); dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a:Math.round(e*C.lucasRate*100)/100}); }); return {m:n, autoAmount:luAmount, edit:"lucas", rows:[["CA encaissé (auto)", eur(lucasCA)],["Base", eur(luBase)],["Commission 5 %", eur(lu5)],["Closes"+autoTag(stLu.closes), luClose]], detailNum:dn, callset:"Lucas"}; }
     if(t==="ilyas"){ const ld=mergeCalls(M).filter(c=>c.setter==="Ilyas"&&c.show===true&&c.verified===true).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
       const dn=ld.map(c=>({l:escapeHtml(c.prospect||"")+(c.closer?" · "+escapeHtml(c.closer):"")+(c.date?" · "+c.date:""), a:C.ilyasPerLead}));
@@ -2127,10 +2135,12 @@ async function saveStat(name){
   catch(e){ alert("Erreur : "+e.message); }
 }
 function startMonth(c){ return (c.date_debut||"").slice(0,7); }
+// RÈGLE UNIQUE (partout dans l'app) : si le client a un échéancier, il fait foi (seules les échéances cochées "payé" comptent).
+// Le champ "Déjà encaissé global" ne sert QUE pour les clients sans échéancier. → plus de double comptage.
+function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function paidInMonth(c,M){
-  let v=(c.schedule||[]).filter(s=>s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
-  if(startMonth(c)===M) v+=(Number(c.encaisse)||0);
-  return v;
+  if(hasSched(c)) return c.schedule.filter(s=>s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
+  return startMonth(c)===M ? (Number(c.encaisse)||0) : 0;
 }
 function dueInMonth(c,M){
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
