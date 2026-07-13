@@ -227,6 +227,9 @@
   .edrow.on label.edtoggle{color:var(--green);font-weight:700}
   .digline{padding:9px 0;border-top:1px solid var(--line2)}
   .digline:first-child{border-top:none}
+  .ackchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 10px;font-size:12px;margin:3px 5px 0 0}
+  .ackchip.ok{border-color:rgba(52,199,89,.4);background:rgba(52,199,89,.08)}
+  .ackchip button{background:rgba(255,255,255,.08);border:none;color:var(--txt);border-radius:999px;padding:3px 8px;font-size:11px;cursor:pointer;width:auto;margin:0;box-shadow:none}
   .offleg{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 2px 12px}
   .offleg span{white-space:nowrap}
   .immday{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
@@ -1545,12 +1548,19 @@ function immAddClient(i,id){ if(!id||!SETTINGS.immersives[i]) return; const arr=
 function immRemoveClient(i,id){ if(!SETTINGS.immersives[i]) return; SETTINGS.immersives[i].clients=(SETTINGS.immersives[i].clients||[]).filter(x=>x!==id); renderImmersive(); saveImmersives(); }
 
 /* ===================== ÉQUIPE ===================== */
-let EODS=[]; let WARNS={};
+let EODS=[]; let WARNS={}; let ACKS={};
+/* ACKS = alertes marquées "vu / géré" (EOD manquants, clients à checker) → passent en archive */
+async function loadAcks(){ if(!fbReady()) return; initFirebase();
+  try{ const d=await db.collection("setter_stats").doc("cfg_acks").get(); ACKS=(d.exists&&d.data().map)||{}; }catch(e){ ACKS={}; } }
+async function setAck(key,val,scope){ if(!fbReady()) return; initFirebase();
+  if(val) ACKS[key]={at:todayStr()}; else delete ACKS[key];
+  try{ await db.collection("setter_stats").doc("cfg_acks").set({isAckCfg:true, map:ACKS}); if(scope==="team") renderTeamDigest(); else if(scope==="clients") renderClients(); }
+  catch(e){ alert("Erreur : "+e.message); } }
 async function loadTeam(){
   if(!fbReady()){ $("teamGrid").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
   try{ const snap=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ EODS=[]; }
-  try{ const ss=await db.collection("setter_stats").get(); FUPS={}; WARNS={}; ss.docs.forEach(d=>{ const x=d.data(); if(x.isFollowups&&x.member) FUPS[x.member]=Array.isArray(x.list)?x.list:[]; if(x.isWarnCfg&&x.map) WARNS=x.map; }); }catch(e){}
+  try{ const ss=await db.collection("setter_stats").get(); FUPS={}; WARNS={}; ACKS={}; ss.docs.forEach(d=>{ const x=d.data(); if(x.isFollowups&&x.member) FUPS[x.member]=Array.isArray(x.list)?x.list:[]; if(x.isWarnCfg&&x.map) WARNS=x.map; if(x.isAckCfg&&x.map) ACKS=x.map; }); }catch(e){}
   try{ const cs=await db.collection("clients").get(); CLIENTS=cs.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   renderTeam();
 }
@@ -1604,7 +1614,12 @@ function renderTeamDigest(){
     const nwarn=dayE.reduce((s,x)=>s+((x.payload&&Array.isArray(x.payload.clientlog))?x.payload.clientlog.filter(a=>a.warning).length:0),0);
     const bits=[`🎯 ${closes} closé(s)`,`👥 ${contacted} contactées`,`📅 ${booked} RDV pris`];
     if(nwarn) bits.push(`<span style="color:var(--red)">⚠️ ${nwarn} warning(s)</span>`);
-    const miss=(!isToday && missing.length && missing.length<CONFIG.TEAM.length)?`<div class="sub2" style="color:var(--red);margin-top:2px">EOD manquant : ${escapeHtml(missing.join(", "))}</div>`:"";
+    let miss="";
+    if(!isToday && missing.length && missing.length<CONFIG.TEAM.length){
+      const notAck=missing.filter(nm=>!ACKS["eod|"+nm+"|"+d]), done=missing.filter(nm=>ACKS["eod|"+nm+"|"+d]);
+      if(notAck.length) miss+=`<div class="sub2" style="margin-top:5px"><span style="color:var(--red);font-weight:700">EOD manquant :</span> ${notAck.map(nm=>`<span class="ackchip">${escapeHtml(nm)}<button type="button" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',true,'team')">✓ vu / géré</button></span>`).join("")}</div>`;
+      if(done.length) miss+=`<div class="sub2" style="margin-top:4px;opacity:.65">🗂 Géré : ${done.map(nm=>`<span class="ackchip ok">${escapeHtml(nm)}<button type="button" title="Remettre en alerte" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',false,'team')">↩︎</button></span>`).join("")}</div>`;
+    }
     return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""} <span class="sub2" style="font-weight:400">· ${posted.length}/${CONFIG.TEAM.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
   }).join("");
 }
@@ -1764,6 +1779,7 @@ async function loadClients(){
   const wrap=$("clientList");
   if(!fbReady()){ wrap.innerHTML=`<div class="empty">Backend non connecté.</div>`; $("clientStats").innerHTML=""; return; }
   initFirebase();
+  await loadAcks();
   const fpSel=$("cfProg"), fp0=fpSel.value; fpSel.innerHTML='<option value="">Tous les programmes</option>'; SETTINGS.programmes.forEach(p=>fpSel.insertAdjacentHTML("beforeend",`<option ${p===fp0?"selected":""}>${escapeHtml(p)}</option>`));
   const fsSel=$("cfStatut"), fs0=fsSel.value; fsSel.innerHTML='<option value="">Tous les statuts</option>'; SETTINGS.statuts.forEach(p=>fsSel.insertAdjacentHTML("beforeend",`<option ${p===fs0?"selected":""}>${escapeHtml(p)}</option>`));
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
@@ -1835,12 +1851,20 @@ function renderClients(){
   if(al){
     if(isAdmin()){
       const payCard=payMonthCard(fm||monthStr());
-      const flagged=CLIENTS.map(c=>({c,iss:clientIssues(c)})).filter(o=>o.iss.length);
+      const all=CLIENTS.map(c=>({c,iss:clientIssues(c)})).filter(o=>o.iss.length);
+      const flagged=all.filter(o=>!ACKS["cli|"+o.c.id]), arch=all.filter(o=>ACKS["cli|"+o.c.id]);
+      const row=(o,done)=>`<div class="kv" style="align-items:center">
+        <span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}</span>
+        <span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+          <span style="color:${done?'var(--muted)':'#ffcf7a'};font-size:12px">${o.iss.map(escapeHtml).join(" · ")}</span>
+          <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="setAck('cli|${o.c.id}',${done?'false':'true'},'clients')">${done?'↩︎':'✓ vu / géré'}</button>
+        </span></div>`;
+      const archBox=arch.length?`<details class="cdet" style="margin-top:10px"><summary>🗂 Archivés — vus / gérés (${arch.length})</summary>${arch.map(o=>row(o,true)).join("")}</details>`:"";
       al.innerHTML = payCard + (flagged.length ? `<div class="card" style="border-color:rgba(255,180,71,.4);background:rgba(255,180,71,.06);margin-top:14px">
         <h2 style="margin:0 0 6px">⚠️ À checker (${flagged.length})</h2>
-        <p class="sub2" style="margin:0 0 8px">Fiches non vérifiées ou avec une incohérence — clique pour ouvrir.</p>
-        ${flagged.map(o=>`<div class="kv" style="cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">${escapeHtml((o.c.nom||"")+" "+(o.c.prenom||"")).trim()}</span><span class="v" style="color:#ffcf7a">${o.iss.map(escapeHtml).join(" · ")}</span></div>`).join("")}
-      </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Tout est vérifié et cohérent</h2></div>`);
+        <p class="sub2" style="margin:0 0 8px">Fiches non vérifiées ou avec une incohérence — clique sur le nom pour ouvrir, ou « ✓ vu / géré » pour archiver.</p>
+        ${flagged.map(o=>row(o,false)).join("")}${archBox}
+      </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Rien à checker</h2>${archBox}</div>`);
     } else al.innerHTML="";
   }
   let rows=CLIENTS.slice();
