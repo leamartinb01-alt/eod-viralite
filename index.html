@@ -1590,17 +1590,25 @@ function renderTeam(){
 }
 function renderTeamDigest(){
   const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
-  const warns=[];
-  EODS.filter(x=>(x.report_date||"")>=wk && x.payload && Array.isArray(x.payload.clientlog)).forEach(x=>{ x.payload.clientlog.forEach(a=>{ if(a.warning){ const key=((a.id||a.name||"")+"|"+(x.report_date||"")).replace(/'/g,""); const st=WARNS[key]||{}; if(st.status==="resolu") return; warns.push({key,name:a.name,reason:a.warnReason,by:x.member,date:x.report_date,status:st.status||"",note:st.note||""}); } }); });
+  const all=[];
+  EODS.filter(x=>(x.report_date||"")>=wk && x.payload && Array.isArray(x.payload.clientlog)).forEach(x=>{ x.payload.clientlog.forEach(a=>{ if(a.warning){ const key=((a.id||a.name||"")+"|"+(x.report_date||"")).replace(/'/g,""); const st=WARNS[key]||{}; all.push({key,name:a.name,reason:a.warnReason,by:x.member,date:x.report_date,status:st.status||"",note:st.note||""}); } }); });
+  const warns=all.filter(w=>w.status!=="resolu"), arch=all.filter(w=>w.status==="resolu");
   warns.sort((a,b)=>{ const pa=a.status==="attente"?0:1, pb=b.status==="attente"?0:1; if(pa!==pb) return pa-pb; return String(b.date).localeCompare(String(a.date)); });
+  arch.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const wc=$("warnCard"), wl=$("warnList");
-  const WOPTS=[["","— à traiter"],["attente","🕒 En attente"],["accord","🤝 Pas d'accord trouvé"],["resolu","✅ Résolu / géré"]];
-  if(wc&&wl){ if(warns.length){ wc.classList.remove("hide"); wl.innerHTML=warns.map(w=>`<div class="insight" style="align-items:flex-start"><span>${w.status==="attente"?"🕒":"⚠️"}</span><span style="flex:1;min-width:0">
+  const WOPTS=[["","— à traiter"],["attente","🕒 En attente"],["accord","🤝 Pas d'accord trouvé"],["resolu","✅ Résolu → archive"]];
+  const wRow=w=>`<div class="insight" style="align-items:flex-start"><span>${w.status==="attente"?"🕒":"⚠️"}</span><span style="flex:1;min-width:0">
       <b>${escapeHtml(w.name||"")}</b> — ${escapeHtml(w.reason||"warning")} <span class="sub2">(${escapeHtml(w.by||"")} · ${escapeHtml(dayLabel(w.date))})</span>
       <div class="payin" style="margin-top:6px">
         <div><select onchange="saveWarnStatus('${w.key}',this.value,this.closest('.insight').querySelector('.wnote').value)">${WOPTS.map(o=>`<option value="${o[0]}"${o[0]===w.status?' selected':''}>${o[1]}</option>`).join("")}</select></div>
         <div><input class="wnote" type="text" placeholder="note (ex : vu avec lui…)" value="${escapeHtml(w.note)}" onchange="saveWarnStatus('${w.key}',this.closest('.insight').querySelector('select').value,this.value)"></div>
-      </div></span></div>`).join(""); } else { wc.classList.add("hide"); wl.innerHTML=""; } }
+      </div></span></div>`;
+  const archBox=arch.length?`<details class="cdet" style="margin-top:10px"><summary>🗂 Archivés — résolus (${arch.length})</summary>${arch.map(w=>`<div class="insight" style="opacity:.7"><span>✅</span><span style="flex:1;min-width:0"><b>${escapeHtml(w.name||"")}</b> — ${escapeHtml(w.reason||"")}${w.note?' <span class="sub2">· '+escapeHtml(w.note)+'</span>':""} <span class="sub2">(${escapeHtml(dayLabel(w.date))})</span><br><button type="button" class="btn ghost sm" style="width:auto;margin-top:4px;padding:5px 10px;font-size:12px" onclick="saveWarnStatus('${w.key}','attente','${escapeHtml(w.note).replace(/'/g,"")}')">↩︎ Rouvrir</button></span></div>`).join("")}</details>`:"";
+  if(wc&&wl){
+    if(warns.length||arch.length){ wc.classList.remove("hide");
+      wc.style.borderColor = warns.length ? "var(--red)" : "rgba(52,199,89,.35)";
+      wl.innerHTML = (warns.length?warns.map(wRow).join(""):'<div class="sub2" style="color:var(--green)">✅ Aucun warning en cours.</div>') + archBox;
+    } else { wc.classList.add("hide"); wl.innerHTML=""; } }
   const dl=$("digestList"); if(!dl) return;
   const days=[]; for(let i=0;i<6;i++){ days.push(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); }
   dl.innerHTML=days.map(d=>{
