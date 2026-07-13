@@ -720,7 +720,7 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
 function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
 function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s); } // tous en suivi sauf terminé / annulé
 function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); }
-function setterGoalsBlock(name){ const goals=SETTINGS.setterGoals||[]; if(!goals.length) return "";
+function setterGoalsBlock(name){ const goals=(SETTINGS.setterGoals||[]).filter(g=>!g.who || g.who===name); if(!goals.length) return "";
   const M=monthStr(); const mine=EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M);
   const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
     return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
@@ -923,10 +923,14 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
-function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]]; return `<div class="drow goalrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
-    <input class="glLabel" type="text" placeholder="Nom de l'objectif" value="${escapeHtml(g.label||'')}" style="flex:2;min-width:110px">
-    <select class="glKey" style="flex:1;min-width:120px">${keys.map(o=>`<option value="${o[0]}"${o[0]===(g.key||'')?' selected':''}>${o[1]}</option>`).join("")}</select>
-    <input class="glTarget" type="number" inputmode="numeric" placeholder="cible" value="${g.target!=null?g.target:''}" style="width:74px">
+function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]];
+  const setters=CONFIG.TEAM.filter(m=>m.role==="setter").map(m=>m.name);
+  const whoOpts=['<option value="">Tous les setters</option>'].concat(setters.map(s=>`<option value="${escapeHtml(s)}"${s===(g.who||'')?' selected':''}>${escapeHtml(s)}</option>`)).join("");
+  return `<div class="drow goalrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
+    <select class="glWho" title="Pour qui ?" style="flex:1.1;min-width:110px">${whoOpts}</select>
+    <input class="glLabel" type="text" placeholder="Nom de l'objectif" value="${escapeHtml(g.label||'')}" style="flex:1.8;min-width:110px">
+    <select class="glKey" style="flex:1.2;min-width:115px">${keys.map(o=>`<option value="${o[0]}"${o[0]===(g.key||'')?' selected':''}>${o[1]}</option>`).join("")}</select>
+    <input class="glTarget" type="number" inputmode="numeric" placeholder="cible" value="${g.target!=null?g.target:''}" style="width:70px">
     <button type="button" class="xrow" onclick="this.closest('.goalrow').remove()">✕</button>
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
@@ -965,7 +969,7 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>🎯 Objectifs setters (par mois)</h3>
     <div id="goalBox">${gl}</div>
     <button type="button" class="addrow" onclick="addGoal()">+ Ajouter un objectif</button>
-    <div class="hint">S'affichent dans l'EOD des setters avec la progression du mois (fait / cible).</div></div>`;
+    <div class="hint">Choisis <b>pour qui</b> (un setter précis, ou « Tous les setters » pour une cible commune). Chacun ne voit que SES objectifs dans son EOD, avec la progression du mois (fait / cible).</div></div>`;
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     <div id="payListBox">${pr}</div>
@@ -985,7 +989,7 @@ async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
-  SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
+  SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({who:r.querySelector('.glWho').value, label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
     name:r.querySelector('.pyName').value.trim(),
     label:(r.querySelector('.pyLabel').value||"").trim(),
