@@ -1766,7 +1766,9 @@ function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
-function gatherSchedule(){ return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>({ month:r.querySelector(".sMonth").value, amount:Number(r.querySelector(".sAmt").value)||0, paid:r.querySelector(".sPaid").checked })).filter(x=>x.month||x.amount); }
+function gatherSchedule(){ const defM=(($("cf_date_debut")&&$("cf_date_debut").value)||todayStr()).slice(0,7);
+  return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>{ const amount=Number(r.querySelector(".sAmt").value)||0; let month=r.querySelector(".sMonth").value; if(!month && amount) month=defM; // pas de mois saisi + un montant → on rattache au mois de démarrage pour ne pas perdre l'argent
+    return { month, amount, paid:r.querySelector(".sPaid").checked }; }).filter(x=>x.month||x.amount); }
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
@@ -1851,7 +1853,11 @@ async function toggleSched(id,i){
   try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); }
   catch(e){ alert("Erreur : "+e.message); }
 }
+function sameProg(cp, fp){ if(!fp) return true; if(cp===fp) return true; const oc=offerFor(cp), of=offerFor(fp); if(oc&&of&&oc.name===of.name) return true; return normOffer(cp)===normOffer(fp); }
 function renderClients(){
+  // Le filtre programmes liste TOUS les programmes présents (réglages + fiches réelles), pour ne perdre aucun client
+  const cfp=$("cfProg"); if(cfp){ const cur=cfp.value; const opts=[...new Set([...(SETTINGS.programmes||[]), ...CLIENTS.map(c=>c.programme).filter(Boolean)])];
+    cfp.innerHTML='<option value="">Tous les programmes</option>'+opts.map(p=>`<option ${p===cur?'selected':''}>${escapeHtml(p)}</option>`).join(""); }
   const fp=$("cfProg").value, fs=$("cfStatut").value, fm=($("cfMonth")&&$("cfMonth").value)||"";
   const q=(($("cfSearch")&&$("cfSearch").value)||"").toLowerCase();
   // Encart en haut : à vérifier / incohérences (admin)
@@ -1876,7 +1882,7 @@ function renderClients(){
     } else al.innerHTML="";
   }
   let rows=CLIENTS.slice();
-  if(fp) rows=rows.filter(x=>x.programme===fp);
+  if(fp) rows=rows.filter(x=>sameProg(x.programme,fp));
   if(fs) rows=rows.filter(x=>x.statut===fs);
   if(fm) rows=rows.filter(x=>paidInMonth(x,fm)>0 || dueInMonth(x,fm)>0);
   if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
