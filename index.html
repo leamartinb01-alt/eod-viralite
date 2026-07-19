@@ -1303,7 +1303,7 @@ async function exportReport(){
     return `<tr><td><b>${esc(c.nom)}</b> ${esc(c.prenom)}<div class="sub">${esc(c.mail)}</div></td><td>${esc(c.programme)}</td><td>${esc(c.statut)}</td><td>${esc([c.setter,c.closer].filter(Boolean).join(" / "))}</td><td class="r">${eur(c.montant)}</td><td class="r ok">${eur(e)}</td><td class="r ${r>0?'due':''}">${eur(r)}</td><td>${coachDone(c)}/${coachTotal(c)}</td><td class="sched">${sched||'—'}</td></tr>`;
   }).join("");
   const months=[...new Set([].concat(
-    cls.flatMap(c=>[startMonth(c)].concat((c.schedule||[]).map(s=>s.month))),
+    cls.flatMap(c=>[startMonth(c), (encExtra(c)>0?baseMonth(c):"")].concat((c.schedule||[]).map(s=>s.month))),
     eods.map(x=>(x.report_date||"").slice(0,7)),
     Object.keys(statMap).map(k=>k.split("|")[1])
   ))].filter(Boolean).sort().reverse();
@@ -1799,7 +1799,7 @@ async function loadClients(){
 }
 function fillClientMonths(){
   const sel=$("cfMonth"); if(!sel) return; const cur=sel.value; const set=new Set();
-  CLIENTS.forEach(c=>{ if(startMonth(c)) set.add(startMonth(c)); (c.schedule||[]).forEach(s=>{ if(s.month) set.add(s.month); }); });
+  CLIENTS.forEach(c=>{ if(startMonth(c)) set.add(startMonth(c)); if(encExtra(c)>0) set.add(baseMonth(c)); (c.schedule||[]).forEach(s=>{ if(s.month) set.add(s.month); }); });
   const ms=[...set].filter(Boolean).sort().reverse();
   sel.innerHTML='<option value="">📅 Tous les mois</option>'+ms.map(m=>`<option value="${m}" ${m===cur?"selected":""}>${monthLabel(m)}</option>`).join("");
 }
@@ -1813,6 +1813,7 @@ function clientIssues(c){
   if(!c.programme) iss.push("pas de programme");
   if(m>0 && e>m) iss.push("encaissé > contrat");
   if(m>0 && !(c.schedule||[]).length && !(Number(c.encaisse)||0)) iss.push("pas d'échéancier");
+  if(encExtra(c)>0 && !startMonth(c)) iss.push("date de démarrage manquante");
   return iss;
 }
 function clientEncaisse(c){ return schedPaidAll(c) + encExtra(c); }
@@ -2039,7 +2040,11 @@ function renderFinance(){
     }
     (c.schedule||[]).forEach(s=>{ if(s.month===M && !s.paid) dueTot+=Number(s.amount)||0; });
   });
+  // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
+  let newCash=0, recCash=0;
+  CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
+  const genMonth=monthCashSum(monthEods.filter(x=>x.role==="closer"),"cash_gen_day","cash_gen_month");
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
@@ -2077,10 +2082,21 @@ function renderFinance(){
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
   $("finStats").innerHTML=`
-    <div class="box"><div class="n grad-text">${eur(encTot)}</div><div class="l">Encaissé</div></div>
-    <div class="box"><div class="n">${eur(dueTot)}</div><div class="l">À encaisser</div></div>
-    <div class="box"><div class="n" style="color:#d39be6">${eur(totalPaie)}</div><div class="l">Paie totale</div></div>`;
-  $("finPay").innerHTML = pay.map(p=>{
+    <div class="box"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
+    <div class="box"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser</div></div>
+    <div class="box"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)}</div></div>
+    <div class="box"><div class="n" style="color:#d39be6">${eur(totalPaie)}</div><div class="l">💸 Paie totale</div></div>`;
+  // Récap + détail par client du mois
+  const nomC=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
+  const encCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+  const dueCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
+  const monthCard=`<div class="card" style="margin-top:2px">
+    <div style="font-weight:800;font-size:15px;margin-bottom:4px">📊 ${monthLabel(M)}</div>
+    <div class="sub2" style="margin-bottom:8px">💰 <b style="color:#7ee2a3">${eur(newCash)}</b> new cash · 🔁 <b>${eur(recCash)}</b> recurring · ⏳ <b style="color:#ffcf7a">${eur(dueTot)}</b> attendu · 📈 <b>${eur(genMonth)}</b> généré</div>
+    <details class="cdet"><summary>✅ Déjà encaissé ce mois (${encCls.length}) — ${eur(encTot)}</summary>${encCls.length?encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${baseMonth(c)===M?"new":"recurring"}</span></span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))}</span></div>`).join(""):'<div class="sub2" style="margin:6px 0">Rien encaissé ce mois.</div>'}</details>
+    <details class="cdet" style="margin-top:6px"><summary>⏳ Reste à encaisser ce mois (${dueCls.length}) — ${eur(dueTot)}</summary>${dueCls.length?dueCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#ffcf7a">${eur(dueInMonth(c,M))}</span></div>`).join(""):'<div class="sub2" style="margin:6px 0">Tout est rentré ✅</div>'}</details>
+  </div>`;
+  $("finPay").innerHTML = monthCard + pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
     const detHtml="";
@@ -2215,16 +2231,22 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function encExtra(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
+/* Mois de rattachement du "déjà encaissé global" : date de démarrage, sinon 1re échéance, sinon création, sinon mois courant.
+   → l'argent n'est JAMAIS perdu, même si la fiche n'a pas de date de démarrage (cas Mutualise). */
+function baseMonth(c){ if(startMonth(c)) return startMonth(c);
+  const sm=(c&&c.schedule||[]).map(s=>s.month).filter(Boolean).sort(); if(sm.length) return sm[0];
+  const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ return ca.toDate().toISOString().slice(0,7); }catch(e){} }
+  return monthStr(); }
 function paidInMonth(c,M){
   const s=(c&&c.schedule||[]).filter(x=>x.paid&&x.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
-  return s + (startMonth(c)===M ? encExtra(c) : 0);
+  return s + (encExtra(c)>0 && baseMonth(c)===M ? encExtra(c) : 0);
 }
 function dueInMonth(c,M){
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
 }
 function renderFinTable(){
   const monthsSet=new Set();
-  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); });
+  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encExtra(c)>0) monthsSet.add(baseMonth(c)); });
   let ms=[...monthsSet].filter(Boolean).sort();
   if(!ms.length) ms=lastMonths(4).reverse();
   const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
