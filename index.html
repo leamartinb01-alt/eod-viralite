@@ -227,6 +227,11 @@
   .edrow.on label.edtoggle{color:var(--green);font-weight:700}
   .digline{padding:9px 0;border-top:1px solid var(--line2)}
   .digline:first-child{border-top:none}
+  .convrow{padding:9px 0;border-top:1px solid var(--line2)}
+  .convrow:first-child{border-top:none}
+  .convh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .convn{font-weight:700;font-size:14px}
+  .convbig{font-weight:800;font-size:16px;color:var(--gold-soft)}
   .ackchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 10px;font-size:12px;margin:3px 5px 0 0}
   .ackchip.ok{border-color:rgba(52,199,89,.4);background:rgba(52,199,89,.08)}
   .ackchip button{background:rgba(255,255,255,.08);border:none;color:var(--txt);border-radius:999px;padding:3px 8px;font-size:11px;cursor:pointer;width:auto;margin:0;box-shadow:none}
@@ -419,6 +424,7 @@
         <p class="sub2" id="teamToday" style="margin-top:8px">—</p>
         <div class="stat" id="teamStats"></div>
       </div>
+      <div id="convCard" class="card"><h2 style="margin:0 0 8px">📊 Conversions (temps réel)</h2><div id="convList"></div></div>
       <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
       <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
       <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
@@ -1577,6 +1583,7 @@ function renderTeam(){
     <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté</div></div>
     <div class="box"><div class="n">${closed}</div><div class="l">Closés</div></div>`;
   renderInsights(selM, doneSet);
+  renderConversions(selM);
   renderTeamDigest();
   $("teamGrid").innerHTML=CONFIG.TEAM.map(m=>{
     const on=doneSet.has(m.name); const list=EODS.filter(x=>x.member===m.name);
@@ -1588,6 +1595,21 @@ function renderTeam(){
       <div class="mlevel">🔥 ${streak} j · ${pts} pts</div></div>`;
   }).join("");
   renderTeamManage();
+}
+function prevMonth(M){ const p=(M||monthStr()).split("-").map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
+function closerConv(name,M){ let calls=0,closed=0,show=0,no=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ calls++; if(c.res==="Closé")closed++; else if(c.res==="No-show")no++; if(c.res==="Show-up"||c.res==="Closé")show++; }); }); return {calls,closed,show,no}; }
+function setterConv(name,M){ let contacted=0,inContact=0,booked=0,verified=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; booked+=Number(p.calls_booked)||0; bookedArr(x).forEach(b=>{ if(b.verified)verified++; }); }); return {contacted,inContact,booked,verified}; }
+function renderConversions(M){
+  const box=$("convList"); if(!box) return; const pm=prevMonth(M);
+  const closers=CONFIG.TEAM.filter(m=>m.role==="closer"), setters=CONFIG.TEAM.filter(m=>m.role==="setter");
+  const cRows=closers.map(m=>{ const c=closerConv(m.name,M), p=closerConv(m.name,pm); const cv=pctTxt(c.closed,c.calls), pv=pctTxt(p.closed,p.calls);
+    return `<div class="convrow"><div class="convh"><span class="convn">💼 ${escapeHtml(m.name)}</span><span class="convbig">${cv} <span class="sub2">conv.</span></span></div>
+      <div class="sub2">${c.calls} appels · ${c.closed} closés · ${c.show} show-up${p.calls?` <span style="opacity:.6">· ${monthShort(pm)} : ${pv} (${p.closed}/${p.calls})</span>`:""}</div></div>`; }).join("");
+  const sRows=setters.map(m=>{ const s=setterConv(m.name,M), p=setterConv(m.name,pm); const cv=pctTxt(s.booked,s.contacted), pv=pctTxt(p.booked,p.contacted);
+    return `<div class="convrow"><div class="convh"><span class="convn">🎯 ${escapeHtml(m.name)}</span><span class="convbig">${cv} <span class="sub2">contact→RDV</span></span></div>
+      <div class="sub2">${s.contacted} contactés · ${s.booked} bookés · ${s.verified} vérifiés${p.contacted?` <span style="opacity:.6">· ${monthShort(pm)} : ${pv}</span>`:""}</div></div>`; }).join("");
+  box.innerHTML=`<div class="sub2" style="margin-bottom:6px">Vue : <b>${monthLabel(M)}</b> · comparé à ${monthLabel(pm)} · se met à jour à chaque EOD.</div>${cRows||""}${sRows||""}${(!cRows&&!sRows)?'<div class="sub2">Aucun closer/setter dans l\'équipe.</div>':""}`;
 }
 function renderTeamDigest(){
   const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
