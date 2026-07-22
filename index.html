@@ -468,6 +468,7 @@
       <p class="hint" style="margin:0 0 4px">Coche « payé » dès que l'échéance rentre — c'est ce qui alimente les commissions.</p>
       <div id="schedRows"></div>
       <button type="button" class="addrow" onclick="addSchedRow()">+ Ajouter une échéance</button>
+      <div id="encTotalLive" class="kv" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
       <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
@@ -1303,7 +1304,7 @@ async function exportReport(){
     return `<tr><td><b>${esc(c.nom)}</b> ${esc(c.prenom)}<div class="sub">${esc(c.mail)}</div></td><td>${esc(c.programme)}</td><td>${esc(c.statut)}</td><td>${esc([c.setter,c.closer].filter(Boolean).join(" / "))}</td><td class="r">${eur(c.montant)}</td><td class="r ok">${eur(e)}</td><td class="r ${r>0?'due':''}">${eur(r)}</td><td>${coachDone(c)}/${coachTotal(c)}</td><td class="sched">${sched||'—'}</td></tr>`;
   }).join("");
   const months=[...new Set([].concat(
-    cls.flatMap(c=>[startMonth(c), (encExtra(c)>0?baseMonth(c):"")].concat((c.schedule||[]).map(s=>s.month))),
+    cls.flatMap(c=>[startMonth(c), (encGlobal(c)>0?baseMonth(c):"")].concat((c.schedule||[]).map(s=>s.month))),
     eods.map(x=>(x.report_date||"").slice(0,7)),
     Object.keys(statMap).map(k=>k.split("|")[1])
   ))].filter(Boolean).sort().reverse();
@@ -1729,7 +1730,7 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
   { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
-  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Déjà encaissé global (€) — ⚠️ utilisé UNIQUEMENT si aucun échéancier ci-dessous",type:"number" },
+  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Acompte encaissé HORS échéancier (€) — laisse vide si tu utilises l'échéancier ci-dessous",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
@@ -1745,12 +1746,12 @@ function renderClientForm(data){
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
-    else { inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}" />`; }
+    else { const oc=(f.key==="montant"||f.key==="encaisse")?' oninput="updateEncTotal()"':''; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
-  onOfferPick(true);
+  onOfferPick(true); updateEncTotal();
 }
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
   if(h) h.textContent=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):"";
@@ -1758,11 +1759,20 @@ function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   `<div class="drow schedRow">
-    <input class="sMonth" type="month" value="${d.month||''}">
-    <input class="sAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}">
-    <label class="ck"><input class="sPaid" type="checkbox" ${d.paid?'checked':''}>payé</label>
-    <button type="button" class="xrow" onclick="this.closest('.schedRow').remove()">✕</button>
-  </div>`); }
+    <input class="sMonth" type="month" value="${d.month||''}" onchange="updateEncTotal()">
+    <input class="sAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}" oninput="updateEncTotal()">
+    <label class="ck"><input class="sPaid" type="checkbox" ${d.paid?'checked':''} onchange="updateEncTotal()">payé</label>
+    <button type="button" class="xrow" onclick="this.closest('.schedRow').remove();updateEncTotal()">✕</button>
+  </div>`); updateEncTotal(); }
+function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
+  const rows=[...document.querySelectorAll("#schedRows .schedRow")];
+  const montant=Number(($("cf_montant")&&$("cf_montant").value)||0)||0;
+  let enc;
+  if(rows.length){ enc=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0); }
+  else { enc=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0; }
+  const reste=Math.max(0,montant-enc);
+  box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
+}
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
@@ -1799,7 +1809,7 @@ async function loadClients(){
 }
 function fillClientMonths(){
   const sel=$("cfMonth"); if(!sel) return; const cur=sel.value; const set=new Set();
-  CLIENTS.forEach(c=>{ if(startMonth(c)) set.add(startMonth(c)); if(encExtra(c)>0) set.add(baseMonth(c)); (c.schedule||[]).forEach(s=>{ if(s.month) set.add(s.month); }); });
+  CLIENTS.forEach(c=>{ if(startMonth(c)) set.add(startMonth(c)); if(encGlobal(c)>0) set.add(baseMonth(c)); (c.schedule||[]).forEach(s=>{ if(s.month) set.add(s.month); }); });
   const ms=[...set].filter(Boolean).sort().reverse();
   sel.innerHTML='<option value="">📅 Tous les mois</option>'+ms.map(m=>`<option value="${m}" ${m===cur?"selected":""}>${monthLabel(m)}</option>`).join("");
 }
@@ -1813,10 +1823,10 @@ function clientIssues(c){
   if(!c.programme) iss.push("pas de programme");
   if(m>0 && e>m) iss.push("encaissé > contrat");
   if(m>0 && !(c.schedule||[]).length && !(Number(c.encaisse)||0)) iss.push("pas d'échéancier");
-  if(encExtra(c)>0 && !startMonth(c)) iss.push("date de démarrage manquante");
+  if(encGlobal(c)>0 && !startMonth(c)) iss.push("date de démarrage manquante");
   return iss;
 }
-function clientEncaisse(c){ return schedPaidAll(c) + encExtra(c); }
+function clientEncaisse(c){ return schedPaidAll(c) + encGlobal(c); }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -2020,8 +2030,9 @@ function trackerCloses(M,setter){ return mergeCalls(M).filter(c=>c.setter===sett
 async function loadFinance(){
   if(!fbReady()){ $("finPay").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
-  if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
-  if(!EODS.length){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
+  try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
@@ -2230,7 +2241,9 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
    - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
-function encExtra(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
+/* Le champ "Déjà encaissé global" ne compte QUE pour les clients SANS échéancier.
+   Dès qu'il y a un échéancier, c'est lui la source de vérité → cocher "payé" met à jour le total tout seul. */
+function encGlobal(c){ return hasSched(c) ? 0 : (Number(c&&c.encaisse)||0); }
 /* Mois de rattachement du "déjà encaissé global" : date de démarrage, sinon 1re échéance, sinon création, sinon mois courant.
    → l'argent n'est JAMAIS perdu, même si la fiche n'a pas de date de démarrage (cas Mutualise). */
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
@@ -2239,14 +2252,14 @@ function baseMonth(c){ if(startMonth(c)) return startMonth(c);
   return monthStr(); }
 function paidInMonth(c,M){
   const s=(c&&c.schedule||[]).filter(x=>x.paid&&x.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
-  return s + (encExtra(c)>0 && baseMonth(c)===M ? encExtra(c) : 0);
+  return s + (encGlobal(c)>0 && baseMonth(c)===M ? encGlobal(c) : 0);
 }
 function dueInMonth(c,M){
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
 }
 function renderFinTable(){
   const monthsSet=new Set();
-  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encExtra(c)>0) monthsSet.add(baseMonth(c)); });
+  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encGlobal(c)>0) monthsSet.add(baseMonth(c)); });
   let ms=[...monthsSet].filter(Boolean).sort();
   if(!ms.length) ms=lastMonths(4).reverse();
   const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
