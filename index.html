@@ -1789,9 +1789,9 @@ function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
 function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const rows=[...document.querySelectorAll("#schedRows .schedRow")];
   const montant=Number(($("cf_montant")&&$("cf_montant").value)||0)||0;
-  let enc;
-  if(rows.length){ enc=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0); }
-  else { enc=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0; }
+  const schedPaid=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0);
+  const glob=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0;
+  const enc=Math.max(schedPaid, glob); // même règle que clientEncaisse : on ne perd jamais l'argent du champ global
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
@@ -2263,9 +2263,9 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
    - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
-/* Le champ "Déjà encaissé global" ne compte QUE pour les clients SANS échéancier.
-   Dès qu'il y a un échéancier, c'est lui la source de vérité → cocher "payé" met à jour le total tout seul. */
-function encGlobal(c){ return hasSched(c) ? 0 : (Number(c&&c.encaisse)||0); }
+/* Encaissé = MAX(échéances cochées, champ "encaissé global") — jamais de double comptage, jamais d'argent perdu.
+   encGlobal = la part du champ global qui n'est pas déjà couverte par les échéances payées. */
+function encGlobal(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
 /* Mois de rattachement du "déjà encaissé global" : date de démarrage, sinon 1re échéance, sinon création, sinon mois courant.
    → l'argent n'est JAMAIS perdu, même si la fiche n'a pas de date de démarrage (cas Mutualise). */
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
