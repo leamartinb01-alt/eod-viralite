@@ -1440,7 +1440,7 @@ function onMember(){
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
   if(role==="setter" && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
-    if(!EODS.length && fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
+    if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase();
     db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClients(); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
@@ -1495,6 +1495,8 @@ async function submitEod(){
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
+    // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
+    if(role==="setter" && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
