@@ -1579,12 +1579,14 @@ function renderTeam(){
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
   $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
   const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
-  const gen=monthCashSum(mc,"cash_gen_day","cash_gen_month"), col=monthCashSum(mc,"cash_day","cash_month");
   const closed=aggCalls(mc).close;
+  const monthE=EODS.filter(x=>(x.report_date||"").slice(0,7)===selM);
+  let calls=0; monthE.filter(x=>x.role==="closer").forEach(x=>{ calls+=callsArr(x).length; });
+  const booked=monthE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
   $("teamStats").innerHTML=`
-    <div class="box"><div class="n grad-text">${eur(gen)}</div><div class="l">Généré</div></div>
-    <div class="box"><div class="n grad-text">${eur(col)}</div><div class="l">Collecté</div></div>
-    <div class="box"><div class="n">${closed}</div><div class="l">Closés</div></div>`;
+    <div class="box"><div class="n grad-text">${booked}</div><div class="l">📅 RDV bookés</div></div>
+    <div class="box"><div class="n">${calls}</div><div class="l">📞 Appels</div></div>
+    <div class="box"><div class="n grad-text">${closed}</div><div class="l">🎯 Closés</div></div>`;
   renderInsights(selM, doneSet);
   renderConversions(selM);
   renderTeamDigest();
