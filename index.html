@@ -1115,12 +1115,11 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const coachOpts=SETTINGS.coachs||[];
-  box.innerHTML=coachAlertsCard(cs)+cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
+  const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
+  box.innerHTML=seedBtn+coachAlertsCard(cs)+cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
-    const lv=clientLevel(done); const ut=coachUpToDate(c);
-    const callsB = ut.nodate ? `<span class="gbadge" style="border-color:#ffcf7a;color:#ffcf7a">📅 date de démarrage à mettre</span>`
-      : (ut.calls>0 ? `<span class="gbadge" style="border-color:var(--red);color:var(--red)">⚠️ retard ${ut.calls} call(s) (${done}/${ut.callsExp} attendus)</span>`
-        : `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">✅ calls à jour</span>`);
+    const lv=clientLevel(done); const ut=coachUpToDate(c); const cs2=coachCallStatus(c);
+    const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
     const editoB = ut.nodate ? "" : (ut.edito>0 ? `<span class="gbadge" style="border-color:#ffcf7a;color:#ffcf7a">🗓 retard édito ${ut.edito}</span>` : `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">🗓 édito à jour</span>`);
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
@@ -1177,23 +1176,68 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
   const edito={}; [...box.querySelectorAll(".edrow")].forEach((r,i)=>{ const sent=r.querySelector(".edSent").checked; const date=r.querySelector(".edDate").value||""; if(sent||date) edito[i+1]={sent,date}; });
   const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({edito}); c.edito=edito; m.className="msg ok"; m.textContent="Calendriers enregistrés ✓ ("+editoDone(c)+"/"+editoNb(c)+")"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-/* Suivi "à jour ?" : 3 calls/mois et 2 calendriers édito/mois (1 par quinzaine), selon les mois écoulés depuis le démarrage. */
-function monthsSinceStart(c){ const sm=startMonth(c); if(!sm) return 0; const p=sm.split("-").map(Number); const now=new Date(); return Math.max(0,(now.getFullYear()-p[0])*12+(now.getMonth()+1-p[1])+1); }
-function callsExpected(c){ const om=editoMonthsCount(c); const m=Math.min(monthsSinceStart(c), om); return Math.min(coachTotal(c), 3*Math.max(0,m)); }
-function callsLate(c){ return Math.max(0, callsExpected(c)-coachDone(c)); }
+/* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
+function onbDate(c){ return (c&&c.onboarding_date) || (c&&c.date_debut) || ""; } // onboarding sinon date de contrat
+function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
+function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
+function monthsSinceStart(c){ const sm=(onbDate(c)||"").slice(0,7); if(!sm||sm.length<7) return 0; const p=sm.split("-").map(Number); const now=new Date(); return Math.max(0,(now.getFullYear()-p[0])*12+(now.getMonth()+1-p[1])+1); }
+// Statut calls = récence du dernier contact (call ou onboarding). Vert ≤7 j · orange 8–13 j · rouge ≥14 j ou aucun call depuis l'onboarding.
+function coachCallStatus(c){
+  const today=todayStr(), onb=onbDate(c), last=coachLastDate(c);
+  if(!onb) return {code:"nodate", label:"📅 date d'onboarding à renseigner", cl:"#ffcf7a"};
+  if(onb>today) return {code:"soon", label:"⏳ onboarding prévu le "+dayLabel(onb), cl:"#8fb4ff"};
+  if(!last){ const d=daysDiff(onb,today)||0;
+    if(d<=7) return {code:"new", label:"🆕 onboardé — 1er call à booker", cl:"#8fb4ff"};
+    if(d<=13) return {code:"relance", label:"🟠 1er call à booker ("+d+" j depuis l'onboarding)", cl:"#ffcf7a"};
+    return {code:"late", label:"❌ aucun call depuis l'onboarding ("+d+" j)", cl:"var(--red)"}; }
+  const d=daysDiff(last,today); const dd=(d==null?999:d);
+  if(dd<=7) return {code:"ok", label:"✅ à jour · dernier call "+dayLabel(last), cl:"#7ee2a3"};
+  if(dd<=13) return {code:"relance", label:"🟠 à relancer · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"#ffcf7a"};
+  return {code:"late", label:"❌ en retard · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"var(--red)"};
+}
 function editoExpected(c){ const om=editoMonthsCount(c); const m=Math.min(monthsSinceStart(c), om); return Math.min(editoNb(c), 2*Math.max(0,m)); }
 function editoLate(c){ return Math.max(0, editoExpected(c)-editoDone(c)); }
-function coachUpToDate(c){ if(!startMonth(c)) return {nodate:true}; return {calls:callsLate(c), edito:editoLate(c), callsExp:callsExpected(c), editoExp:editoExpected(c)}; }
+function coachUpToDate(c){ if(!onbDate(c)) return {nodate:true}; const st=coachCallStatus(c); return {call:st, edito:editoLate(c), editoExp:editoExpected(c)}; }
+// Pré-remplissage une fois : dates d'onboarding + derniers calls fournies par Léa (24/07/2026)
+const COACH_SEED=[
+  {k:"bailly", onb:"2026-07-24"}, {k:"dottori", onb:"2026-07-21"}, {k:"gehin", lc:"2026-07-16"},
+  {k:"geran", lc:"2026-07-20"}, {k:"gras", onb:"2026-07-28"}, {k:"gregoire", lc:"2026-07-22"},
+  {k:"ledent", onb:"2026-07-20"}, {k:"matthieu", lc:"2026-07-10"}, {k:"maziere", lc:"2026-07-17"},
+  {k:"merle", onb:"2026-07-10", lc:"2026-07-10"}, {k:"molinaro", lc:"2026-07-22"}, {k:"crussiere", lc:"2026-07-22"},
+  {k:"poirson", lc:"2026-07-23"}, {k:"loggan", onb:"2026-07-09"}, {k:"sarna", onb:"2026-07-14"}, {k:"tailleur", lc:"2026-07-21"}
+];
+function noAcc(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+async function seedCoachDates(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  if(!fbReady()){ alert("Backend non connecté."); return; } initFirebase();
+  if(!confirm("Pré-remplir les dates d'onboarding et derniers calls fournies (16 clients) ? Tes autres données ne sont pas touchées.")) return;
+  const today=todayStr(); let n=0, miss=[];
+  for(const s of COACH_SEED){
+    const c=CLIENTS.find(x=>noAcc((x.nom||"")+" "+(x.prenom||"")).includes(s.k));
+    if(!c){ miss.push(s.k); continue; }
+    const obj={}; if(s.onb) obj.onboarding_date=s.onb;
+    const lc = s.lc || (s.onb && s.onb<=today ? s.onb : "");
+    if(lc) obj.last_call=lc;
+    if(!Object.keys(obj).length) continue;
+    try{ await db.collection("clients").doc(c.id).update(obj); Object.assign(c,obj); n++; }catch(e){}
+  }
+  renderCoachingTab();
+  alert(n+" client(s) mis à jour."+(miss.length?" Non trouvés : "+miss.join(", "):""));
+}
 function coachAlertsCard(cs){
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
-  const lateCalls=cs.filter(c=>startMonth(c)&&callsLate(c)>0).sort((a,b)=>callsLate(b)-callsLate(a));
-  const lateEd=cs.filter(c=>startMonth(c)&&editoLate(c)>0).sort((a,b)=>editoLate(b)-editoLate(a));
-  const noDate=cs.filter(c=>!startMonth(c));
-  if(!lateCalls.length && !lateEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
-  let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 6px">🚨 Clients à relancer</h2>`;
-  if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">📞 En retard sur les calls (${lateCalls.length})</div>`+lateCalls.map(c=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:var(--red)">${coachDone(c)}/${callsExpected(c)} · retard ${callsLate(c)}</span></div>`).join("");
+  const st=c=>coachCallStatus(c);
+  const lateCalls=cs.filter(c=>st(c).code==="late").sort((a,b)=>(daysDiff(coachLastDate(b)||onbDate(b),todayStr())||999)-(daysDiff(coachLastDate(a)||onbDate(a),todayStr())||999));
+  const relCalls=cs.filter(c=>st(c).code==="relance");
+  const lateEd=cs.filter(c=>onbDate(c)&&editoLate(c)>0).sort((a,b)=>editoLate(b)-editoLate(a));
+  const noDate=cs.filter(c=>!onbDate(c));
+  if(!lateCalls.length && !relCalls.length && !lateEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
+  const row=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
+  let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 6px">🚨 Clients à relancer (calls)</h2>`;
+  if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">❌ En retard (${lateCalls.length})</div>`+lateCalls.map(c=>row(c,"var(--red)")).join("");
+  if(relCalls.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🟠 À relancer bientôt (${relCalls.length})</div>`+relCalls.map(c=>row(c,"#ffcf7a")).join("");
   if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 En retard sur les calendriers éditoriaux (${lateEd.length})</div>`+lateEd.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:#ffcf7a">${editoDone(c)}/${editoExpected(c)} · retard ${editoLate(c)}</span></div>`).join("");
-  if(noDate.length) h+=`<div class="section-title" style="margin:10px 2px 2px">📅 Date de démarrage manquante (suivi impossible) (${noDate.length})</div>`+noDate.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date de démarrage</span></div>`).join("");
+  if(noDate.length) h+=`<div class="section-title" style="margin:10px 2px 2px">📅 Date d'onboarding manquante (${noDate.length})</div>`+noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`).join("");
   return h+`</div>`;
 }
 function clientLevel(done){ done=Number(done)||0;
@@ -1795,7 +1839,8 @@ const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
-  { key:"date_debut",label:"Date de début",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
+  { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
+  { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Acompte encaissé HORS échéancier (€) — laisse vide si tu utilises l'échéancier ci-dessous",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
