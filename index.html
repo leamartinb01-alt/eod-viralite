@@ -501,6 +501,7 @@
         <select id="finMonth" style="width:auto; min-width:150px" onchange="renderFinance()"></select>
       </div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
+      <div id="encBreak" class="hide" style="margin-top:12px"></div>
     </div>
     <div class="section-title">💎 Ma commission (Léa · COO)</div>
     <div id="cooCard"></div>
@@ -1907,18 +1908,28 @@ function payMonthCard(M){
   }).map(c=>({c,reste:(Number(c.montant)||0)-clientEncaisse(c)}));
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
-  const due=mois.filter(r=>!r.s.paid), ok=mois.filter(r=>r.s.paid);
-  const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0), totOk=ok.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
+  const due=mois.filter(r=>!r.s.paid);
+  const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totOrph=orphans.reduce((a,o)=>a+o.reste,0);
+  // DÉJÀ ENCAISSÉ ce mois = TOUS les clients avec paidInMonth>0 (y compris litige : l'argent est encaissé), pour coller aux totaux du haut
+  const okCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+  const totOk=okCls.reduce((a,c)=>a+paidInMonth(c,M),0);
+  const okRow=c=>{ const amt=paidInMonth(c,M);
+    const idx=(c.schedule||[]).findIndex(s=>s.paid && s.month===M);
+    const g=(encGlobal(c)>0 && baseMonth(c)===M)?encGlobal(c):0;
+    const lit=(c.statut||"")==="Annulé / Litige";
+    const tag=(idx>=0&&g>0)?"échéance + encaissé global":(idx>=0?"échéance "+monthShort(M):"encaissé (montant global)");
+    const btn=idx>=0?`<button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${c.id}',${idx})">↩︎ Annuler</button>`:`<span class="sub2" style="cursor:pointer;text-decoration:underline" onclick="editClient('${c.id}')">modifier</span>`;
+    return `<div class="kv" style="align-items:center"><span class="k">✅ ${offerEmoji(c.programme)} ${nom(c)} ${lit?'<span class="pill warn" style="font-size:10px;padding:1px 6px">litige</span> ':''}<span class="sub2">· ${tag}</span></span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b style="color:#7ee2a3">${eur(amt)}</b>${btn}</span></div>`; };
   const enAttente=due.length+late.length+orphans.length;
   return `<div class="card" style="margin-top:14px;border-color:${enAttente?'rgba(255,180,71,.45)':'rgba(52,199,89,.35)'}">
     <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
-    <p class="sub2" style="margin:0 0 10px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · ${eur(totOk)} encaissé ce mois</p>
+    <p class="sub2" style="margin:0 0 10px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okCls.length})</p>
     ${late.length?`<div class="section-title" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
     ${orphans.length?`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
-    ${ok.length?`<details class="cdet" style="margin-top:10px"><summary>✅ Déjà encaissés ce mois (${ok.length}) — ${eur(totOk)}</summary>${ok.map(r=>ln(r,"")).join("")}</details>`:""}
+    ${okCls.length?`<div class="section-title" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length}) — ${eur(totOk)}</div>${okCls.map(okRow).join("")}`:'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>'}
   </div>`;
 }
 async function toggleSched(id,i){
@@ -1962,23 +1973,25 @@ function renderClients(){
   if(fm) rows=rows.filter(x=>paidInMonth(x,fm)>0 || dueInMonth(x,fm)>0);
   if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
   const active=rows.filter(isSuivi), old=rows.filter(x=>!isSuivi(x));
-  const verif=active.filter(x=>x.verified).length;
-  const nbImm=active.filter(x=>inImmersive(x.id)).length;
   $("clientStats").innerHTML=`
     <div class="box"><div class="n grad-text">${active.length}</div><div class="l">Clients actifs${fm?" en "+monthShort(fm):""}</div></div>
-    <div class="box"><div class="n">${verif}</div><div class="l">✅ Vérifiés</div></div>
-    <div class="box"><div class="n">${nbImm}</div><div class="l">🎟️ En immersion</div></div>
-    <div class="sub2" style="grid-column:1/-1;text-align:center;opacity:.6;margin-top:2px">💰 Les montants sont regroupés dans l'onglet Finance</div>`;
+    <div class="box"><div class="n">${active.filter(x=>x.verified).length}</div><div class="l">✅ Vérifiés</div></div>
+    <div class="box"><div class="n">${active.filter(x=>inImmersive(x.id)).length}</div><div class="l">🎟️ Immersion</div></div>
+    <div class="sub2" style="grid-column:1/-1;text-align:center;opacity:.55;margin-top:2px">💰 Montants encaissés : détail sur chaque fiche · totaux dans Finance</div>`;
   const wrap=$("clientList");
   if(!rows.length){ wrap.innerHTML=`<div class="empty">Aucun client${fm?" pour "+monthLabel(fm):""}.</div>`; return; }
   const legend=(SETTINGS.offers||[]).some(o=>o.emoji)?`<div class="offleg">${(SETTINGS.offers||[]).filter(o=>o.emoji).map(o=>`<span>${o.emoji} ${escapeHtml(o.name)}</span>`).join("")}<span style="opacity:.7">🎟️ = journée immersive</span></div>`:"";
   const tools=`<div class="cltools"><button onclick="toggleAllClients(true)">⬇️ Tout déplier</button><button onclick="toggleAllClients(false)">⬆️ Tout replier</button></div>`;
   const cardHtml = c => {
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
+    const encC=clientEncaisse(c), reste=Math.max(0,(Number(c.montant)||0)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
+    const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
+      .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <span class="who">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+        <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
         <span class="chev">▸</span>
       </summary>
@@ -1986,6 +1999,8 @@ function renderClients(){
       <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
         ${c.programme?`<span class="pill">${escapeHtml(c.programme)}</span>`:""}
         ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
+        <span class="pill gold">💰 ${eur(encC)} encaissé</span>
+        ${reste>0?`<span class="pill" style="border-color:rgba(255,207,122,.5)">⏳ reste ${eur(reste)}</span>`:`<span class="pill ok">✅ soldé</span>`}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
@@ -2001,7 +2016,7 @@ function renderClients(){
         ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
         ${inImmersive(c.id)?`<span class="pill ok">🎟️ Journée immersive</span>`:""}
       </div>
-      ${(c.schedule||[]).length?`<div class="kv"><span class="k">💳 Paiement</span><span class="v"><span class="sub2">détail & encaissements dans Finance</span></span></div>`:""}
+      ${sched?`<div class="section-title" style="margin:12px 2px 2px">💳 Échéancier — ${eur(encC)} encaissé / ${eur(c.montant)}${reste>0?` · reste ${eur(reste)}`:" · soldé ✅"}</div><div class="minimonths">${sched}</div>`:(Number(c.montant)?`<div class="kv"><span class="k">💳 Paiement</span><span class="v">${eur(encC)} encaissé / ${eur(c.montant)}${reste>0?` · <span style="color:#ffcf7a">reste ${eur(reste)}</span>`:" ✅"}</span></div>`:"")}
       ${!isAdmin()&&c.verified_note?line("📝 Note de Léa",c.verified_note):""}
       ${isAdmin()?`<div class="vbox">
         ${clientIssues(c).length?`<div class="sub2" style="color:#ffcf7a;margin-bottom:8px">⚠️ Encore signalé : ${clientIssues(c).map(escapeHtml).join(" · ")}</div>`:`<div class="sub2" style="color:var(--green);margin-bottom:8px">✅ Fiche complète et vérifiée</div>`}
@@ -2153,7 +2168,7 @@ function renderFinance(){
   const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
-    <div class="box"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
+    <div class="box" style="cursor:pointer" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)} 🔎</div></div>
     <div class="box"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser</div></div>
     <div class="box"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)}</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(totalPaie)}</div><div class="l">💸 Paie totale</div></div>`;
@@ -2161,6 +2176,22 @@ function renderFinance(){
   const nomC=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const encCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
   const dueCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
+  // Détail cliquable du 💰 Encaissé : ce qui est compté ce mois + où atterrit l'argent des autres
+  (function(){ const eb=$("encBreak"); if(!eb) return;
+    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" (global · démarrage "+monthShort(M)+")"); return parts.join(" + "); };
+    const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien compté sur ce mois.</div>';
+    // Clients qui ont encaissé quelque chose mais dont l'argent tombe sur un AUTRE mois
+    const others=CLIENTS.filter(c=>clientEncaisse(c)>0 && paidInMonth(c,M)===0).map(c=>{
+      const mois=[...new Set([...(c.schedule||[]).filter(s=>s.paid).map(s=>s.month), ...(encGlobal(c)>0?[baseMonth(c)]:[])].filter(Boolean))].sort();
+      return {c, mois, tot:clientEncaisse(c)};
+    }).filter(o=>o.mois.length).sort((a,b)=>String(a.mois[0]).localeCompare(String(b.mois[0])));
+    const othHtml=others.length?others.map(o=>`<div class="kv"><span class="k">${offerEmoji(o.c.programme)} ${nomC(o.c)}</span><span class="v"><b>${eur(o.tot)}</b> <span class="sub2">· compté sur ${o.mois.map(monthShort).join(", ")}</span></span></div>`).join(""):'<div class="sub2" style="margin:6px 0">Tout l\'argent encaissé tombe bien sur '+monthShort(M)+'.</div>';
+    eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
+      <div style="font-weight:800;margin-bottom:6px">💰 Détail encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
+      ${counted}
+      <details class="cdet" style="margin-top:10px"><summary>🔁 Encaissé d'autres clients, compté sur un autre mois (${others.length})</summary><div class="sub2" style="margin:4px 0 6px">Ces clients ont bien payé, mais leur montant est rattaché au mois indiqué (démarrage ou échéance). Rien n'est perdu — c'est juste sur un autre mois.</div>${othHtml}</details>
+    </div>`;
+  })();
   const monthCard=`<div class="card" style="margin-top:2px;padding:12px 14px">
     <div class="sub2">📊 <b>${monthLabel(M)}</b> · 💰 <b style="color:#7ee2a3">${eur(newCash)}</b> new cash · 🔁 <b>${eur(recCash)}</b> recurring <span style="opacity:.6">(détail des encaissements ci-dessous)</span></div>
   </div>`;
