@@ -791,7 +791,8 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
 
 /* ===================== ACCÈS ===================== */
 let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
-const canClients=()=>true; // onglet Clients visible pour tous (aucun montant affiché ; l'argent reste dans Finance, admin only)
+const canClients=()=>true; // onglet Clients visible pour tous
+const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin) ET Anthony (client) ; masqués pour l'équipe (closers/coachs)
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -1855,7 +1856,7 @@ let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
-    if((f.key==="montant"||f.key==="encaisse") && !isAdmin()) return; // argent = admin only
+    if((f.key==="montant"||f.key==="encaisse") && !canSeeMoney()) return; // argent = admin + Anthony
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
@@ -1865,7 +1866,7 @@ function renderClientForm(data){
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
-  const ms=$("moneySection"); if(ms) ms.classList.toggle("hide", !isAdmin()); // argent = admin only
+  const ms=$("moneySection"); if(ms) ms.classList.toggle("hide", !canSeeMoney()); // argent = admin + Anthony
   onOfferPick(true); updateEncTotal();
 }
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
@@ -1899,7 +1900,7 @@ async function saveClient(){
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ const el=$("cf_"+f.key); if(!el){ return; } /* champ masqué (ex. argent pour non-admin) → on n'y touche pas */ if(f.type==="check"){ obj[f.key]=!!el.checked; return; } let v=(el.value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
   (SETTINGS.checks||[]).forEach(f=>{ const el=$("cf_"+f.key); if(el) obj[f.key]=!!el.checked; });
-  if(isAdmin()) obj.schedule=gatherSchedule(); // seul l'admin édite l'échéancier ; sinon on préserve l'existant
+  if(canSeeMoney()) obj.schedule=gatherSchedule(); // admin + Anthony éditent l'échéancier ; l'équipe ne touche pas à l'argent
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
   m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -2035,12 +2036,13 @@ function renderClients(){
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=Math.max(0,(Number(c.montant)||0)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
-    const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
-      .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join("");
+    const money=canSeeMoney();
+    const sched=money?(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
+      .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join(""):"";
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <span class="who">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
-        <span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>
+        ${money?`<span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
         <span class="chev">▸</span>
       </summary>
@@ -2048,8 +2050,7 @@ function renderClients(){
       <div style="margin:2px 0 6px; display:flex; gap:6px; flex-wrap:wrap">
         ${c.programme?`<span class="pill">${escapeHtml(c.programme)}</span>`:""}
         ${c.statut?`<span class="pill ${stCls}">${escapeHtml(c.statut)}</span>`:""}
-        <span class="pill gold">💰 ${eur(encC)} encaissé</span>
-        ${reste>0?`<span class="pill" style="border-color:rgba(255,207,122,.5)">⏳ reste ${eur(reste)}</span>`:`<span class="pill ok">✅ soldé</span>`}
+        ${money?`<span class="pill gold">💰 ${eur(encC)} encaissé</span>${reste>0?`<span class="pill" style="border-color:rgba(255,207,122,.5)">⏳ reste ${eur(reste)}</span>`:`<span class="pill ok">✅ soldé</span>`}`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
       ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
