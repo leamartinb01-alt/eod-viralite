@@ -3229,14 +3229,24 @@ async function importCSVFiles(){
   try{
     let lines=[];
     for(const f of files){ const text=await f.text(); lines=lines.concat(await acMapCsv(text)); }
+    const ckey=t=>String(t.date)+"|"+t.account+"|"+t.cur+"|"+(Math.round((Number(t.amount)||0)*100))+"|"+((t.label||"").toLowerCase().slice(0,40));
     const existIds=new Set(ATX.map(t=>t.extId).filter(Boolean));
+    const existKeys=new Set(ATX.map(ckey));
     const seen=new Set(); const fresh=[];
-    for(const L of lines){ if(L.extId){ if(existIds.has(L.extId)||seen.has(L.extId)) continue; seen.add(L.extId);} fresh.push(L); }
-    if(!fresh.length){ m.className="msg ok"; m.textContent="Rien de nouveau (déjà importé)."; return; }
+    for(const L of lines){
+      if(L.extId){                                   // identifiant fiable (Wise ID / Ref. Wio) → dédup par ID
+        if(existIds.has(L.extId)||seen.has("id:"+L.extId)) continue; seen.add("id:"+L.extId);
+      } else {                                        // pas d'ID → dédup de secours par date+compte+devise+montant+libellé
+        const k=ckey(L); if(existKeys.has(k)||seen.has("k:"+k)) continue; seen.add("k:"+k);
+      }
+      fresh.push(L);
+    }
+    if(!fresh.length){ m.className="msg ok"; m.textContent="Rien de nouveau — tout ce relevé est déjà importé (aucun doublon créé)."; if(inp)inp.value=""; return; }
     const byM={}; fresh.forEach(L=>{const mo=L.date.slice(0,7); (byM[mo]=byM[mo]||[]).push(L);});
     let n=0;
     for(const mo of Object.keys(byM)){ const ref=db.collection("setter_stats").doc("ATX_"+mo); const d=await ref.get(); const ex=d.exists&&Array.isArray(d.data().lines)?d.data().lines:[]; await ref.set({isAcctTx:true,month:mo,lines:ex.concat(byM[mo])},{merge:true}); n+=byM[mo].length; }
-    m.className="msg ok"; m.textContent=n+" opérations importées ✓ (classées + converties)"; if(inp)inp.value=""; await loadAccounts();
+    const lastD=fresh.map(L=>L.date).sort().slice(-1)[0]||"";
+    m.className="msg ok"; m.textContent=n+" nouvelle(s) opération(s) ajoutée(s) ✓ (jusqu'au "+(lastD?dayLabel(lastD):"?")+") · doublons ignorés"; if(inp)inp.value=""; await loadAccounts();
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function forceAcctSeed(){
