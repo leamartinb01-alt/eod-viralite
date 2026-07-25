@@ -471,11 +471,13 @@
     <div id="clientFormCard" class="card hide">
       <h2 id="clientFormTitle">Nouveau client</h2>
       <div id="clientFields"></div>
+      <div id="moneySection">
       <div class="section-title">Échéancier de paiement (par mois)</div>
       <p class="hint" style="margin:0 0 4px">Coche « payé » dès que l'échéance rentre — c'est ce qui alimente les commissions.</p>
       <div id="schedRows"></div>
       <button type="button" class="addrow" onclick="addSchedRow()">+ Ajouter une échéance</button>
       <div id="encTotalLive" class="kv" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
+      </div>
       <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
       <div id="clientMsg" class="msg"></div>
@@ -789,7 +791,7 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
 
 /* ===================== ACCÈS ===================== */
 let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
-const canClients=()=>isAdmin()||ACCESS==="client";
+const canClients=()=>true; // onglet Clients visible pour tous (aucun montant affiché ; l'argent reste dans Finance, admin only)
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -1853,6 +1855,7 @@ let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
+    if((f.key==="montant"||f.key==="encaisse") && !isAdmin()) return; // argent = admin only
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
@@ -1862,6 +1865,7 @@ function renderClientForm(data){
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
+  const ms=$("moneySection"); if(ms) ms.classList.toggle("hide", !isAdmin()); // argent = admin only
   onOfferPick(true); updateEncTotal();
 }
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
@@ -1893,9 +1897,9 @@ function gatherSchedule(){ const defM=(($("cf_date_debut")&&$("cf_date_debut").v
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
   initFirebase();
-  const obj={}; CLIENT_FIELDS.forEach(f=>{ if(f.type==="check"){ obj[f.key]=!!($("cf_"+f.key)&&$("cf_"+f.key).checked); return; } let v=($("cf_"+f.key).value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
-  (SETTINGS.checks||[]).forEach(f=>{ obj[f.key]=!!($("cf_"+f.key)&&$("cf_"+f.key).checked); });
-  obj.schedule=gatherSchedule();
+  const obj={}; CLIENT_FIELDS.forEach(f=>{ const el=$("cf_"+f.key); if(!el){ return; } /* champ masqué (ex. argent pour non-admin) → on n'y touche pas */ if(f.type==="check"){ obj[f.key]=!!el.checked; return; } let v=(el.value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
+  (SETTINGS.checks||[]).forEach(f=>{ const el=$("cf_"+f.key); if(el) obj[f.key]=!!el.checked; });
+  if(isAdmin()) obj.schedule=gatherSchedule(); // seul l'admin édite l'échéancier ; sinon on préserve l'existant
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
   m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
