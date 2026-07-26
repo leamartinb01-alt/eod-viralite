@@ -1121,9 +1121,12 @@ function renderCoachingTab(){
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
   box.innerHTML=seedBtn+coachAlertsCard(cs)+cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
-    const lv=clientLevel(done); const ut=coachUpToDate(c); const cs2=coachCallStatus(c);
+    const lv=clientLevel(done); const cs2=coachCallStatus(c);
     const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
-    const editoB = ut.nodate ? "" : (ut.edito>0 ? `<span class="gbadge" style="border-color:#ffcf7a;color:#ffcf7a">🗓 retard édito ${ut.edito}</span>` : `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">🗓 édito à jour</span>`);
+    const eExp=editoExpected(c), eLate=editoLate(c);
+    const editoB = eExp<0 ? `<span class="gbadge" style="border-color:var(--line);color:var(--muted)">🗓 édito : renseigne l'onboarding</span>`
+      : (eLate>0 ? `<span class="gbadge" style="border-color:#ffcf7a;color:#ffcf7a">🗓 retard édito ${eLate} <span style="opacity:.7">(${editoDone(c)}/${eExp} attendus · ${editoNb(c)} au total)</span></span>`
+        : `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">🗓 édito à jour (${editoDone(c)}/${editoNb(c)})</span>`);
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
@@ -1198,8 +1201,10 @@ function coachCallStatus(c){
   if(dd<=13) return {code:"relance", label:"🟠 à relancer · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"#ffcf7a"};
   return {code:"late", label:"❌ en retard · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"var(--red)"};
 }
-function editoExpected(c){ const om=editoMonthsCount(c); const m=Math.min(monthsSinceStart(c), om); return Math.min(editoNb(c), 2*Math.max(0,m)); }
-function editoLate(c){ return Math.max(0, editoExpected(c)-editoDone(c)); }
+// Édito : basé sur l'ONBOARDING réel uniquement (pas la date de contrat), 1 calendrier / quinzaine (15 j), 2 j de grâce.
+// Retour -1 = onboarding non renseigné → on ne calcule PAS de retard (pas de fausse alerte).
+function editoExpected(c){ const onb=(c&&c.onboarding_date)||""; if(!onb) return -1; const t=todayStr(); if(onb>t) return 0; const days=daysDiff(onb,t)||0; return Math.min(editoNb(c), Math.max(0, Math.floor((days+13)/15))); }
+function editoLate(c){ const e=editoExpected(c); return e<0?0:Math.max(0, e-editoDone(c)); }
 function coachUpToDate(c){ if(!onbDate(c)) return {nodate:true}; const st=coachCallStatus(c); return {call:st, edito:editoLate(c), editoExp:editoExpected(c)}; }
 // Pré-remplissage une fois : dates d'onboarding + derniers calls fournies par Léa (24/07/2026)
 const COACH_SEED=[
@@ -1695,12 +1700,16 @@ function renderConversions(M){
 }
 function renderClosed(M){
   const box=$("closedList"); if(!box) return;
-  const list=[];
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)) list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date}); }); });
+  const list=[]; const seen=new Set(); const norm=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" "); // clé insensible à l'ordre (Prénom Nom = Nom Prénom) et aux accents
+  // 1) EOD : calls tagués « Closé »
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ const k=norm(c.p); if(seen.has(k))return; seen.add(k); list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
+  // 2) Clients signés ce mois (une fiche = un deal signé), rattachés à leur closer — même si l'EOD n'a pas été tagué « Closé »
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=(c.date_debut||"").slice(0,7)||baseMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
   list.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const head=`<div class="sub2" style="margin-bottom:8px"><b>${list.length}</b> closé(s) en ${monthLabel(M)} — <span style="opacity:.7">qui exactement :</span></div>`;
+  const byCloser={}; list.forEach(l=>{ if(l.closer&&l.closer!=="—") byCloser[l.closer]=(byCloser[l.closer]||0)+1; });
+  const head=`<div class="sub2" style="margin-bottom:8px"><b>${list.length}</b> closé(s) en ${monthLabel(M)}${Object.keys(byCloser).length?" · "+Object.entries(byCloser).sort((a,b)=>b[1]-a[1]).map(([n,v])=>escapeHtml(n)+" "+v).join(" · "):""}</div>`;
   if(!list.length){ box.innerHTML=head+'<div class="sub2">Aucun closé ce mois pour l\'instant.</div>'; return; }
-  box.innerHTML=head+list.map(l=>`<div class="kv"><span class="k">🎯 ${escapeHtml(l.prospect||"?")}${l.src?` <span class="sub2">· ${escapeHtml(l.src)}</span>`:""}</span><span class="v">${escapeHtml(l.closer||"")} <span class="sub2">· ${escapeHtml(dayLabel(l.date))}</span></span></div>`).join("");
+  box.innerHTML=head+list.map(l=>`<div class="kv"><span class="k">🎯 ${escapeHtml(l.prospect||"?")}${l.src?` <span class="sub2">· ${escapeHtml(l.src)}</span>`:""}${l.from==="client"?' <span class="sub2" style="opacity:.6">· signé</span>':''}</span><span class="v">${escapeHtml(l.closer||"")} <span class="sub2">· ${escapeHtml(l.date?dayLabel(l.date):"")}</span></span></div>`).join("");
 }
 function renderTeamDigest(){
   const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
