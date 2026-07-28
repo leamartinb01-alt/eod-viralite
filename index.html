@@ -2169,6 +2169,20 @@ async function loadFinance(){
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function palier(n,table){ for(const [seuil,prime] of table){ if(n>=seuil) return prime; } return 0; }
+// Prime d'équipe par palier d'encaissé du mois (versée à CHAQUE closer et CHAQUE setter)
+const PALIERS_PRIME=[[100000,700,300],[75000,500,250],[50000,350,150],[25000,150,100]];
+function primePalier(enc){ for(const [s,cl,st] of PALIERS_PRIME){ if(enc>=s) return {seuil:s,closer:cl,setter:st}; } return {seuil:0,closer:0,setter:0}; }
+function primeNote(role, enc){
+  if(role!=="closer" && role!=="setter") return "";
+  const p=primePalier(enc), mine=role==="closer"?p.closer:p.setter;
+  const grid=PALIERS_PRIME.slice().reverse().map(([s,cl,st])=>`<div class="kv" style="padding:2px 0"><span class="k" style="font-size:12px">${s/1000}k encaissés</span><span class="v" style="font-size:12px">closer ${eur(cl)} · setter ${eur(st)}</span></div>`).join("");
+  const cur=p.seuil>0
+    ? `<div class="kv"><span class="k">🎁 Prime palier ce mois</span><span class="v" style="color:#7ee2a3"><b>+${eur(mine)}</b> <span class="sub2">· palier ${p.seuil/1000}k atteint (encaissé ${eur(enc)})</span></span></div>`
+    : `<div class="sub2" style="margin:4px 0">🎁 Prime palier : 25k pas encore atteint ce mois (encaissé ${eur(enc)})</div>`;
+  return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">${cur}
+    <details class="cdet" style="margin-top:4px"><summary style="font-size:12px;color:var(--muted)">📋 Grille des primes par palier</summary>${grid}
+    <div class="sub2" style="margin-top:4px">Prime d'équipe basée sur l'encaissé total du mois — versée à chaque closer et chaque setter en plus de sa commission.</div></details></div>`;
+}
 function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBase[M]:(M>="2026-07"?CONFIG.COMM.lucasBase.default:0); }
 function renderFinance(){
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
@@ -2296,7 +2310,7 @@ function renderFinance(){
         <span class="chev">▸</span>
       </summary>
       <div class="clbody">
-      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${editor}${p.callset?setterCallsBlock(M,p.callset):""}
+      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${primeNote(p.role, encTot)}${editor}
       </div>
     </details>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
