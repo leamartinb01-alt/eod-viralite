@@ -1184,6 +1184,8 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
   try{ await db.collection("clients").doc(id).update({edito}); c.edito=edito; m.className="msg ok"; m.textContent="Calendriers enregistrés ✓ ("+editoDone(c)+"/"+editoNb(c)+")"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function onbDate(c){ return (c&&c.onboarding_date) || (c&&c.date_debut) || ""; } // onboarding sinon date de contrat
+function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-").map(Number); if(p.length<3||!p[0]||!p[1]||!p[2]) return ""; const d=new Date(p[0],p[1]-1+Number(m),p[2]); if(d.getDate()!==p[2]) d.setDate(0); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function endDate(c){ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // fin d'acces = onboarding + mois d'acces de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10), sinon date_fin saisie
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
 function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
 function monthsSinceStart(c){ const sm=(onbDate(c)||"").slice(0,7); if(!sm||sm.length<7) return 0; const p=sm.split("-").map(Number); const now=new Date(); return Math.max(0,(now.getFullYear()-p[0])*12+(now.getMonth()+1-p[1])+1); }
@@ -1321,7 +1323,7 @@ function coachProgressCard(){
   if(!cs.length) return "";
   const fmt=d=>{ try{ return new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"2-digit"}); }catch(e){ return d; } };
   const rows=cs.map(c=>{ const t=coachTotal(c), d=coachDone(c), p=t?Math.min(100,Math.round(d/t*100)):0; const bd=coachBreakdown(c); const note=(c.coaching&&c.coaching.note)||"";
-    const dates=(c.date_debut||c.date_fin)?`📅 ${c.date_debut?fmt(c.date_debut):"?"} → ${c.date_fin?fmt(c.date_fin):"?"}`:"";
+    const fin=endDate(c); const dates=(c.date_debut||fin)?`📅 ${c.date_debut?fmt(c.date_debut):"?"} → ${fin?fmt(fin):"?"}`:"";
     const sub=[escapeHtml(c.programme||""),dates,escapeHtml([bd,note].filter(Boolean).join(" · "))].filter(Boolean).join(" · ");
     return `<div class="cwk"><div class="cwk-h"><span class="cwk-n">${escapeHtml((c.nom||"")+" "+(c.prenom||"")).trim()}</span><span class="cwk-prog">${d} / ${t}</span></div><div class="cwk-sub">${sub}</div><div class="cwk-bar"><span style="width:${p}%"></span></div></div>`; }).join("");
   return `<div class="card"><h2>📚 Avancement coaching par client (${cs.length})</h2><p class="sub2" style="margin-bottom:2px">Classé par ordre d'arrivée (du plus ancien au plus récent) · séances faites / total prévu.</p>${rows}</div>`;
@@ -1851,7 +1853,7 @@ const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
-  { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin",type:"date" },
+  { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Acompte encaissé HORS échéancier (€) — laisse vide si tu utilises l'échéancier ci-dessous",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
@@ -1870,7 +1872,7 @@ function renderClientForm(data){
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
-    else { const oc=(f.key==="montant"||f.key==="encaisse")?' oninput="updateEncTotal()"':''; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; }
+    else { const oc=(f.key==="montant"||f.key==="encaisse")?' oninput="updateEncTotal()"':(f.key==="onboarding_date"?' onchange="onOfferPick(true)"':''); inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
@@ -1879,7 +1881,7 @@ function renderClientForm(data){
   onOfferPick(true); updateEncTotal();
 }
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
-  if(h) h.textContent=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):"";
+  if(h){ let t=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):""; const ob=$("cf_onboarding_date"); const fe=(ob&&ob.value&&o&&Number(o.months))?addMonthsISO(ob.value,o.months):""; if(fe) t+=" · 🏁 fin d'accès "+dayLabel(fe); h.textContent=t; }
   if(!initial && o){ const mEl=$("cf_montant"); if(mEl && (!mEl.value || Number(mEl.value)===0) && o.price) mEl.value=o.price; }
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
@@ -2049,7 +2051,7 @@ function renderClients(){
     const sched=money?(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
       .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join(""):"";
     const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
-    const metaLine=`📅 onb ${shd(c.onboarding_date)} · 🏁 fin ${shd(c.date_fin)} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
+    const metaLine=`📅 onb ${shd(c.onboarding_date)} · 🏁 fin ${shd(endDate(c))} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
@@ -2067,7 +2069,7 @@ function renderClients(){
         ${money?`<span class="pill gold">💰 ${eur(encC)} encaissé</span>${reste>0?`<span class="pill" style="border-color:rgba(255,207,122,.5)">⏳ reste ${eur(reste)}</span>`:`<span class="pill ok">✅ soldé</span>`}`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
-      ${line("Dates contrat",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
+      ${line("Dates contrat",(c.date_debut||"")+(endDate(c)?" → "+endDate(c):""))}
       ${line("🚀 Onboarding",c.onboarding_date)}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">📞 Calls réalisés</span><span class="v">${coachDone(c)} / ${coachTotal(c)}</span></div>`:""}
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
