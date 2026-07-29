@@ -1185,7 +1185,7 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function onbDate(c){ return (c&&c.onboarding_date) || (c&&c.date_debut) || ""; } // onboarding sinon date de contrat
 function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-").map(Number); if(p.length<3||!p[0]||!p[1]||!p[2]) return ""; const d=new Date(p[0],p[1]-1+Number(m),p[2]); if(d.getDate()!==p[2]) d.setDate(0); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-function endDate(c){ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // fin d'acces = onboarding + mois d'acces de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10), sinon date_fin saisie
+function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // sinon : onboarding + mois de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10)
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
 function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
 function monthsSinceStart(c){ const sm=(onbDate(c)||"").slice(0,7); if(!sm||sm.length<7) return 0; const p=sm.split("-").map(Number); const now=new Date(); return Math.max(0,(now.getFullYear()-p[0])*12+(now.getMonth()+1-p[1])+1); }
@@ -1872,7 +1872,7 @@ function renderClientForm(data){
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
-    else { const oc=(f.key==="montant"||f.key==="encaisse")?' oninput="updateEncTotal()"':(f.key==="onboarding_date"?' onchange="onOfferPick(true)"':''); inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; }
+    else { let oc=""; if(f.key==="montant"||f.key==="encaisse") oc=' oninput="updateEncTotal()"'; else if(f.key==="onboarding_date") oc=' onchange="recalcFin()"'; else if(f.key==="date_fin") oc=' onchange="markFinManual()"'; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; if(f.key==="date_fin") inp+=`<input type="hidden" id="cf_date_fin_manual" value="${data.date_fin_manual?'1':''}"><div class="hint" id="finHint"></div>`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
@@ -1883,6 +1883,16 @@ function renderClientForm(data){
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
   if(h){ let t=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):""; const ob=$("cf_onboarding_date"); const fe=(ob&&ob.value&&o&&Number(o.months))?addMonthsISO(ob.value,o.months):""; if(fe) t+=" · 🏁 fin d'accès "+dayLabel(fe); h.textContent=t; }
   if(!initial && o){ const mEl=$("cf_montant"); if(mEl && (!mEl.value || Number(mEl.value)===0) && o.price) mEl.value=o.price; }
+  if(!initial) recalcFin();
+}
+// Tu modifies la date de fin à la main → on la marque comme prioritaire (l'auto ne l'écrase plus)
+function markFinManual(){ const h=$("cf_date_fin_manual"); if(h) h.value="1"; const fh=$("finHint"); if(fh) fh.textContent="✍️ Date de fin fixée à la main — l'auto ne la modifiera plus."; }
+// Recalcule la date de fin = onboarding + mois de l'offre, SAUF si tu l'as fixée à la main
+function recalcFin(){ const man=$("cf_date_fin_manual"); const df=$("cf_date_fin"); const ob=$("cf_onboarding_date"); const pe=$("cf_programme"); const fh=$("finHint");
+  if(man && man.value==="1"){ if(fh) fh.textContent="✍️ Date de fin fixée à la main."; return; }
+  const o=pe?offerFor(pe.value):null; const fe=(ob&&ob.value&&o&&Number(o.months))?addMonthsISO(ob.value,o.months):"";
+  if(df && fe){ df.value=fe; if(fh) fh.textContent="🏁 Calculée : onboarding + "+o.months+" mois (modifiable à la main)."; }
+  onOfferPick(true);
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   `<div class="drow schedRow">
@@ -1911,6 +1921,7 @@ async function saveClient(){
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ const el=$("cf_"+f.key); if(!el){ return; } /* champ masqué (ex. argent pour non-admin) → on n'y touche pas */ if(f.type==="check"){ obj[f.key]=!!el.checked; return; } let v=(el.value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
   (SETTINGS.checks||[]).forEach(f=>{ const el=$("cf_"+f.key); if(el) obj[f.key]=!!el.checked; });
+  obj.date_fin_manual = !!($("cf_date_fin_manual") && $("cf_date_fin_manual").value==="1"); // date de fin fixée à la main → prioritaire sur l'auto
   if(canSeeMoney()) obj.schedule=gatherSchedule(); // admin + Anthony éditent l'échéancier ; l'équipe ne touche pas à l'argent
   const m=$("clientMsg");
   if(!obj.nom){ m.className="msg err"; m.textContent="Le nom est obligatoire."; return; }
