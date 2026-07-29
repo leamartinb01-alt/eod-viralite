@@ -2048,9 +2048,14 @@ function renderClients(){
     const money=canSeeMoney();
     const sched=money?(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
       .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join(""):"";
+    const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
+    const metaLine=`📅 onb ${shd(c.onboarding_date)} · 🏁 fin ${shd(c.date_fin)} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
-        <span class="who">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+        <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+          <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
+        </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
         <span class="chev">▸</span>
@@ -2062,7 +2067,9 @@ function renderClients(){
         ${money?`<span class="pill gold">💰 ${eur(encC)} encaissé</span>${reste>0?`<span class="pill" style="border-color:rgba(255,207,122,.5)">⏳ reste ${eur(reste)}</span>`:`<span class="pill ok">✅ soldé</span>`}`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅ Vérifié par Léa':'⏳ À vérifier par Léa'}</span>
       </div>
-      ${line("Dates",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
+      ${line("Dates contrat",(c.date_debut||"")+(c.date_fin?" → "+c.date_fin:""))}
+      ${line("🚀 Onboarding",c.onboarding_date)}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">📞 Calls réalisés</span><span class="v">${coachDone(c)} / ${coachTotal(c)}</span></div>`:""}
       ${line("Mail",c.mail)}${line("Téléphone",c.tel)}
       ${line("Setter / Closer",[c.setter,c.closer].filter(Boolean).join(" / "))}
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
