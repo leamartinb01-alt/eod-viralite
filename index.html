@@ -1658,8 +1658,7 @@ function renderTeam(){
   const selM=$("teamMonth").value||monthStr(), today=todayStr();
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
   $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
-  const mc=EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===selM);
-  const closed=aggCalls(mc).close;
+  const closed=monthCloses(selM).length; // même source que « Closés du mois » et Conversions
   const monthE=EODS.filter(x=>(x.report_date||"").slice(0,7)===selM);
   let calls=0; monthE.filter(x=>x.role==="closer").forEach(x=>{ calls+=callsArr(x).length; });
   const booked=monthE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
@@ -1684,7 +1683,14 @@ function renderTeam(){
 }
 function prevMonth(M){ const p=(M||monthStr()).split("-").map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
-function closerConv(name,M){ let calls=0,closed=0,show=0,no=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; calls++; if(c.res==="Closé")closed++; else if(c.res==="No-show")no++; if(c.res==="Show-up"||c.res==="Closé")show++; }); }); return {calls,closed,show,no}; }
+// SOURCE UNIQUE des closés du mois = tags EOD « Closé » + clients signés ce mois (dédup insensible ordre/accents). Utilisée par Conversions ET « Closés du mois » pour être cohérent.
+function monthCloses(M){
+  const list=[]; const seen=new Set(); const norm=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ const k=norm(c.p); if(seen.has(k))return; seen.add(k); list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=(c.date_debut||"").slice(0,7)||baseMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
+  return list;
+}
+function closerConv(name,M){ let calls=0,show=0,no=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; calls++; if(c.res==="No-show")no++; if(c.res==="Show-up"||c.res==="Closé")show++; }); }); const closed=monthCloses(M).filter(l=>l.closer===name).length; return {calls,closed,show,no}; }
 function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
   const booked=Math.max(bookedNum, bookedList); // RDV pris : que le setter les saisisse en nombre OU en liste
   return {contacted,inContact,booked,verified}; }
@@ -1702,11 +1708,7 @@ function renderConversions(M){
 }
 function renderClosed(M){
   const box=$("closedList"); if(!box) return;
-  const list=[]; const seen=new Set(); const norm=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" "); // clé insensible à l'ordre (Prénom Nom = Nom Prénom) et aux accents
-  // 1) EOD : calls tagués « Closé »
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ const k=norm(c.p); if(seen.has(k))return; seen.add(k); list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
-  // 2) Clients signés ce mois (une fiche = un deal signé), rattachés à leur closer — même si l'EOD n'a pas été tagué « Closé »
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=(c.date_debut||"").slice(0,7)||baseMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
+  const list=monthCloses(M).slice();
   list.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const byCloser={}; list.forEach(l=>{ if(l.closer&&l.closer!=="—") byCloser[l.closer]=(byCloser[l.closer]||0)+1; });
   const head=`<div class="sub2" style="margin-bottom:8px"><b>${list.length}</b> closé(s) en ${monthLabel(M)}${Object.keys(byCloser).length?" · "+Object.entries(byCloser).sort((a,b)=>b[1]-a[1]).map(([n,v])=>escapeHtml(n)+" "+v).join(" · "):""}</div>`;
