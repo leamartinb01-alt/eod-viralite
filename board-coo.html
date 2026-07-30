@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Board COO — Léa</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗂️</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#0b0b0e; --txt:#f4f2ee; --muted:#9a98a4; --faint:#6c6a76;
+    --card:rgba(255,255,255,.045); --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.05);
+    --green:#34c759; --orange:#ffb340; --red:#ff5a4d; --gold:#e8c476;
+    --grad:linear-gradient(135deg,#ff8b47,#e04c6b 55%,#9d4db0);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg); color:var(--txt); min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    padding:18px 14px 90px; max-width:760px; margin:0 auto}
+  body::before{content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:radial-gradient(700px 340px at 80% -60px, rgba(224,76,107,.13), transparent 60%),
+               radial-gradient(600px 300px at 0% 0%, rgba(255,139,71,.09), transparent 55%)}
+  .grad-text{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+  h1{font-size:22px; margin:4px 0 2px; font-weight:800; letter-spacing:.2px}
+  .sub{font-size:12.5px; color:var(--muted)}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:20px; padding:16px; margin:13px 0}
+  .hint{font-size:11.5px; color:var(--faint); margin-top:6px; line-height:1.45}
+  input,textarea,select{width:100%; background:rgba(0,0,0,.25); border:1px solid var(--line); color:var(--txt);
+    border-radius:12px; padding:10px 12px; font-size:14px; font-family:inherit; outline:none}
+  input:focus,textarea:focus{border-color:rgba(224,76,107,.5)}
+  .btn{display:inline-block; width:auto; border:none; border-radius:13px; padding:11px 18px; font-size:14px; font-weight:700;
+    background:var(--grad); color:#fff; cursor:pointer; box-shadow:0 8px 22px rgba(224,76,107,.25); transition:transform .1s}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--txt); box-shadow:none; font-weight:600}
+  .btn.sm{padding:7px 12px; font-size:12.5px; border-radius:10px}
+  .btn.danger{background:rgba(255,90,77,.14); border:1px solid rgba(255,90,77,.4); color:var(--red); box-shadow:none}
+  .pill{display:inline-block; font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-weight:600}
+  .msg{font-size:12.5px; margin-top:8px}
+  .msg.ok{color:var(--green)} .msg.err{color:var(--red)}
+
+  /* login */
+  #login{max-width:340px; margin:14vh auto 0; text-align:center}
+  #login .lock{font-size:38px}
+
+  /* tabs clients */
+  .ctabs{display:flex; gap:8px; overflow-x:auto; padding:2px 0 4px; margin-top:12px; scrollbar-width:none}
+  .ctabs::-webkit-scrollbar{display:none}
+  .ctab{flex:0 0 auto; padding:9px 15px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.04);
+    color:var(--muted); font-size:13.5px; font-weight:700; cursor:pointer; transition:all .15s; white-space:nowrap}
+  .ctab.active{color:#fff; background:var(--grad); border-color:transparent; box-shadow:0 6px 18px rgba(224,76,107,.3)}
+  .ctab.add{color:var(--faint); border-style:dashed}
+
+  /* header semaine */
+  .weekbar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:14px 0 4px}
+  .weekbar .wtitle{font-size:15px; font-weight:800}
+  .weekbar .wsub{font-size:12px; color:var(--muted)}
+  .progress{height:7px; background:rgba(255,255,255,.07); border-radius:99px; overflow:hidden; margin:10px 0 2px}
+  .progress i{display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s}
+  .staleban{background:rgba(255,179,64,.1); border:1px solid rgba(255,179,64,.35); color:var(--orange);
+    border-radius:14px; padding:11px 14px; font-size:12.5px; margin:12px 0; line-height:1.45}
+
+  /* sections */
+  details.sec{background:var(--card); border:1px solid var(--line); border-radius:18px; margin:11px 0; overflow:hidden}
+  details.sec summary{list-style:none; cursor:pointer; padding:14px 16px; display:flex; align-items:center; gap:10px; user-select:none}
+  details.sec summary::-webkit-details-marker{display:none}
+  details.sec summary .st{font-size:14.5px; font-weight:800; flex:1; min-width:0}
+  details.sec summary .cnt{font-size:11.5px; color:var(--muted); font-weight:700}
+  details.sec summary .chev{color:var(--faint); font-size:12px; transition:transform .2s}
+  details.sec[open] summary .chev{transform:rotate(90deg)}
+  .secbody{padding:2px 14px 14px}
+  .done-all{color:var(--green)!important}
+
+  /* items */
+  .it{display:flex; align-items:flex-start; gap:11px; padding:9px 4px; border-top:1px solid var(--line2)}
+  .it:first-child{border-top:none}
+  .it .lbl{flex:1; min-width:0; font-size:14px; line-height:1.45; padding-top:2px}
+  .it.done .lbl{color:var(--faint); text-decoration:line-through; text-decoration-color:rgba(255,255,255,.25)}
+  .cb{flex:0 0 24px; width:24px; height:24px; border-radius:8px; border:1.5px solid rgba(255,255,255,.25);
+    background:rgba(0,0,0,.2); cursor:pointer; position:relative; margin-top:1px; transition:all .15s}
+  .cb.on{background:var(--grad); border-color:transparent}
+  .cb.on::after{content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:14px; font-weight:800}
+  .noteb{flex:0 0 auto; background:none; border:none; cursor:pointer; font-size:14px; padding:2px 4px; opacity:.4}
+  .noteb.has{opacity:1}
+  .itnote{margin:2px 0 8px 35px}
+  .itnote textarea{min-height:38px; font-size:12.5px; padding:8px 10px; resize:vertical}
+
+  /* grille jours (section quotidienne) */
+  .days{display:flex; gap:5px; flex:0 0 auto; margin-top:1px}
+  .dcb{width:22px; height:26px; border-radius:7px; border:1.5px solid rgba(255,255,255,.18); background:rgba(0,0,0,.2);
+    cursor:pointer; font-size:8.5px; color:var(--faint); font-weight:700; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px; transition:all .12s; padding:0}
+  .dcb.on{background:var(--grad); border-color:transparent; color:#fff}
+  .dcb.on::after{content:"✓"; font-size:9px; font-weight:800}
+  .dcb.today{border-color:var(--gold)}
+  .dailyit .lbl{font-size:13.5px}
+  .dailyit{flex-wrap:wrap}
+  @media(max-width:480px){ .dailyit{flex-direction:column; align-items:stretch; gap:6px} .days{align-self:flex-end} }
+
+  /* mode édition */
+  .editrow{display:flex; gap:8px; align-items:center; margin:6px 0}
+  .editrow input{flex:1}
+  .xbtn{flex:0 0 auto; background:rgba(255,90,77,.12); border:1px solid rgba(255,90,77,.35); color:var(--red);
+    border-radius:9px; width:30px; height:30px; cursor:pointer; font-size:13px}
+  .toolrow{display:flex; gap:8px; flex-wrap:wrap; margin:16px 0 4px}
+
+  /* archives */
+  details.arch{background:rgba(0,0,0,.18); border:1px solid var(--line2); border-radius:15px; margin:9px 0; overflow:hidden}
+  details.arch summary{list-style:none; cursor:pointer; padding:12px 14px; display:flex; align-items:center; gap:10px}
+  details.arch summary::-webkit-details-marker{display:none}
+  details.arch summary .at{font-weight:700; font-size:13.5px; flex:1}
+  .apc{font-size:12px; font-weight:800}
+  .apc.g{color:var(--green)} .apc.o{color:var(--orange)} .apc.r{color:var(--red)}
+  .archbody{padding:0 14px 12px; font-size:13px}
+  .archsec{margin:9px 0 3px; font-weight:800; font-size:12.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px}
+  .archit{padding:4px 0 4px 4px; line-height:1.45}
+  .archit.ok{color:var(--txt)} .archit.ko{color:var(--faint)}
+  .archit .an{display:block; font-size:12px; color:var(--gold); margin:2px 0 0 20px; font-style:italic}
+
+  .footer{margin-top:26px; text-align:center; font-size:11px; color:var(--faint)}
+  .hide{display:none!important}
+  #savedot{position:fixed; top:12px; right:14px; font-size:11px; color:var(--faint); background:rgba(11,11,14,.8);
+    border:1px solid var(--line); padding:4px 10px; border-radius:99px; opacity:0; transition:opacity .3s; z-index:50}
+  #savedot.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="savedot">💾 Enregistré</div>
+
+<!-- ============ CHARGEMENT ============ -->
+<div id="login">
+  <div class="lock">🗂️</div>
+  <h1 class="grad-text">Board COO</h1>
+  <p class="sub" id="loginmsg">Chargement…</p>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hide">
+  <header>
+    <h1>🗂️ <span class="grad-text">Board COO</span></h1>
+    <div class="sub" id="hsub">Suivi hebdo — rien n'est oublié.</div>
+  </header>
+
+  <div class="ctabs" id="ctabs"></div>
+
+  <div id="staleban" class="staleban hide"></div>
+
+  <div class="weekbar">
+    <div>
+      <div class="wtitle" id="wtitle"></div>
+      <div class="wsub" id="wsub"></div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <button class="btn ghost sm" id="editbtn" onclick="toggleEdit()">✏️ Modifier</button>
+      <button class="btn sm" onclick="closeWeek()">📦 Clôturer la semaine</button>
+      <button class="btn ghost sm hide" id="monthbtn" onclick="closeMonth()">🧾 Clôturer le mois</button>
+    </div>
+  </div>
+  <div class="progress"><i id="pbar" style="width:0%"></i></div>
+  <div class="hint" id="pct"></div>
+
+  <div id="sections"></div>
+
+  <!-- archives -->
+  <div class="card">
+    <div style="font-weight:800; font-size:15px">🗃️ Semaines archivées</div>
+    <div class="hint" style="margin-top:2px">Clique sur une semaine pour revoir ce qui a été fait (et raté).</div>
+    <div id="archives"></div>
+  </div>
+
+  <!-- outils -->
+  <div class="card">
+    <div style="font-weight:800; font-size:15px">🛠️ Outils</div>
+    <div class="toolrow">
+      <button class="btn ghost sm" onclick="exportJSON()">⬇️ Sauvegarde JSON</button>
+      <button class="btn ghost sm" onclick="document.getElementById('impfile').click()">⬆️ Importer JSON</button>
+      <input type="file" id="impfile" accept=".json" class="hide" onchange="importJSON(this.files)">
+    </div>
+    <div id="toolmsg" class="msg"></div>
+    <div class="hint">La sauvegarde JSON = filet de sécurité. Les données vivent dans Firebase (même projet que l'app EOD), rien à faire au quotidien.</div>
+  </div>
+
+  <div class="footer">Board COO · données Firebase « ecosysteme-viral » · doc cfg_cooboard</div>
+</div>
+
+<script>
+/* ===================== CONFIG ===================== */
+const FIREBASE = {
+  apiKey:"AIzaSyB4_Oaw4vnZ6pPUqbuV0gki2SsnMm050fw",
+  authDomain:"ecosysteme-viral.firebaseapp.com",
+  projectId:"ecosysteme-viral",
+  storageBucket:"ecosysteme-viral.firebasestorage.app",
+  messagingSenderId:"605349501477",
+  appId:"1:605349501477:web:8659ddb89f1f512d92fdcc",
+};
+const DOC_ID = "cfg_cooboard";              // setter_stats/cfg_cooboard {isCooBoard:true}
+
+/* ===================== CHECKLIST PAR DÉFAUT (client Loïc) ===================== */
+const uid = ()=> Math.random().toString(36).slice(2,9);
+function comptaSections(){
+  const S=(title,items)=>({id:uid(), title, daily:false, freq:"month", items:items.map(l=>({id:uid(), label:l}))});
+  return [
+    S("🧾 Compta — mensuel (UAE + LLC, avec Fabio)", [
+      "Factures d'achat déposées dans Drive > MOIS CONCERNÉ > « - » (UAE et LLC)",
+      "Relevés bancaires déposés : WIO → UAE, WISE → LLC",
+      "Factures de vente : export Whop déposé (UAE) + relevé Wise pour les virements (LLC)",
+      "Vérifier que Fabio a déposé les factures de vente en règle du mois écoulé (UAE > MOIS > « + » et LLC > MOIS > « + »)",
+      "Payslip Loïc 25 000 AED déposé par Fabio (Drive UAE > Salaire)",
+      "Factures clients demandées en cours de mois : éditées (logiciel interne si virement LLC / facture Whop à récup)",
+      "LLC 2 : relevé de compte fait + partages équipe + calcul des marges",
+      "Éléments manquants / bloquants signalés à Fabio (groupe WhatsApp)",
+    ]),
+    S("📆 Compta — échéances trimestre / année", [
+      "VAT du trimestre déclarée par Fabio + validée par nous (janv · avril · juil · oct)",
+      "Annuel : CT UAE & LLC 1 + partie US LLC 1 et 2 (la 2 pas encore reliée — volontaire)",
+    ]),
+  ];
+}
+function seedLoic(){
+  const S=(title,daily,items)=>({id:uid(), title, daily:!!daily, freq:"week", items:items.map(l=>({id:uid(), label:l}))});
+  return {
+    id:uid(), name:"Loïc — Écosystème Viral", emoji:"👑",
+    sections:[
+      S("🕘 Tous les jours (5 min)", true, [
+        "EOD remplis par tout le monde la veille (digest onglet Équipe : EOD manquant)",
+        "Warnings clients du digest : à traiter, annoter ou marquer résolu",
+        "Point calls bookés du jour avec Romain (matin + fin de journée)",
+      ]),
+      S("📲 Setters — Ilyas, Célia", false, [
+        "Volume tenu : Ilyas 40-50 messages/jour, Célia 30-40 contacts/jour",
+        "Taux de réponse et conversations actives",
+        "Calls bookés de la semaine + taux de no-show",
+        "Check quali des conversations (surtout Célia qui débute)",
+        "Test en cours : profils B2B type entreprise (Ilyas) — résultats ?",
+      ]),
+      S("💰 Closer — Antho", false, [
+        "New cash de la semaine + cash généré du mois vs objectif (tableau à jour)",
+        "Écouter 1 ou 2 de ses appels et lui faire un retour",
+        "EOD closer bien remplis (calls, source, résultat) — base des commissions setters",
+        "Follow-ups en cours pas oubliés",
+        "Pipeline : deals chauds à suivre (ex. Monaco)",
+      ]),
+      S("📅 Romain — calendriers + suivi clients", false, [
+        "Checker avec Romain que les calendriers éditoriaux ET les calls sont à jour dans l'app",
+        "Aucun calendrier éditorial en retard (1 par quinzaine, dates renseignées)",
+        "Temps passé par calendrier : l'optimisation fait-elle gagner du temps ?",
+        "Relances clients du mois effectuées",
+        "Badges de récence des calls dans l'app : traiter les rouges (14 j sans contact) et les oranges",
+      ]),
+      S("🤝 Clients / delivery", false, [
+        "Scoring hebdo envoyé dans les groupes WhatsApp (vendredi) + réponses notées",
+        "Clients à risque ou en warning : une action décidée pour chacun",
+        "Nouveaux clients : onboarding renseigné + fiche vérifiée",
+      ]),
+      S("🏦 Argent / admin", false, [
+        "Échéances payées cochées dans Finance + encaissé cohérent avec les relevés",
+        "Calls setters « à vérifier » validés (sinon commissions faussées)",
+        "Sauvegarde de l'app (export JSON dans Réglages) 1 fois par semaine",
+      ]),
+      S("✅ Vendredi — clôture de semaine", false, [
+        "Point avec chaque membre (notes brutes)",
+        "Rédiger et envoyer le Point équipe à Loïc",
+        "Noter les objectifs de la semaine suivante par personne",
+        "Lister les points qui attendent un retour de Loïc",
+      ]),
+      ...comptaSections(),
+    ],
+  };
+}
+
+/* ===================== ÉTAT ===================== */
+let DATA = null;        // {clients:[...], checks:{cid:{itemId:true|[7bool]}}, notes:{cid:{itemId:str}}, archives:[...], weekStart:{cid:iso}}
+let CUR  = null;        // client id courant
+let EDIT = false;
+let db   = null;
+let saveTimer = null;
+
+/* ===================== DATES / SEMAINE ===================== */
+const DAYS_FR = ["L","M","M","J","V","S","D"];
+function mondayOf(d){ const x=new Date(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); x.setHours(0,0,0,0); return x; }
+function isoDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function fmtShort(d){ return d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); }
+function isoWeekLabel(d){
+  const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()+3-((x.getDay()+6)%7));
+  const w1=new Date(x.getFullYear(),0,4);
+  const wn=1+Math.round(((x-w1)/864e5-3+((w1.getDay()+6)%7))/7);
+  return x.getFullYear()+" · Semaine "+wn;
+}
+function todayIdx(){ return (new Date().getDay()+6)%7; }
+function ymNow(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function monthLabel(ym){
+  const [y,m]=ym.split("-").map(Number);
+  return new Date(y,m-1,1).toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+}
+
+/* ===================== FIREBASE ===================== */
+function initFB(){
+  try{ firebase.initializeApp(FIREBASE); db=firebase.firestore(); return true; }
+  catch(e){ console.error(e); return false; }
+}
+async function loadData(){
+  const ref=db.collection("setter_stats").doc(DOC_ID);
+  const snap=await ref.get();
+  if(snap.exists && snap.data().board){
+    DATA=JSON.parse(snap.data().board);
+  } else {
+    const c=seedLoic();
+    DATA={clients:[c], checks:{}, notes:{}, archives:[], weekStart:{}};
+    DATA.weekStart[c.id]=isoDate(mondayOf(new Date()));
+    await persist();
+  }
+  if(!DATA.checks) DATA.checks={};
+  if(!DATA.notes) DATA.notes={};
+  if(!DATA.archives) DATA.archives=[];
+  if(!DATA.weekStart) DATA.weekStart={};
+  if(!DATA.monthStart) DATA.monthStart={};
+  /* migration v2 : ajoute la compta au 1er client si le board existait déjà sans */
+  if(!DATA.v2compta){
+    DATA.v2compta=1;
+    const c0=DATA.clients[0];
+    if(c0 && !c0.sections.some(s=>s.freq==="month")) c0.sections.push(...comptaSections());
+    await persist();
+  }
+  CUR = DATA.clients[0] ? DATA.clients[0].id : null;
+}
+async function persist(){
+  if(!db) return;
+  try{
+    await db.collection("setter_stats").doc(DOC_ID)
+      .set({isCooBoard:true, board:JSON.stringify(DATA), updated:new Date().toISOString()});
+    const s=document.getElementById("savedot");
+    s.classList.add("show"); setTimeout(()=>s.classList.remove("show"),1200);
+  }catch(e){
+    const s=document.getElementById("savedot");
+    s.textContent="⚠️ Non enregistré"; s.classList.add("show");
+    console.error(e);
+  }
+}
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(persist,700); }
+
+/* ===================== DÉMARRAGE (pas de mot de passe) ===================== */
+(async function boot(){
+  const m=document.getElementById("loginmsg");
+  if(!initFB()){ m.className="msg err"; m.textContent="Erreur Firebase — recharge la page."; return; }
+  try{ await loadData(); }
+  catch(e){ m.className="msg err"; m.textContent="Erreur de chargement : "+e.message; return; }
+  document.getElementById("login").classList.add("hide");
+  document.getElementById("app").classList.remove("hide");
+  renderAll();
+})();
+
+/* ===================== HELPERS ===================== */
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function client(){ return DATA.clients.find(c=>c.id===CUR); }
+function chk(cid){ if(!DATA.checks[cid]) DATA.checks[cid]={}; return DATA.checks[cid]; }
+function nts(cid){ if(!DATA.notes[cid]) DATA.notes[cid]={}; return DATA.notes[cid]; }
+function isDone(c,it,daily){
+  const v=chk(c.id)[it.id];
+  if(daily) return Array.isArray(v)&&v.some(Boolean);
+  return v===true;
+}
+function secFreq(s){ return s.freq==="month" ? "month" : "week"; }
+function hasMonthly(c){ return c.sections.some(s=>secFreq(s)==="month"); }
+function progressF(c,freq){
+  let tot=0, done=0;
+  c.sections.filter(s=>secFreq(s)===freq).forEach(s=>s.items.forEach(it=>{ tot++; if(isDone(c,it,s.daily)) done++; }));
+  return tot? Math.round(done/tot*100) : 0;
+}
+function progress(c){ return progressF(c,"week"); }
+
+/* ===================== RENDU ===================== */
+function renderAll(){ renderTabs(); renderWeek(); renderSections(); renderArchives(); }
+
+function renderTabs(){
+  const el=document.getElementById("ctabs");
+  el.innerHTML = DATA.clients.map(c=>
+    `<button class="ctab ${c.id===CUR?'active':''}" onclick="switchClient('${c.id}')">${esc(c.emoji||"👤")} ${esc(c.name)}</button>`
+  ).join("") + `<button class="ctab add" onclick="addClient()">+ client</button>`;
+}
+function switchClient(id){ CUR=id; EDIT=false; document.getElementById("editbtn").textContent="✏️ Modifier"; renderAll(); }
+
+function renderWeek(){
+  const c=client(); if(!c) return;
+  if(!DATA.weekStart[c.id]) DATA.weekStart[c.id]=isoDate(mondayOf(new Date()));
+  if(!DATA.monthStart[c.id]) DATA.monthStart[c.id]=ymNow();
+  const ws=new Date(DATA.weekStart[c.id]+"T00:00:00");
+  const we=new Date(ws); we.setDate(we.getDate()+6);
+  document.getElementById("wtitle").textContent="Semaine du "+fmtShort(ws)+" au "+fmtShort(we);
+  const monthly=hasMonthly(c);
+  document.getElementById("wsub").textContent=isoWeekLabel(ws)+(monthly? " · Compta : "+monthLabel(DATA.monthStart[c.id]) : "");
+  document.getElementById("monthbtn").classList.toggle("hide",!monthly);
+  const p=progress(c);
+  document.getElementById("pbar").style.width=p+"%";
+  document.getElementById("pct").textContent = p+"% de l'hebdo coché"
+    + (monthly? " · mois ("+monthLabel(DATA.monthStart[c.id])+") : "+progressF(c,"month")+"%" : "");
+  /* bannières si la semaine / le mois affichés sont déjà passés */
+  const ban=document.getElementById("staleban");
+  const curMonday=isoDate(mondayOf(new Date()));
+  const msgs=[];
+  if(DATA.weekStart[c.id]<curMonday)
+    msgs.push("⏳ La semaine affichée est terminée. Clique <b>📦 Clôturer la semaine</b> pour l'archiver et repartir sur une semaine propre.");
+  if(monthly && DATA.monthStart[c.id]<ymNow())
+    msgs.push("🧾 Le mois compta affiché ("+esc(monthLabel(DATA.monthStart[c.id]))+") est terminé. Clique <b>🧾 Clôturer le mois</b> pour l'archiver.");
+  if(msgs.length){ ban.classList.remove("hide"); ban.innerHTML=msgs.join("<br><br>"); }
+  else ban.classList.add("hide");
+}
+
+function renderSections(){
+  const c=client(); const el=document.getElementById("sections");
+  if(!c){ el.innerHTML=""; return; }
+  el.innerHTML = c.sections.map(s=>{
+    const done=s.items.filter(it=>isDone(c,it,s.daily)).length;
+    const allDone = s.items.length>0 && done===s.items.length;
+    const body = EDIT ? editBody(c,s) : viewBody(c,s);
+    const fpill = secFreq(s)==="month" ? `<span class="pill" style="color:var(--gold); border-color:rgba(232,196,118,.35)">mensuel</span>` : "";
+    return `<details class="sec" open>
+      <summary><span class="st">${esc(s.title)}</span>${fpill}
+        <span class="cnt ${allDone?'done-all':''}">${done}/${s.items.length}</span>
+        <span class="chev">▶</span></summary>
+      <div class="secbody">${body}</div>
+    </details>`;
+  }).join("") + (EDIT? `<div class="toolrow">
+      <button class="btn ghost" onclick="addSection()">＋ Ajouter une section</button>
+      <button class="btn ghost" onclick="renameClient()">✏️ Renommer le client</button>
+      <button class="btn danger" onclick="delClient()">🗑️ Supprimer le client</button>
+    </div>` : "");
+}
+
+function viewBody(c,s){
+  return s.items.map(it=>{
+    const note=nts(c.id)[it.id]||"";
+    const noteOpen=note? "":"hide";
+    if(s.daily){
+      const v=Array.isArray(chk(c.id)[it.id])? chk(c.id)[it.id] : [0,0,0,0,0,0,0];
+      const days=DAYS_FR.map((d,i)=>
+        `<button class="dcb ${v[i]?'on':''} ${i===todayIdx()?'today':''}" onclick="toggleDay('${it.id}',${i})"><span>${d}</span></button>`).join("");
+      return `<div class="it dailyit ${isDone(c,it,true)?'done':''}">
+          <div class="lbl">${esc(it.label)}</div>
+          <div class="days">${days}</div>
+          <button class="noteb ${note?'has':''}" title="Note" onclick="toggleNote('${it.id}')">📝</button>
+        </div>
+        <div class="itnote ${noteOpen}" id="note_${it.id}">
+          <textarea placeholder="Note…" onchange="saveNote('${it.id}',this.value)">${esc(note)}</textarea>
+        </div>`;
+    }
+    const on=chk(c.id)[it.id]===true;
+    return `<div class="it ${on?'done':''}">
+        <button class="cb ${on?'on':''}" onclick="toggleItem('${it.id}')"></button>
+        <div class="lbl" onclick="toggleItem('${it.id}')" style="cursor:pointer">${esc(it.label)}</div>
+        <button class="noteb ${note?'has':''}" title="Note" onclick="toggleNote('${it.id}')">📝</button>
+      </div>
+      <div class="itnote ${noteOpen}" id="note_${it.id}">
+        <textarea placeholder="Note…" onchange="saveNote('${it.id}',this.value)">${esc(note)}</textarea>
+      </div>`;
+  }).join("") || `<div class="hint" style="padding:8px 2px">Aucune tâche — passe en ✏️ Modifier pour en ajouter.</div>`;
+}
+
+function editBody(c,s){
+  const rows=s.items.map(it=>`
+    <div class="editrow">
+      <input value="${esc(it.label)}" onchange="editItem('${s.id}','${it.id}',this.value)">
+      <button class="xbtn" onclick="delItem('${s.id}','${it.id}')">✕</button>
+    </div>`).join("");
+  return `<div class="editrow">
+      <input value="${esc(s.title)}" onchange="editSecTitle('${s.id}',this.value)" style="font-weight:700">
+      <button class="xbtn" onclick="delSection('${s.id}')">✕</button>
+    </div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin:4px 0 8px">
+      <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); cursor:pointer; margin:0">
+        <input type="checkbox" style="width:auto" ${s.daily?'checked':''} onchange="toggleDaily('${s.id}',this.checked)">
+        Section quotidienne (grille L→D par tâche)
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:0">
+        Rythme
+        <select style="width:auto; padding:6px 10px; font-size:12.5px" onchange="setFreq('${s.id}',this.value)">
+          <option value="week" ${secFreq(s)==="week"?'selected':''}>Hebdo (clôture semaine)</option>
+          <option value="month" ${secFreq(s)==="month"?'selected':''}>Mensuel (clôture mois)</option>
+        </select>
+      </label>
+    </div>
+    ${rows}
+    <button class="btn ghost sm" onclick="addItem('${s.id}')">＋ tâche</button>`;
+}
+
+/* ===================== ACTIONS COCHES ===================== */
+function toggleItem(itemId){
+  const c=client(); const m=chk(c.id);
+  m[itemId] = m[itemId]===true ? false : true;
+  scheduleSave(); renderWeek(); renderSections();
+}
+function toggleDay(itemId,i){
+  const c=client(); const m=chk(c.id);
+  if(!Array.isArray(m[itemId])) m[itemId]=[0,0,0,0,0,0,0];
+  m[itemId][i]=m[itemId][i]?0:1;
+  scheduleSave(); renderWeek(); renderSections();
+}
+function toggleNote(itemId){ document.getElementById("note_"+itemId).classList.toggle("hide"); }
+function saveNote(itemId,v){
+  const c=client(); nts(c.id)[itemId]=v.trim();
+  scheduleSave();
+}
+
+/* ===================== ÉDITION STRUCTURE ===================== */
+function toggleEdit(){ EDIT=!EDIT; document.getElementById("editbtn").textContent=EDIT?"✅ Terminer":"✏️ Modifier"; renderSections(); }
+function findSec(sid){ return client().sections.find(s=>s.id===sid); }
+function editSecTitle(sid,v){ findSec(sid).title=v.trim()||findSec(sid).title; scheduleSave(); }
+function toggleDaily(sid,on){ findSec(sid).daily=!!on; scheduleSave(); renderSections(); }
+function setFreq(sid,v){ findSec(sid).freq = v==="month" ? "month" : "week"; scheduleSave(); renderWeek(); renderSections(); }
+function addSection(){
+  client().sections.push({id:uid(), title:"Nouvelle section", daily:false, items:[]});
+  scheduleSave(); renderSections();
+}
+function delSection(sid){
+  const s=findSec(sid);
+  if(!confirm("Supprimer la section « "+s.title+" » et ses tâches ?")) return;
+  const c=client(); c.sections=c.sections.filter(x=>x.id!==sid);
+  scheduleSave(); renderWeek(); renderSections();
+}
+function addItem(sid){ findSec(sid).items.push({id:uid(), label:"Nouvelle tâche"}); scheduleSave(); renderSections(); }
+function editItem(sid,iid,v){ const it=findSec(sid).items.find(x=>x.id===iid); if(it&&v.trim()) it.label=v.trim(); scheduleSave(); }
+function delItem(sid,iid){
+  const s=findSec(sid); s.items=s.items.filter(x=>x.id!==iid);
+  scheduleSave(); renderWeek(); renderSections();
+}
+
+/* ===================== CLIENTS ===================== */
+function addClient(){
+  const name=prompt("Nom du client (ex. « Marie — Agence X ») :");
+  if(!name||!name.trim()) return;
+  const emoji=prompt("Emoji (optionnel) :","🚀")||"🚀";
+  const copy=confirm("Pré-remplir avec la même checklist que Loïc ?\n(OK = oui · Annuler = board vide)");
+  let cl;
+  if(copy && DATA.clients.length){
+    const src=DATA.clients.find(x=>x.id===CUR)||DATA.clients[0];
+    cl={id:uid(), name:name.trim(), emoji,
+      sections:src.sections.map(s=>({id:uid(), title:s.title, daily:s.daily, items:s.items.map(it=>({id:uid(), label:it.label}))}))};
+  } else cl={id:uid(), name:name.trim(), emoji, sections:[]};
+  DATA.clients.push(cl);
+  DATA.weekStart[cl.id]=isoDate(mondayOf(new Date()));
+  CUR=cl.id; scheduleSave(); renderAll();
+}
+function renameClient(){
+  const c=client(); const v=prompt("Nom du client :",c.name);
+  if(v&&v.trim()){ c.name=v.trim(); scheduleSave(); renderTabs(); }
+}
+function delClient(){
+  const c=client();
+  if(DATA.clients.length<=1){ alert("Impossible de supprimer le dernier client."); return; }
+  if(!confirm("Supprimer « "+c.name+" » et TOUTES ses archives ?")) return;
+  DATA.clients=DATA.clients.filter(x=>x.id!==c.id);
+  delete DATA.checks[c.id]; delete DATA.notes[c.id]; delete DATA.weekStart[c.id];
+  DATA.archives=DATA.archives.filter(a=>a.cid!==c.id);
+  CUR=DATA.clients[0].id; scheduleSave(); renderAll();
+}
+
+/* ===================== CLÔTURE DE SEMAINE ===================== */
+function snapSections(c,freq){
+  return c.sections.filter(s=>secFreq(s)===freq).map(s=>({title:s.title, daily:s.daily,
+    items:s.items.map(it=>({label:it.label,
+      done:isDone(c,it,s.daily),
+      days:s.daily&&Array.isArray(chk(c.id)[it.id])? chk(c.id)[it.id].slice() : undefined,
+      note:(nts(c.id)[it.id]||"")||undefined }))}));
+}
+function resetSections(c,freq){
+  c.sections.filter(s=>secFreq(s)===freq).forEach(s=>s.items.forEach(it=>{
+    delete chk(c.id)[it.id]; delete nts(c.id)[it.id];
+  }));
+}
+function closeWeek(){
+  const c=client(); if(!c) return;
+  const p=progress(c);
+  if(!confirm("Clôturer la semaine de « "+c.name+" » ?\n\n"+p+"% de l'hebdo coché — la semaine part aux archives et les coches hebdo repartent à zéro.\n(Les sections mensuelles type compta ne bougent pas.)")) return;
+  const ws=DATA.weekStart[c.id]||isoDate(mondayOf(new Date()));
+  const wsD=new Date(ws+"T00:00:00"); const weD=new Date(wsD); weD.setDate(weD.getDate()+6);
+  DATA.archives.unshift({ cid:c.id, client:c.name, period:"week", start:ws, end:isoDate(weD),
+    label:isoWeekLabel(wsD), closedAt:new Date().toISOString(), pct:p, sections:snapSections(c,"week") });
+  resetSections(c,"week");
+  DATA.weekStart[c.id]=isoDate(mondayOf(new Date()));
+  persist(); renderAll();
+}
+function closeMonth(){
+  const c=client(); if(!c||!hasMonthly(c)) return;
+  const p=progressF(c,"month");
+  const ym=DATA.monthStart[c.id]||ymNow();
+  if(!confirm("Clôturer le mois compta ("+monthLabel(ym)+") de « "+c.name+" » ?\n\n"+p+"% coché — le mois part aux archives et les coches mensuelles repartent à zéro.\n(Les sections hebdo ne bougent pas.)")) return;
+  DATA.archives.unshift({ cid:c.id, client:c.name, period:"month", start:ym+"-01", end:ym+"-28",
+    label:monthLabel(ym).replace(/^./,x=>x.toUpperCase()), closedAt:new Date().toISOString(), pct:p, sections:snapSections(c,"month") });
+  resetSections(c,"month");
+  DATA.monthStart[c.id]=ymNow();
+  persist(); renderAll();
+}
+
+function renderArchives(){
+  const c=client(); const el=document.getElementById("archives");
+  if(!c){ el.innerHTML=""; return; }
+  const list=DATA.archives.filter(a=>a.cid===c.id);
+  if(!list.length){ el.innerHTML=`<div class="hint" style="margin-top:10px">Aucune semaine archivée pour l'instant.</div>`; return; }
+  el.innerHTML=list.map(a=>{
+    const gi=DATA.archives.indexOf(a);
+    const cls=a.pct>=80?"g":(a.pct>=50?"o":"r");
+    const wsD=new Date(a.start+"T00:00:00"), weD=new Date(a.end+"T00:00:00");
+    const body=a.sections.map((s,si)=>{
+      const its=s.items.map((it,ii)=>{
+        const dd = s.daily&&it.days? " <span style='color:var(--faint);font-size:11px'>("+it.days.reduce((n,v)=>n+(v?1:0),0)+"/7 j)</span>":"";
+        const nid=`anote_${gi}_${si}_${ii}`;
+        return `<div class="archit ${it.done?'ok':'ko'}">
+            <span style="cursor:pointer" title="Cliquer pour corriger fait / pas fait" onclick="archToggle(${gi},${si},${ii})">${it.done?"✅":"⬜"}</span>
+            ${esc(it.label)}${dd}
+            <button class="noteb ${it.note?'has':''}" title="Note" onclick="document.getElementById('${nid}').classList.toggle('hide')">📝</button>
+            <div class="itnote ${it.note?'':'hide'}" id="${nid}" style="margin-left:20px">
+              <textarea placeholder="Note…" onchange="editArchNote(${gi},${si},${ii},this.value)">${esc(it.note||"")}</textarea>
+            </div>
+          </div>`;
+      }).join("");
+      return `<div class="archsec">${esc(s.title)}</div>${its}`;
+    }).join("");
+    const isM = a.period==="month";
+    const title = isM ? esc(a.label) : esc(a.label)+" · "+fmtShort(wsD)+" → "+fmtShort(weD);
+    const ppill = `<span class="pill" style="${isM?'color:var(--gold); border-color:rgba(232,196,118,.35)':''}">${isM?"🧾 mois":"semaine"}</span>`;
+    return `<details class="arch">
+      <summary><span class="at">${title}</span>${ppill}
+        <span class="apc ${cls}">${a.pct}%</span></summary>
+      <div class="archbody">${body}
+        <div class="hint">Archive modifiable : clique sur ✅/⬜ pour corriger, 📝 pour ajouter ou changer une note.</div>
+        <button class="btn danger sm" style="margin-top:10px" onclick="delArchive(${gi})">Supprimer cette archive</button>
+      </div>
+    </details>`;
+  }).join("");
+}
+function archToggle(gi,si,ii){
+  const a=DATA.archives[gi]; if(!a) return;
+  const it=a.sections[si].items[ii]; it.done=!it.done;
+  let tot=0, done=0;
+  a.sections.forEach(s=>s.items.forEach(x=>{ tot++; if(x.done) done++; }));
+  a.pct = tot? Math.round(done/tot*100) : 0;
+  scheduleSave(); renderArchives();
+}
+function editArchNote(gi,si,ii,v){
+  const a=DATA.archives[gi]; if(!a) return;
+  a.sections[si].items[ii].note = v.trim()||undefined;
+  scheduleSave();
+}
+function delArchive(gi){
+  const a=DATA.archives[gi]; if(!a) return;
+  if(!confirm("Supprimer l'archive « "+a.label+" » ?")) return;
+  DATA.archives.splice(gi,1);
+  persist(); renderArchives();
+}
+
+/* ===================== EXPORT / IMPORT ===================== */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="board-coo-sauvegarde-"+isoDate(new Date())+".json";
+  a.click();
+  const m=document.getElementById("toolmsg"); m.className="msg ok"; m.textContent="Sauvegarde téléchargée ✓";
+}
+function importJSON(files){
+  const f=files&&files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async ()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!d.clients||!Array.isArray(d.clients)) throw new Error("Fichier invalide (pas de clients).");
+      if(!confirm("Remplacer TOUT le board par cette sauvegarde ("+d.clients.length+" client(s)) ?")) return;
+      DATA=d;
+      if(!DATA.checks)DATA.checks={}; if(!DATA.notes)DATA.notes={}; if(!DATA.archives)DATA.archives=[]; if(!DATA.weekStart)DATA.weekStart={};
+      CUR=DATA.clients[0]?DATA.clients[0].id:null;
+      await persist(); renderAll();
+      const m=document.getElementById("toolmsg"); m.className="msg ok"; m.textContent="Board restauré ✓";
+    }catch(e){
+      const m=document.getElementById("toolmsg"); m.className="msg err"; m.textContent="Erreur : "+e.message;
+    }
+  };
+  r.readAsText(f);
+  document.getElementById("impfile").value="";
+}
+
+/* raccourcis client (clic long sur l'onglet = renommer/supprimer via edit) */
+document.addEventListener("keydown",e=>{
+  if(e.key==="e"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); toggleEdit(); }
+});
+</script>
+</body>
+</html>
