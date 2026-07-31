@@ -1205,7 +1205,7 @@ function coachCallStatus(c){
 // Si le dernier a été envoyé il y a < 15 j → à jour. Si ≥ 15 j (ou aucun depuis l'onboarding) → en retard.
 function editoLastDate(c){ const em=(c&&c.edito)||{}; let d=""; Object.keys(em).forEach(k=>{ const e=em[k]; if(e&&e.sent&&e.date&&String(e.date)>d) d=String(e.date); }); return d; }
 function editoStatus(c){
-  const onb=(c&&c.onboarding_date)||"";
+  const onb=onbDate(c); // onboarding sinon date de contrat → aucun client ne disparaît du suivi
   if(!onb) return {code:"nodate", label:"🗓 édito : renseigne l'onboarding", cl:"var(--muted)"};
   const t=todayStr();
   if(onb>t) return {code:"soon", label:"🗓 édito : démarre à l'onboarding", cl:"#8fb4ff"};
@@ -1217,7 +1217,7 @@ function editoStatus(c){
   if(j<15) return {code:"prevoir", label:`🗓 édito à prévoir · dernier ${dayLabel(last)} il y a ${j} j (prochain avant 15 j)`, cl:"#ffcf7a"};
   return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})`, cl:"var(--red)"};
 }
-function editoExpected(c){ return (c&&c.onboarding_date)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
+function editoExpected(c){ return onbDate(c)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
 function editoLate(c){ return editoStatus(c).code==="late" ? 1 : 0; }
 function coachUpToDate(c){ if(!onbDate(c)) return {nodate:true}; const st=coachCallStatus(c); return {call:st, edito:editoLate(c), editoExp:editoExpected(c)}; }
 // Pré-remplissage une fois : dates d'onboarding + derniers calls fournies par Léa (24/07/2026)
@@ -1270,42 +1270,7 @@ function clientLevel(done){ done=Number(done)||0;
   if(done>=5)  return {lvl:"🚀 Lancé",cl:"#7ee2a3"};
   if(done>=1)  return {lvl:"🌱 Démarrage",cl:"#5aa9ff"};
   return {lvl:"⚪ À lancer",cl:"#9b9aa3"}; }
-function isoWeek(ds){ const d=new Date(ds+"T00:00:00"); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wk=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-S"+String(wk).padStart(2,"0"); }
-function curWeek(){ return isoWeek(todayStr()); }
-function scoreOf(c){ const wk=curWeek(); return (c&&c.scoring&&c.scoring[wk])||{}; }
-function scoreBlock(c){ const sc=scoreOf(c); const st=["🟢 En forme","🟠 À surveiller","🔴 En difficulté"];
-  return `<details class="cdet" style="margin-top:10px"><summary>📊 Scoring de la semaine (${curWeek()})</summary>
-    <div class="scbox" data-id="${escapeHtml(c.id)}">
-      <div class="payin">
-        <div><label>Statut global</label><select class="scStatus">${st.map(o=>`<option${o===(sc.status||st[0])?" selected":""}>${o}</option>`).join("")}</select></div>
-        <div><label>Calls & RDV pris</label><input class="scCalls" type="text" value="${escapeHtml(sc.calls||'')}" placeholder="ex : 3 calls, 1 RDV"></div>
-      </div>
-      <label>Progression / avancement</label><textarea class="scProg" rows="2" placeholder="Où en est le client…">${escapeHtml(sc.prog||'')}</textarea>
-      <label>Motivation / ressenti</label><input class="scMoti" type="text" value="${escapeHtml(sc.moti||'')}" placeholder="ex : 🔥 motivé, coup de mou mardi">
-      <label>Blocages + prochaine action</label><textarea class="scBlock" rows="2" placeholder="Ce qui coince + la prochaine étape décidée">${escapeHtml(sc.block||'')}</textarea>
-      <label>🎬 Lien Fathom du/des call(s) de la semaine</label><input class="scFathom" type="url" value="${escapeHtml(sc.fathom||'')}" placeholder="https://fathom.video/…">
-      <div class="row2" style="margin-top:10px"><button type="button" class="btn ghost sm" onclick="saveScore('${c.id}')">💾 Enregistrer</button><button type="button" class="btn ghost sm" onclick="copyScore('${c.id}')">📋 Copier le récap (groupe WA)</button></div>
-      <div class="scMsg msg"></div>
-    </div></details>`; }
-async function saveScore(id){ if(!fbReady()) return; initFirebase();
-  const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.scbox[data-id="'+id+'"]'); if(!c||!card) return;
-  const sc={status:card.querySelector(".scStatus").value, calls:card.querySelector(".scCalls").value.trim(), prog:card.querySelector(".scProg").value.trim(), moti:card.querySelector(".scMoti").value.trim(), block:card.querySelector(".scBlock").value.trim(), fathom:(card.querySelector(".scFathom")&&card.querySelector(".scFathom").value.trim())||"", updated:todayStr()};
-  const scoring=Object.assign({},c.scoring||{}); scoring[curWeek()]=sc;
-  const m=card.querySelector(".scMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  try{ await db.collection("clients").doc(id).update({scoring}); c.scoring=scoring; m.className="msg ok"; m.textContent="Scoring enregistré ✓"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-function copyScore(id){ const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.scbox[data-id="'+id+'"]'); if(!c||!card) return;
-  const status=card.querySelector(".scStatus").value, calls=card.querySelector(".scCalls").value.trim(), prog=card.querySelector(".scProg").value.trim(), moti=card.querySelector(".scMoti").value.trim(), block=card.querySelector(".scBlock").value.trim(), fathom=(card.querySelector(".scFathom")&&card.querySelector(".scFathom").value.trim())||"";
-  const nom=((c.nom||"")+" "+(c.prenom||"")).trim();
-  let t="📊 Point de la semaine — "+nom+"\n\nStatut : "+status+"\n";
-  if(calls) t+="📞 Calls/RDV : "+calls+"\n";
-  if(prog) t+="📈 Progression : "+prog+"\n";
-  if(moti) t+="⚡ Motivation : "+moti+"\n";
-  if(block) t+="🚧 Focus / prochaine action : "+block+"\n";
-  if(fathom) t+="🎬 Revois ton call : "+fathom+"\n";
-  t+="\n👉 Dis-nous comment tu te sens cette semaine et si tu as un blocage 💬";
-  const m=card.querySelector(".scMsg");
-  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(()=>{ m.className="msg ok"; m.style.display="block"; m.textContent="Récap copié ✓ — colle-le dans le groupe WhatsApp du client."; }).catch(()=>{ m.className="msg"; m.style.display="block"; m.innerHTML="Copie manuelle :<br><textarea rows='7' style='width:100%'>"+escapeHtml(t)+"</textarea>"; }); }
-  else { m.className="msg"; m.style.display="block"; m.innerHTML="Copie manuelle :<br><textarea rows='7' style='width:100%'>"+escapeHtml(t)+"</textarea>"; } }
+/* Scoring hebdo par client retiré (fonctionnalité non utilisée) — le suivi calls + édito + humeur EOD la remplace. */
 async function addCoachWeek(btn,id){
   if(!fbReady()) return; initFirebase();
   const card=btn.closest(".cwkcard"); const c=CLIENTS.find(x=>x.id===id); if(!c||!card) return;
@@ -1363,24 +1328,24 @@ async function exportJSON(){
     m.className="msg ok"; m.textContent=`Sauvegarde téléchargée ✓ (${out.clients.length} clients, ${out.eod_reports.length} EOD).`;
   }catch(err){ m.className="msg err"; m.textContent="Erreur : "+err.message; }
 }
+// MÊME logique que l'onglet Finance (role/pct/fixe) pour que le rapport exporté concorde au centime.
 function payForMonth(M, cls, eods, statMap){
-  const C=CONFIG.COMM;
-  let byCloser={}, lucasCA=0, coachTot=0;
-  cls.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(c.closer) byCloser[c.closer]=(byCloser[c.closer]||0)+e; if(c.setter==="Lucas") lucasCA+=e; const mt=Number(c.montant)||e; coachTot+=C.coachPerClient*(e/mt); } });
-  const agg=aggCalls((eods||[]).filter(x=>(x.report_date||"").slice(0,7)===M));
   const stOf=n=>statMap[n+"|"+M]||{};
-  const has=v=>v!=null&&v!=="";
-  const stIl=stOf("Ilyas"), stLu=stOf("Lucas");
-  const ilRdv=has(stIl.rdv)?Number(stIl.rdv):agg.bySetter.Ilyas.lead;
-  const ilClose=has(stIl.closes)?Number(stIl.closes):agg.bySetter.Ilyas.close;
-  const ilAmount=C.ilyasPerLead*ilRdv+C.ilyasPerClose*ilClose+palier(ilRdv,C.palierRdv)+palier(ilClose,C.palierClose);
-  const luAmount=lucasBase(M)+lucasCA*C.lucasRate;
   const list=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
-  const arr=list.filter(it=>it&&it.name).map(it=>{ const n=it.name, t=it.type||"manual"; let a=0;
-    if(t==="coach")a=coachTot; else if(t==="closer")a=(byCloser[n]||0)*C.closerRate; else if(t==="lucas")a=luAmount; else if(t==="ilyas")a=ilAmount; else a=0;
-    return {n, a};
+  const arr=list.map(normPay).filter(it=>it&&it.name).map(it=>{
+    const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
+    let mine=[];
+    if(role==="closer")      mine=cls.filter(c=>c.closer===n && paidInMonth(c,M)>0);
+    else if(role==="setter") mine=cls.filter(c=>c.setter===n && paidInMonth(c,M)>0);
+    else if(role==="coach")  mine=pct?cls.filter(c=>paidInMonth(c,M)>0):[];
+    const ca=mine.reduce((s,c)=>s+paidInMonth(c,M),0);
+    const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0;
+    const auto=fixe+ca*pct+prime;
+    const st=stOf(n), saved=st.lines, edited=Array.isArray(saved)&&saved.length>0;
+    const amount=edited?saved.reduce((s,x)=>s+(Number(x.a)||0),0):auto;
+    const o=st.override, eff=(o!=null&&o!=="")?Number(o):amount;
+    return {n, a:amount, eff, note:st.note||"", adj:(o!=null&&o!=="")};
   });
-  arr.forEach(p=>{ const st=stOf(p.n); const o=st.override; p.eff=(o!=null&&o!=="")?Number(o):p.a; p.note=st.note||""; p.adj=(o!=null&&o!==""); });
   return arr;
 }
 async function exportReport(){
@@ -1422,7 +1387,9 @@ async function exportReport(){
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
       if(f.type==="booked"){ const b=bookedArr(x); if(b.length) parts.push("RDV pris: "+b.map(z=>esc(z.name||'?')+(z.verified?" ✓":"")).join(", ")); return; }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("Coaching: "+p2.join(" · ")); } return; }
-      const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
+      if(f.type==="clientlog"){ const cl=x.payload&&x.payload.clientlog; if(Array.isArray(cl)&&cl.length){ const p2=cl.map(a=>{ const bits=[]; if(a.mood)bits.push(a.mood); if(a.ras)bits.push("RAS"); if(a.warning)bits.push("⚠️ "+(a.warnReason||"warning")); return esc(a.name||"?")+(bits.length?" ("+esc(bits.join(", "))+")":""); }); if(p2.length) parts.push("Suivi clients: "+p2.join(" · ")); } return; }
+      if(f.type==="check"){ if(x.payload&&x.payload[f.key]) parts.push("<b>"+esc(f.label)+"</b> ✓"); return; }
+      const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="" && typeof v!=="object") parts.push("<b>"+esc(f.label)+":</b> "+esc(v));
     });
     return `<tr data-m="${esc((x.report_date||'').slice(0,7))}"><td style="white-space:nowrap">${esc(x.report_date)}</td><td>${esc(x.member)}</td><td class="sub2c">${parts.join(" · ")||'—'}</td></tr>`;
   }).join("")||'<tr><td colspan="3">Aucun EOD.</td></tr>';
@@ -2213,11 +2180,11 @@ function primeNote(role, enc){
   const p=primePalier(enc), mine=role==="closer"?p.closer:p.setter;
   const grid=PALIERS_PRIME.slice().reverse().map(([s,cl,st])=>`<div class="kv" style="padding:2px 0"><span class="k" style="font-size:12px">${s/1000}k encaissés</span><span class="v" style="font-size:12px">closer ${eur(cl)} · setter ${eur(st)}</span></div>`).join("");
   const cur=p.seuil>0
-    ? `<div class="kv"><span class="k">🎁 Prime palier ce mois</span><span class="v" style="color:#7ee2a3"><b>+${eur(mine)}</b> <span class="sub2">· palier ${p.seuil/1000}k atteint (son encaissé ${eur(enc)})</span></span></div>`
+    ? `<div class="kv"><span class="k">🎁 Prime palier ce mois</span><span class="v" style="color:#7ee2a3"><b>+${eur(mine)}</b> <span class="sub2">· palier ${p.seuil/1000}k atteint · incluse dans le à verser ✓</span></span></div>`
     : `<div class="sub2" style="margin:4px 0">🎁 Prime palier : palier 25k pas encore atteint (son encaissé ce mois ${eur(enc)})</div>`;
   return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">${cur}
     <details class="cdet" style="margin-top:4px"><summary style="font-size:12px;color:var(--muted)">📋 Grille des primes par palier</summary>${grid}
-    <div class="sub2" style="margin-top:4px">Prime basée sur <b>son propre encaissé du mois</b> (le CA de ses clients) — en plus de sa commission.</div></details></div>`;
+    <div class="sub2" style="margin-top:4px">Prime basée sur <b>son propre encaissé du mois</b> (le CA de ses clients) — <b>ajoutée automatiquement</b> à sa commission.</div></details></div>`;
 }
 function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBase[M]:(M>="2026-07"?CONFIG.COMM.lucasBase.default:0); }
 function renderFinance(){
@@ -2257,14 +2224,17 @@ function renderFinance(){
     else if(role==="setter") cls=CLIENTS.filter(c=>c.setter===n && paidInMonth(c,M)>0);   // ses leads
     else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];            // tous les clients encaissés (si %)
     const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
+    const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0; // prime palier sur SON encaissé
     const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
     cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; if(a) dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a}); });
+    if(prime) dn.push({l:"🎁 Prime palier "+(pp.seuil/1000)+"k encaissés", a:prime});
     const rows=[["Rôle", ROLE_LBL[role]||role]];
     if(fixe) rows.push(["Fixe mensuel", eur(fixe)]);
     if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
       cls.forEach(c=>rows.push(["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])); }
-    if(!fixe && !pct) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
-    return {m:n, autoAmount: fixe + ca*pct, caEnc:ca, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
+    if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
+    if(!fixe && !pct && !prime) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
+    return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
   pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
