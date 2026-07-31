@@ -1174,12 +1174,21 @@ function editoMonths(c){ const months=editoMonthsCount(c), n=months*2, em=c.edit
   }
   return `<details class="cdet" style="margin-top:10px"><summary>🗓 Calendriers éditoriaux — ${editoDone(c)}/${n} envoyés <span class="sub2">(1 par quinzaine)</span></summary>
     <div class="edbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${html}
+      <div class="edcover" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+        <div class="payin">
+          <div><label>📦 Contenu en stock / couvert jusqu'au</label><input type="date" class="edUntil" value="${escapeHtml(c.edito_until||'')}"></div>
+          <div><label>📝 Note édito</label><input type="text" class="edNote" value="${escapeHtml(c.edito_note||'')}" placeholder="ex : en lancement, 10 réels en stock, commence sept…"></div>
+        </div>
+        <div class="hint">Tant que la date « couvert jusqu'au » est dans le futur, le client n'est PAS en retard (il a du contenu d'avance).</div>
+      </div>
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveEditoM('${c.id}')">💾 Enregistrer</button>
       <div class="edMsg msg"></div></div></details>`; }
 async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.edbox[data-id="'+id+'"]'); if(!c||!box) return;
   const edito={}; [...box.querySelectorAll(".edrow")].forEach((r,i)=>{ const sent=r.querySelector(".edSent").checked; const date=r.querySelector(".edDate").value||""; if(sent||date) edito[i+1]={sent,date}; });
+  const edito_until=(box.querySelector(".edUntil")&&box.querySelector(".edUntil").value)||"";
+  const edito_note=(box.querySelector(".edNote")&&box.querySelector(".edNote").value.trim())||"";
   const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  try{ await db.collection("clients").doc(id).update({edito}); c.edito=edito; m.className="msg ok"; m.textContent="Calendriers enregistrés ✓ ("+editoDone(c)+"/"+editoNb(c)+")"; }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+  try{ await db.collection("clients").doc(id).update({edito,edito_until,edito_note}); c.edito=edito; c.edito_until=edito_until; c.edito_note=edito_note; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function onbDate(c){ return (c&&c.onboarding_date) || (c&&c.date_debut) || ""; } // onboarding sinon date de contrat
 function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-").map(Number); if(p.length<3||!p[0]||!p[1]||!p[2]) return ""; const d=new Date(p[0],p[1]-1+Number(m),p[2]); if(d.getDate()!==p[2]) d.setDate(0); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
@@ -1206,16 +1215,21 @@ function coachCallStatus(c){
 function editoLastDate(c){ const em=(c&&c.edito)||{}; let d=""; Object.keys(em).forEach(k=>{ const e=em[k]; if(e&&e.sent&&e.date&&String(e.date)>d) d=String(e.date); }); return d; }
 function editoStatus(c){
   const onb=onbDate(c); // onboarding sinon date de contrat → aucun client ne disparaît du suivi
-  if(!onb) return {code:"nodate", label:"🗓 édito : renseigne l'onboarding", cl:"var(--muted)"};
+  const noteTxt=(c&&c.edito_note)?` · 📝 ${escapeHtml(c.edito_note)}`:"";
+  if(!onb) return {code:"nodate", label:"🗓 édito : renseigne l'onboarding"+noteTxt, cl:"var(--muted)"};
   const t=todayStr();
-  if(onb>t) return {code:"soon", label:"🗓 édito : démarre à l'onboarding", cl:"#8fb4ff"};
+  if(onb>t) return {code:"soon", label:`🗓 édito : démarre le ${dayLabel(onb)}${noteTxt}`, cl:"#8fb4ff"};
+  // Override manuel : contenu en stock / couvert jusqu'à une date → pas de retard tant qu'on est avant
+  const cov=c&&c.edito_until;
+  if(cov && cov>=t){ const r=daysDiff(t,cov)||0; return {code:"covered", label:`🗓 édito couvert jusqu'au ${dayLabel(cov)} (${r} j restants)${noteTxt}`, cl:"#7ee2a3"}; }
   const last=editoLastDate(c), ref=last||onb, dd=daysDiff(ref,t), j=(dd==null?999:dd), done=editoDone(c), nb=editoNb(c);
   // 1er calendrier : à envoyer dans les 72h (3 j) après l'onboarding. Ensuite : 1 tous les 15 j.
-  if(!last){ if(j<3) return {code:"new", label:`🗓 édito : 1er à envoyer sous 72h de l'onboarding (0/${nb})`, cl:"#8fb4ff"};
-    return {code:"late", label:`🗓 édito en retard · 1er non envoyé (${j} j depuis l'onboarding, max 72h)`, cl:"#ffcf7a"}; }
-  if(j<10) return {code:"ok", label:`🗓 édito à jour · dernier ${dayLabel(last)} (${done}/${nb})`, cl:"#7ee2a3"};
-  if(j<15) return {code:"prevoir", label:`🗓 édito à prévoir · dernier ${dayLabel(last)} il y a ${j} j (prochain avant 15 j)`, cl:"#ffcf7a"};
-  return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})`, cl:"var(--red)"};
+  if(!last){ if(j<3) return {code:"new", label:`🗓 édito : 1er à envoyer sous 72h de l'onboarding (0/${nb})${noteTxt}`, cl:"#8fb4ff"};
+    return {code:"late", label:`🗓 édito en retard · 1er non envoyé (${j} j depuis l'onboarding, max 72h)${noteTxt}`, cl:"#ffcf7a"}; }
+  const nextIn=15-j; // jours restants avant le prochain (cadence 15 j)
+  if(j<10) return {code:"ok", label:`🗓 édito à jour · dernier ${dayLabel(last)} · prochain dans ${nextIn} j (${done}/${nb})${noteTxt}`, cl:"#7ee2a3"};
+  if(j<15) return {code:"prevoir", label:`🗓 édito à prévoir · dernier ${dayLabel(last)} il y a ${j} j · prochain sous ${nextIn} j${noteTxt}`, cl:"#ffcf7a"};
+  return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})${noteTxt}`, cl:"var(--red)"};
 }
 function editoExpected(c){ return onbDate(c)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
 function editoLate(c){ return editoStatus(c).code==="late" ? 1 : 0; }
