@@ -1210,10 +1210,12 @@ function editoStatus(c){
   const t=todayStr();
   if(onb>t) return {code:"soon", label:"🗓 édito : démarre à l'onboarding", cl:"#8fb4ff"};
   const last=editoLastDate(c), ref=last||onb, dd=daysDiff(ref,t), j=(dd==null?999:dd), done=editoDone(c), nb=editoNb(c);
-  if(!last){ if(j<15) return {code:"new", label:`🗓 édito : 1er à envoyer (0/${nb})`, cl:"#8fb4ff"};
-    return {code:"late", label:`🗓 édito en retard · aucun envoyé (${j} j depuis l'onboarding)`, cl:"#ffcf7a"}; }
-  if(j<15) return {code:"ok", label:`🗓 édito à jour · dernier ${dayLabel(last)} (${done}/${nb})`, cl:"#7ee2a3"};
-  return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})`, cl:"#ffcf7a"};
+  // 1er calendrier : à envoyer dans les 72h (3 j) après l'onboarding. Ensuite : 1 tous les 15 j.
+  if(!last){ if(j<3) return {code:"new", label:`🗓 édito : 1er à envoyer sous 72h de l'onboarding (0/${nb})`, cl:"#8fb4ff"};
+    return {code:"late", label:`🗓 édito en retard · 1er non envoyé (${j} j depuis l'onboarding, max 72h)`, cl:"#ffcf7a"}; }
+  if(j<10) return {code:"ok", label:`🗓 édito à jour · dernier ${dayLabel(last)} (${done}/${nb})`, cl:"#7ee2a3"};
+  if(j<15) return {code:"prevoir", label:`🗓 édito à prévoir · dernier ${dayLabel(last)} il y a ${j} j (prochain avant 15 j)`, cl:"#ffcf7a"};
+  return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})`, cl:"var(--red)"};
 }
 function editoExpected(c){ return (c&&c.onboarding_date)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
 function editoLate(c){ return editoStatus(c).code==="late" ? 1 : 0; }
@@ -1249,14 +1251,16 @@ function coachAlertsCard(cs){
   const st=c=>coachCallStatus(c);
   const lateCalls=cs.filter(c=>st(c).code==="late").sort((a,b)=>(daysDiff(coachLastDate(b)||onbDate(b),todayStr())||999)-(daysDiff(coachLastDate(a)||onbDate(a),todayStr())||999));
   const relCalls=cs.filter(c=>st(c).code==="relance");
-  const lateEd=cs.filter(c=>onbDate(c)&&editoLate(c)>0).sort((a,b)=>editoLate(b)-editoLate(a));
+  const lateEd=cs.filter(c=>editoStatus(c).code==="late");
+  const preEd=cs.filter(c=>editoStatus(c).code==="prevoir");
   const noDate=cs.filter(c=>!onbDate(c));
-  if(!lateCalls.length && !relCalls.length && !lateEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
+  if(!lateCalls.length && !relCalls.length && !lateEd.length && !preEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
   const row=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
   let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 6px">🚨 Clients à relancer (calls)</h2>`;
   if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">❌ En retard (${lateCalls.length})</div>`+lateCalls.map(c=>row(c,"var(--red)")).join("");
   if(relCalls.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🟠 À relancer bientôt (${relCalls.length})</div>`+relCalls.map(c=>row(c,"#ffcf7a")).join("");
-  if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 En retard sur les calendriers éditoriaux (${lateEd.length})</div>`+lateEd.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:#ffcf7a;max-width:60%;text-align:right">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>`).join("");
+  if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:var(--red)">🗓 Édito en retard (${lateEd.length})</div>`+lateEd.map(c=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:var(--red);max-width:60%;text-align:right">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>`).join("");
+  if(preEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 Édito à prévoir (${preEd.length})</div>`+preEd.map(c=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:#ffcf7a;max-width:60%;text-align:right">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>`).join("");
   if(noDate.length) h+=`<div class="section-title" style="margin:10px 2px 2px">📅 Date d'onboarding manquante (${noDate.length})</div>`+noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`).join("");
   return h+`</div>`;
 }
