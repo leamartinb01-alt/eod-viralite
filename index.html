@@ -1260,9 +1260,21 @@ async function seedCoachDates(){
   renderCoachingTab();
   alert(n+" client(s) mis à jour."+(miss.length?" Non trouvés : "+miss.join(", "):""));
 }
+// Actions rapides depuis les relances (mise à jour en direct, sans ouvrir la fiche)
+async function quickEditoSent(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
+  const em=Object.assign({},c.edito||{}); const nb=editoNb(c); let idx=0; for(let i=1;i<=nb;i++){ if(!(em[i]&&em[i].sent)){ idx=i; break; } } if(!idx) idx=nb+1;
+  em[idx]={sent:true,date:todayStr()};
+  try{ await db.collection("clients").doc(id).update({edito:em}); c.edito=em; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
+async function quickEditoCover(id,val){ if(!val||!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
+  try{ await db.collection("clients").doc(id).update({edito_until:val}); c.edito_until=val; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
+async function quickCallDone(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
+  try{ await db.collection("clients").doc(id).update({last_call:todayStr()}); c.last_call=todayStr(); renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
 function coachAlertsCard(cs){
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const st=c=>coachCallStatus(c);
+  const bs="width:auto;margin:0;padding:5px 9px;font-size:12px";
+  const callRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:6px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:55%">${st(c).label.replace(/^[^ ]+ /,'')}</span></div><div style="margin-top:5px"><button class="btn ghost sm" style="${bs}" onclick="quickCallDone('${c.id}')">📞 Call/vu aujourd'hui</button></div></div>`;
+  const edRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:6px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:55%">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:5px"><button class="btn ghost sm" style="${bs}" onclick="quickEditoSent('${c.id}')">✅ Envoyé aujourd'hui</button><label class="sub2" style="display:flex;align-items:center;gap:4px;margin:0">📦 couvert jusqu'au<input type="date" style="width:auto;padding:4px 7px;font-size:12px" value="${escapeHtml(c.edito_until||'')}" onchange="quickEditoCover('${c.id}',this.value)"></label></div></div>`;
   const lateCalls=cs.filter(c=>st(c).code==="late").sort((a,b)=>(daysDiff(coachLastDate(b)||onbDate(b),todayStr())||999)-(daysDiff(coachLastDate(a)||onbDate(a),todayStr())||999));
   const relCalls=cs.filter(c=>st(c).code==="relance");
   const lateEd=cs.filter(c=>editoStatus(c).code==="late");
@@ -1271,10 +1283,10 @@ function coachAlertsCard(cs){
   if(!lateCalls.length && !relCalls.length && !lateEd.length && !preEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
   const row=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
   let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 6px">🚨 Clients à relancer (calls)</h2>`;
-  if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">❌ En retard (${lateCalls.length})</div>`+lateCalls.map(c=>row(c,"var(--red)")).join("");
-  if(relCalls.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🟠 À relancer bientôt (${relCalls.length})</div>`+relCalls.map(c=>row(c,"#ffcf7a")).join("");
-  if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:var(--red)">🗓 Édito en retard (${lateEd.length})</div>`+lateEd.map(c=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:var(--red);max-width:60%;text-align:right">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>`).join("");
-  if(preEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 Édito à prévoir (${preEd.length})</div>`+preEd.map(c=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:#ffcf7a;max-width:60%;text-align:right">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>`).join("");
+  if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">❌ Calls en retard (${lateCalls.length})</div>`+lateCalls.map(c=>callRow(c,"var(--red)")).join("");
+  if(relCalls.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🟠 Calls à relancer bientôt (${relCalls.length})</div>`+relCalls.map(c=>callRow(c,"#ffcf7a")).join("");
+  if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:var(--red)">🗓 Édito en retard (${lateEd.length})</div>`+lateEd.map(c=>edRow(c,"var(--red)")).join("");
+  if(preEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 Édito à prévoir (${preEd.length})</div>`+preEd.map(c=>edRow(c,"#ffcf7a")).join("");
   if(noDate.length) h+=`<div class="section-title" style="margin:10px 2px 2px">📅 Date d'onboarding manquante (${noDate.length})</div>`+noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`).join("");
   return h+`</div>`;
 }
