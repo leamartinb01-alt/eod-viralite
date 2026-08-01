@@ -2399,11 +2399,8 @@ function renderPresta(M){
         <div><input class="pNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
       </div>
       <div style="margin-top:6px">
-        <input class="pLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Lien de la facture (Drive, mail…) — le + fiable">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:5px">
-          <label class="sub2" style="cursor:pointer;text-decoration:underline;white-space:nowrap">📎 ou uploader un fichier<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>
-          ${viewLink}
-        </div>
+        <input class="pLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Colle le lien de la facture (Drive…) puis Enregistre">
+        ${viewLink?`<div style="margin-top:5px">${viewLink}</div>`:""}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
         <label class="ck" style="margin:0"><input class="pPaid" type="checkbox" ${p.paid?"checked":""}> payé</label>
