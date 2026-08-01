@@ -1404,7 +1404,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()}));
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isPrestaFile) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -2215,7 +2215,7 @@ async function loadFinance(){
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isPrestaFile) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -2388,9 +2388,12 @@ function renderPresta(M){
   const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const rows=list.map(p=>{
     const catOpts=PRESTA_CATS.map(o=>`<option ${o===p.cat?"selected":""}>${o}</option>`).join("");
+    const upLbl=(txt)=>`<label class="sub2" style="cursor:pointer;text-decoration:underline">${txt}<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>`;
     const file=p.fileUrl
-      ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 ${escapeHtml(p.fileName||"facture")}</a>`
-      : `<label class="sub2" style="cursor:pointer;text-decoration:underline">📎 Ajouter la facture<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>`;
+      ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 ${escapeHtml(p.fileName||"facture")}</a> ${upLbl("↻")}`
+      : (p.fileDoc
+        ? `<a href="#" onclick="openPrestaFile('${escapeHtml(p.fileDoc)}');return false" class="sub2" style="text-decoration:underline">📎 ${escapeHtml(p.fileName||"facture")}</a> ${upLbl("↻")}`
+        : upLbl("📎 Ajouter la facture"));
     return `<div class="prow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
       <div class="payin">
         <div><input class="pName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du presta"></div>
@@ -2422,9 +2425,9 @@ function renderPresta(M){
 }
 function gatherPresta(M){ const box=$("prestaCard"); const cur=prestaList(M);
   return [...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
-    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl:old.fileUrl||"", fileName:old.fileName||"" };
+    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl:old.fileUrl||"", fileDoc:old.fileDoc||"", fileName:old.fileName||"" };
   }).filter(x=>x.name||x.amount); }
-function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileDoc:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderPresta(M); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
@@ -2432,19 +2435,48 @@ async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const 
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderPresta(M); }catch(e){ alert("Erreur : "+e.message); } }
 async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
   const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  initStorage(); if(!storage){ setMsg("Stockage Firebase non activé — active Firebase Storage (voir note).","err"); return; }
-  // on sauvegarde d'abord la ligne (pour ne pas perdre les saisies), puis on uploade
+  if(!fbReady())return; initFirebase();
+  // on sauvegarde d'abord la ligne (pour ne pas perdre les saisies)
   const list=gatherPresta(M); PRESTA[M]=list;
   setMsg("Envoi de la facture…");
   try{
-    const ref=storage.ref("prestas/"+M+"/"+id+"_"+f.name.replace(/[^\w.\-]/g,"_"));
-    await ref.put(f); const url=await ref.getDownloadURL();
-    const l=(PRESTA[M]||[]).map(x=> x.id===id ? {...x, fileUrl:url, fileName:f.name} : x);
+    const dataUrl=await prestaFileToDataUrl(f);
+    if(dataUrl.length>950000){ setMsg("Facture trop lourde ("+Math.round(f.size/1024)+" Ko). Max ~700 Ko — compresse le PDF ou envoie une photo plus légère.","err"); return; }
+    const docId="pfile_"+M+"_"+id;
+    await db.collection("setter_stats").doc(docId).set({isPrestaFile:true, month:M, name:f.name, data:dataUrl});
+    const l=(PRESTA[M]||[]).map(x=> x.id===id ? {...x, fileDoc:docId, fileUrl:"", fileName:f.name} : x);
     PRESTA[M]=l;
     await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list:l});
     setMsg("Facture ajoutée ✓","ok"); renderPresta(M);
   }catch(e){ setMsg("Erreur upload : "+e.message,"err"); }
 }
+function prestaFileToDataUrl(f){ return new Promise((res,rej)=>{
+  const rd=new FileReader();
+  rd.onerror=()=>rej(new Error("lecture du fichier impossible"));
+  rd.onload=()=>{
+    const raw=String(rd.result||"");
+    if(!/^image\//.test(f.type) || raw.length<=950000) return res(raw);
+    const img=new Image();
+    img.onload=()=>{ try{
+      const MAX=1600, sc=Math.min(1, MAX/Math.max(img.width,img.height));
+      const cv=document.createElement("canvas"); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
+      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+      res(cv.toDataURL("image/jpeg",0.8));
+    }catch(e){ res(raw); } };
+    img.onerror=()=>res(raw);
+    img.src=raw;
+  };
+  rd.readAsDataURL(f);
+}); }
+async function openPrestaFile(docId){ try{
+  if(!fbReady())return; initFirebase();
+  const d=await db.collection("setter_stats").doc(docId).get();
+  const x=d.exists?d.data():null; if(!x||!x.data){ alert("Facture introuvable."); return; }
+  const parts=String(x.data).split(","); const mime=(parts[0].match(/data:(.*?);base64/)||[])[1]||"application/pdf";
+  const bin=atob(parts[1]||""); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([arr],{type:mime}));
+  window.open(url,"_blank");
+}catch(e){ alert("Erreur : "+e.message); } }
 function ctRow(c){
   const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
   const showSel=`<select class="ctShow"><option value=""${cur===""?" selected":""}>— statut</option><option value="show"${cur==="show"?" selected":""}>✅ Show-up</option><option value="closed"${cur==="closed"?" selected":""}>🎯 Closé</option><option value="no"${cur==="no"?" selected":""}>❌ No-show</option></select>`;
@@ -2569,40 +2601,54 @@ function renderCoo(M, caAuto, teamComm){
       <div><label>CA encaissé effectif du mois</label><input type="number" inputmode="numeric" id="coo_ca" value="${coo.ca!=null&&coo.ca!==""?coo.ca:''}" placeholder="auto : ${Math.round(caAuto)}" oninput="cooRecalc()"></div>
       <div><label>Logiciels déductibles (Calendly, Skool…)</label><input type="number" inputmode="numeric" id="coo_soft" value="${coo.soft||''}" placeholder="0" oninput="cooRecalc()"></div>
     </div>
+    <div class="payin">
+      <div><label>Commissions équipe (vide = auto)</label><input type="number" inputmode="numeric" id="coo_team" value="${coo.team!=null&&coo.team!==""?coo.team:''}" placeholder="auto : ${Math.round(teamComm)}" oninput="cooRecalc()"></div>
+      <div><label>Rému fixe COO (€)</label><input type="number" inputmode="numeric" id="coo_fixe" value="${coo.fixe!=null&&coo.fixe!==""?coo.fixe:''}" placeholder="2000" oninput="cooRecalc()"></div>
+    </div>
+    <div class="payin">
+      <div><label>Forcer le taux % (vide = palier auto)</label><input type="number" inputmode="numeric" id="coo_rate" value="${coo.rate!=null&&coo.rate!==""?coo.rate:''}" placeholder="auto" oninput="cooRecalc()"></div>
+      <div><label>Forcer le total à verser € (vide = calcul)</label><input type="number" inputmode="numeric" id="coo_force" value="${coo.force!=null&&coo.force!==""?coo.force:''}" placeholder="auto" oninput="cooRecalc()"></div>
+    </div>
     <div class="kv"><span class="k">CA encaissé effectif</span><span class="v" id="cooCAv"></span></div>
     <div style="font-size:12px;color:var(--muted);margin:8px 0 2px">📊 Grille des taux (le taux dépend du CA, puis s'applique sur la marge) :</div>
     <div id="cooGrid">${cooGridHtml(coo.ca!=null&&coo.ca!==""?coo.ca:caAuto)}</div>
-    <div class="kv"><span class="k">➖ Commissions équipe (auto)</span><span class="v">-${eur(teamComm)}</span></div>
-    <div class="kv"><span class="k">➖ Ta rému fixe COO</span><span class="v">-${eur(2000)}</span></div>
+    <div class="kv"><span class="k">➖ Commissions équipe</span><span class="v" id="cooTeamv"></span></div>
+    <div class="kv"><span class="k">➖ Rému fixe COO</span><span class="v" id="cooFixev"></span></div>
     <div class="kv"><span class="k">➖ Logiciels</span><span class="v" id="cooSoftv"></span></div>
     <div id="cooLines">${lines.map(cooLineRow).join("")}</div>
     <button type="button" class="addrow" onclick="addCooLine();cooRecalc()">+ Ajouter une charge déductible</button>
     <div class="kv" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><span class="k"><b>📊 Marge du mois</b></span><span class="v"><b id="cooMarge"></b></span></div>
     <div class="kv"><span class="k">Palier appliqué</span><span class="v"><b id="cooRate"></b></span></div>
     <div class="kv"><span class="k">Rému variable (% × marge)</span><span class="v" style="color:#7ee2a3" id="cooVar"></span></div>
-    <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">💰 Total à te verser (2 000 € fixe + variable)</span><span class="v grad-text" style="font-weight:800;font-size:16px" id="cooTot"></span></div>
+    <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">💰 Total à te verser (fixe + variable)</span><span class="v grad-text" style="font-weight:800;font-size:16px" id="cooTot"></span></div>
     <button class="btn ghost sm" style="margin-top:10px" onclick="saveCoo('${M}')">💾 Enregistrer ${M}</button>
     <div id="cooMsg" class="msg"></div>
-    <div class="hint">Contrat COO : marge = CA encaissé − (commissions équipe + 2 000 € fixe + logiciels Calendly/Skool). Paliers 3/4/5/6 % selon le CA. Aucune autre dépense (pub, déplacements) n'est déductible. Le CA et les commissions équipe remontent tout seuls ; tu corriges le CA et ajoutes des charges à la main.</div>
+    <div class="hint">Contrat COO : marge = CA encaissé − (commissions équipe + 2 000 € fixe + logiciels Calendly/Skool). Paliers 3/4/5/6 % selon le CA. Aucune autre dépense (pub, déplacements) n'est déductible. Tout est ajustable à la main : CA, commissions équipe, fixe, taux, charges déductibles — et tu peux forcer le total. Vide un champ = retour au calcul auto.</div>
   </div>`;
   cooRecalc();
 }
 function cooRecalc(){ if(!$("coo_ca")) return;
-  const caIn=$("coo_ca").value, ca=caIn===""?_cooAuto:Number(caIn)||0;
-  const soft=Number($("coo_soft").value)||0, fixe=2000;
+  const val=(id,dft)=>{ const e=$(id); if(!e||e.value==="") return dft; return Number(e.value)||0; };
+  const ca=val("coo_ca",_cooAuto);
+  const soft=Number($("coo_soft").value)||0;
+  const team=val("coo_team",_cooTeam);
+  const fixe=val("coo_fixe",2000);
   const extra=[...document.querySelectorAll("#cooLines .cooline")].reduce((s,r)=>s+(Number(r.querySelector(".clAmt").value)||0),0);
-  const charges=_cooTeam+fixe+soft+extra;
-  const marge=ca-charges, rate=cooPalier(ca), variable=marge>0?Math.round(marge*rate):0, total=fixe+variable;
+  const charges=team+fixe+soft+extra;
+  const rIn=$("coo_rate")&&$("coo_rate").value!==""?(Number($("coo_rate").value)||0)/100:null;
+  const marge=ca-charges, rate=rIn!=null?rIn:cooPalier(ca), variable=marge>0?Math.round(marge*rate):0;
+  const fIn=$("coo_force")&&$("coo_force").value!==""?Number($("coo_force").value)||0:null;
+  const total=fIn!=null?fIn:fixe+variable;
   const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
-  set("cooCAv",eur(ca)); set("cooSoftv","-"+eur(soft)); set("cooMarge",eur(marge)); set("cooRate",Math.round(rate*100)+" %"); set("cooVar",eur(variable)); set("cooTot",eur(total));
+  set("cooCAv",eur(ca)); set("cooTeamv","-"+eur(team)); set("cooFixev","-"+eur(fixe)); set("cooSoftv","-"+eur(soft)); set("cooMarge",eur(marge)); set("cooRate",Math.round(rate*100)+" %"+(rIn!=null?" (forcé)":"")); set("cooVar",eur(variable)); set("cooTot",eur(total)+(fIn!=null?" (forcé)":""));
   const g=$("cooGrid"); if(g) g.innerHTML=cooGridHtml(ca); // surligne le palier courant selon le CA saisi
 }
 async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
-  const ca=$("coo_ca").value, soft=$("coo_soft").value;
+  const ca=$("coo_ca").value, soft=$("coo_soft").value, team=$("coo_team").value, fixe=$("coo_fixe").value, rate=$("coo_rate").value, force=$("coo_force").value;
   const lines=[...document.querySelectorAll("#cooLines .cooline")].map(r=>({l:(r.querySelector(".clLbl").value||"").trim(), a:Number(r.querySelector(".clAmt").value)||0})).filter(x=>x.l||x.a);
-  COO[M]={ca: ca===""?null:Number(ca), soft:Number(soft)||0, lines};
+  COO[M]={ca: ca===""?null:Number(ca), soft:Number(soft)||0, team: team===""?null:Number(team), fixe: fixe===""?null:Number(fixe), rate: rate===""?null:Number(rate), force: force===""?null:Number(force), lines};
   const m=$("cooMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
-  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, soft:COO[M].soft, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
+  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, soft:COO[M].soft, team:COO[M].team==null?null:COO[M].team, fixe:COO[M].fixe==null?null:COO[M].fixe, rate:COO[M].rate==null?null:COO[M].rate, force:COO[M].force==null?null:COO[M].force, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
 function renderFinTable(){
