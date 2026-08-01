@@ -1280,16 +1280,26 @@ function coachAlertsCard(cs){
   const covEd=cs.filter(c=>editoStatus(c).code==="covered");
   const noDate=cs.filter(c=>!onbDate(c));
   if(!lateCalls.length && !relCalls.length && !lateEd.length && !preEd.length && !covEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
-  // Chaque partie est repliable (déplier/replier) — les urgences (retard) ouvertes par défaut, le reste fermé
-  const sec=(title,color,open,rows)=>rows.length?`<details class="cdet" ${open?'open':''} style="margin-top:8px"><summary style="color:${color};font-weight:700">${title} (${rows.length})</summary><div style="margin-top:4px">${rows.map(x=>x).join("")}</div></details>`:"";
-  let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 4px">🚨 Relances</h2><p class="sub2" style="margin:0 0 4px">Clique sur une section pour la déplier.</p>`;
-  h+=sec("❌ Calls en retard","var(--red)",true, lateCalls.map(c=>callRow(c,"var(--red)")));
-  h+=sec("🟠 Calls à relancer bientôt","#ffcf7a",true, relCalls.map(c=>callRow(c,"#ffcf7a")));
-  h+=sec("🗓 Édito en retard","var(--red)",true, lateEd.map(c=>edRow(c,"var(--red)")));
-  h+=sec("🗓 Édito à prévoir","#ffcf7a",false, preEd.map(c=>edRow(c,"#ffcf7a")));
-  h+=sec("🕓 Édito en attente — couvert","#8fb4ff",false, covEd.map(c=>edRow(c,"#8fb4ff")));
-  h+=sec("📅 Date d'onboarding manquante","var(--muted)",false, noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`));
-  return h+`</div>`;
+  // Sections repliables. DEUX cartes distinctes : Calls / Calendriers éditoriaux.
+  const sec=(title,color,open,rows)=>rows.length?`<details class="cdet" ${open?'open':''} style="margin-top:8px"><summary style="color:${color};font-weight:700">${title} (${rows.length})</summary><div style="margin-top:4px">${rows.join("")}</div></details>`:"";
+  let out="";
+  // ---- Carte CALLS (info seule) ----
+  if(lateCalls.length || relCalls.length){
+    out+=`<div class="card" style="border-color:rgba(255,69,58,.4);margin:0 0 12px"><h2 style="margin:0 0 2px">📞 Calls à relancer</h2><p class="sub2" style="margin:0 0 4px">Pour info — se met à jour tout seul quand un coaching est pointé.</p>`
+      + sec("❌ En retard","var(--red)",true, lateCalls.map(c=>callRow(c,"var(--red)")))
+      + sec("🟠 À relancer bientôt","#ffcf7a",true, relCalls.map(c=>callRow(c,"#ffcf7a")))
+      + `</div>`;
+  }
+  // ---- Carte CALENDRIERS ÉDITO (avec « couvert jusqu'au ») ----
+  if(lateEd.length || preEd.length || covEd.length || noDate.length){
+    out+=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 2px">🗓 Calendriers éditoriaux</h2><p class="sub2" style="margin:0 0 4px">Mets une date « couvert jusqu'au » (en 2026) → le client passe en attente.</p>`
+      + sec("🔴 En retard","var(--red)",true, lateEd.map(c=>edRow(c,"var(--red)")))
+      + sec("🟠 À prévoir","#ffcf7a",false, preEd.map(c=>edRow(c,"#ffcf7a")))
+      + sec("🕓 En attente — couvert","#8fb4ff",true, covEd.map(c=>edRow(c,"#8fb4ff")))
+      + sec("📅 Onboarding manquant","var(--muted)",false, noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne l'onboarding</span></div>`))
+      + `</div>`;
+  }
+  return out;
 }
 function clientLevel(done){ done=Number(done)||0;
   if(done>=15) return {lvl:"🏆 Légende",cl:"#ffcf7a"};
