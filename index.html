@@ -505,6 +505,8 @@
       </div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
       <div id="encBreak" class="hide" style="margin-top:12px"></div>
+      <div id="genBreak" class="hide" style="margin-top:12px"></div>
+      <div id="margeBox" style="margin-top:12px"></div>
     </div>
     <div class="section-title">💎 Ma commission (Léa · COO)</div>
     <div id="cooCard"></div>
@@ -2300,14 +2302,39 @@ function renderFinance(){
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
   const prestaTot=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const paiePlusPresta=totalPaie+prestaTot;
+  const logiTot=logiTotal(M);
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
   const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
     <div class="box" style="cursor:pointer" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)} 🔎</div></div>
     <div class="box"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser</div></div>
-    <div class="box"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)}</div></div>
-    <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>`;
+    <div class="box" style="cursor:pointer" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)} 🔎</div></div>
+    <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
+    <div class="box"><div class="n" style="color:#8fb4ff">${eur(logiTot)}</div><div class="l">💻 Logiciels</div></div>`;
+  // Détail « Généré » par closer (cliquable)
+  (function(){ const gb=$("genBreak"); if(!gb) return;
+    const closers=CONFIG.TEAM.filter(m=>m.role==="closer");
+    const rows=closers.map(m=>{ const me=monthEods.filter(x=>x.member===m.name&&x.role==="closer"); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); return g>0?`<div class="kv"><span class="k">${escapeHtml(m.name)}</span><span class="v" style="color:#7ee2a3">${eur(g)}</span></div>`:""; }).filter(Boolean).join("");
+    gb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0"><div style="font-weight:800;margin-bottom:4px">📈 Généré ${monthLabel(M)} — ${eur(genMonth)}</div>${rows||'<div class="sub2">Aucun cash généré saisi ce mois.</div>'}</div>`;
+  })();
+  // Bloc MARGE (formule call : Revenus − équipe − prestas − logiciels ; puis − ta comm COO)
+  (function(){ const mb=$("margeBox"); if(!mb) return;
+    const coo=COO[M]||{}; const nn=(v,d)=>(v!=null&&v!=="")?Number(v):d;
+    const cCA=nn(coo.ca,encTot), cTeam=nn(coo.team,teamComm), cPresta=nn(coo.presta,prestaTot), cFixe=nn(coo.fixe,2000), cSoft=nn(coo.soft,logiTot);
+    const margeHorsVar=encTot-(teamComm+prestaTot+logiTot);           // marge écosystème, hors ta rému
+    const cMargeVar=cCA-(cTeam+cPresta+cFixe+cSoft), cRate=cooPalier(cCA), cVar=cMargeVar>0?Math.round(cMargeVar*cRate):0;
+    const cooTotal=(coo.force!=null&&coo.force!=="")?Number(coo.force):(cFixe+cVar);
+    const margeNette=margeHorsVar-cooTotal;
+    mb.innerHTML=`<div class="card" style="margin:0;border-color:rgba(212,175,55,.4)">
+      <div class="kv"><span class="k">💵 Revenus (encaissé)</span><span class="v">${eur(encTot)}</span></div>
+      <div class="kv"><span class="k">➖ Commissions équipe · prestas · logiciels</span><span class="v">-${eur(teamComm+prestaTot+logiTot)}</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k"><b>📊 Marge nette (hors ta commission)</b></span><span class="v"><b style="color:#7ee2a3">${eur(margeHorsVar)}</b></span></div>
+      <div class="sub2" style="text-align:right;opacity:.7;margin:-2px 0 4px">${eur(encTot)} − ${eur(teamComm)} équipe − ${eur(prestaTot)} prestas − ${eur(logiTot)} logiciels</div>
+      <div class="kv"><span class="k">➖ Ta commission COO (fixe + variable)</span><span class="v">-${eur(cooTotal)}</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k" style="font-weight:800">✅ Marge nette finale (après ta comm)</span><span class="v grad-text" style="font-weight:800;font-size:16px">${eur(margeNette)}</span></div>
+    </div>`;
+  })();
   // Récap + détail par client du mois
   const nomC=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const encCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
