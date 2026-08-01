@@ -2523,6 +2523,12 @@ function dueInMonth(c,M){
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
 }
 function cooPalier(ca){ if(ca>=100000)return 0.06; if(ca>=50000)return 0.05; if(ca>=25000)return 0.04; return 0.03; }
+function cooGridHtml(ca){ ca=Number(ca)||0;
+  const rows=[["Inférieur à 25 000 €","3 %",ca<25000],["De 25 000 € à moins de 50 000 €","4 %",ca>=25000&&ca<50000],["De 50 000 € à moins de 100 000 €","5 %",ca>=50000&&ca<100000],["Égal ou supérieur à 100 000 €","6 %",ca>=100000]];
+  return `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:6px 0">
+    <div style="display:flex;background:var(--card2);font-size:11.5px;font-weight:700;color:var(--muted)"><div style="flex:1;padding:7px 10px">CA encaissé effectif du mois</div><div style="width:74px;padding:7px 10px;text-align:center">Taux marge</div></div>
+    ${rows.map(r=>`<div style="display:flex;border-top:1px solid var(--line);${r[2]?'background:rgba(52,199,89,.12)':''}"><div style="flex:1;padding:8px 10px;font-size:13px;${r[2]?'font-weight:700;color:#7ee2a3':''}">${r[2]?'➡️ ':''}${r[0]}</div><div style="width:74px;padding:8px 10px;text-align:center;font-size:14px;${r[2]?'font-weight:800;color:#7ee2a3':'font-weight:600'}">${r[1]}</div></div>`).join("")}
+  </div>`; }
 function cooLineRow(x){ x=x||{}; return `<div class="drow cooline" style="display:flex;gap:6px;align-items:center;margin:4px 0"><input class="clLbl" type="text" placeholder="Libellé (charge déductible)" value="${escapeHtml(x.l||'')}" style="flex:1;min-width:0"><input class="clAmt" type="number" inputmode="numeric" placeholder="€" value="${x.a!=null?x.a:''}" style="width:88px" oninput="cooRecalc()"><button type="button" class="xrow" onclick="this.closest('.cooline').remove();cooRecalc()">✕</button></div>`; }
 function addCooLine(){ const c=$("cooLines"); if(c) c.insertAdjacentHTML("beforeend", cooLineRow({})); }
 let _cooAuto=0, _cooTeam=0;
@@ -2538,6 +2544,8 @@ function renderCoo(M, caAuto, teamComm){
       <div><label>Logiciels déductibles (Calendly, Skool…)</label><input type="number" inputmode="numeric" id="coo_soft" value="${coo.soft||''}" placeholder="0" oninput="cooRecalc()"></div>
     </div>
     <div class="kv"><span class="k">CA encaissé effectif</span><span class="v" id="cooCAv"></span></div>
+    <div style="font-size:12px;color:var(--muted);margin:8px 0 2px">📊 Grille des taux (le taux dépend du CA, puis s'applique sur la marge) :</div>
+    <div id="cooGrid">${cooGridHtml(coo.ca!=null&&coo.ca!==""?coo.ca:caAuto)}</div>
     <div class="kv"><span class="k">➖ Commissions équipe (auto)</span><span class="v">-${eur(teamComm)}</span></div>
     <div class="kv"><span class="k">➖ Ta rému fixe COO</span><span class="v">-${eur(2000)}</span></div>
     <div class="kv"><span class="k">➖ Logiciels</span><span class="v" id="cooSoftv"></span></div>
@@ -2561,6 +2569,7 @@ function cooRecalc(){ if(!$("coo_ca")) return;
   const marge=ca-charges, rate=cooPalier(ca), variable=marge>0?Math.round(marge*rate):0, total=fixe+variable;
   const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
   set("cooCAv",eur(ca)); set("cooSoftv","-"+eur(soft)); set("cooMarge",eur(marge)); set("cooRate",Math.round(rate*100)+" %"); set("cooVar",eur(variable)); set("cooTot",eur(total));
+  const g=$("cooGrid"); if(g) g.innerHTML=cooGridHtml(ca); // surligne le palier courant selon le CA saisi
 }
 async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
   const ca=$("coo_ca").value, soft=$("coo_soft").value;
