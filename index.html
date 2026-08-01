@@ -512,6 +512,8 @@
     <div id="finPay"></div>
     <div class="section-title">🧾 Prestataires (hors équipe)</div>
     <div id="prestaCard"></div>
+    <div class="section-title">💻 Logiciels</div>
+    <div id="logiCard"></div>
     <div class="section-title">Encaissements par client × mois</div>
     <div id="finTable"></div>
   </div>
@@ -1228,11 +1230,11 @@ function editoStatus(c){
   const last=editoLastDate(c), ref=last||onb, dd=daysDiff(ref,t), j=(dd==null?999:dd), done=editoDone(c), nb=editoNb(c);
   // 1er calendrier : à envoyer dans les 72h (3 j) après l'onboarding. Ensuite : 1 tous les 15 j.
   if(!last){ if(j<3) return {code:"new", label:`🗓 édito : 1er à envoyer sous 72h de l'onboarding (0/${nb})${noteTxt}`, cl:"#8fb4ff"};
-    return {code:"late", label:`🗓 édito en retard · 1er non envoyé (${j} j depuis l'onboarding, max 72h)${noteTxt}`, cl:"#ffcf7a"}; }
+    return {code:"late", label:`🗓 édito en retard depuis l'onboarding (${dayLabel(onb)}, ${j} j) — 1er jamais envoyé${noteTxt}`, cl:"#ffcf7a"}; }
   const nextIn=15-j; // jours restants avant le prochain (cadence 15 j)
   if(j<10) return {code:"ok", label:`🗓 édito à jour · dernier ${dayLabel(last)} · prochain dans ${nextIn} j (${done}/${nb})${noteTxt}`, cl:"#7ee2a3"};
   if(j<15) return {code:"prevoir", label:`🗓 édito à prévoir · dernier ${dayLabel(last)} il y a ${j} j · prochain sous ${nextIn} j${noteTxt}`, cl:"#ffcf7a"};
-  return {code:"late", label:`🗓 édito en retard · dernier ${dayLabel(last)} il y a ${j} j (${done}/${nb})${noteTxt}`, cl:"var(--red)"};
+  return {code:"late", label:`🗓 édito en retard depuis le ${dayLabel(last)} (${j} j — dépasse 15 j)${noteTxt}`, cl:"var(--red)"};
 }
 function editoExpected(c){ return onbDate(c)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
 function editoLate(c){ return editoStatus(c).code==="late" ? 1 : 0; }
@@ -1302,7 +1304,7 @@ function coachAlertsCard(cs){
   }
   // ---- Carte CALENDRIERS ÉDITO (avec « couvert jusqu'au ») ----
   if(lateEd.length || preEd.length || covEd.length || noDate.length){
-    out+=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 2px">🗓 Calendriers éditoriaux</h2><p class="sub2" style="margin:0 0 4px">Mets une date « couvert jusqu'au » (en 2026) → le client passe en attente.</p>`
+    out+=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 2px">🗓 Calendriers éditoriaux</h2><p class="sub2" style="margin:0 0 4px">Règle : <b>15 reels / 15 jours</b>. Mets une date « couvert jusqu'au » (en 2026) → le client passe en attente.</p>`
       + sec("🔴 En retard","var(--red)",true, lateEd.map(c=>edRow(c,"var(--red)")))
       + sec("🟠 À prévoir","#ffcf7a",false, preEd.map(c=>edRow(c,"#ffcf7a")))
       + sec("🕓 En attente — couvert","#8fb4ff",true, covEd.map(c=>edRow(c,"#8fb4ff")))
@@ -2165,6 +2167,7 @@ async function saveVerifyNote(id){
 let SSTATS={}; // key member|month -> {rdv,closes,posts}
 let COO={};    // key month -> {ca, soft, lines} pour la commission COO de Léa
 let PRESTA={}; // key month -> [ {id,name,amount,cat,note,paid,fileUrl,fileName} ] prestataires hors équipe
+let LOGI={};   // key month -> [ {id,name,amount,note,paid,fileUrl,fileName} ] logiciels (déduits de la marge COO)
 let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
 function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
 function normName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
@@ -2217,7 +2220,7 @@ async function loadFinance(){
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -2383,7 +2386,58 @@ function renderFinance(){
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
   renderFinTable();
   renderPresta(M);
+  renderLogiciel(M);
 }
+/* ===================== LOGICIELS (déduits de la marge COO) ===================== */
+function logiList(M){ return Array.isArray(LOGI[M])?LOGI[M]:[]; }
+function logiTotal(M){ return logiList(M).reduce((a,p)=>a+(Number(p.amount)||0),0); }
+function renderLogiciel(M){
+  const box=$("logiCard"); if(!box) return;
+  const list=logiList(M); const tot=logiTotal(M); const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const rows=list.map(p=>{
+    const viewLink=p.fileUrl ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline;white-space:nowrap">📎 voir la facture</a>` : "";
+    return `<div class="lrow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
+      <div class="payin">
+        <div><input class="lName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du logiciel (Skool, Calendly…)"></div>
+        <div><input class="lAmt" type="number" inputmode="numeric" value="${p.amount!=null?p.amount:""}" placeholder="Montant €"></div>
+      </div>
+      <div class="payin" style="margin-top:6px">
+        <div><input class="lNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
+        <div><input class="lLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Lien facture (Drive…)"></div>
+      </div>
+      ${viewLink?`<div style="margin-top:5px">${viewLink}</div>`:""}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+        <label class="ck" style="margin:0"><input class="lPaid" type="checkbox" ${p.paid?"checked":""}> payé</label>
+        <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;margin-left:auto" onclick="delLogiLine('${M}','${p.id}')">✕ Retirer</button>
+      </div>
+    </div>`;
+  }).join("");
+  box.innerHTML=`<div class="card" style="margin-top:2px">
+    <div class="stat" style="margin:0 0 6px">
+      <div class="box"><div class="n grad-text">${eur(tot)}</div><div class="l">Total logiciels ${monthShort(M)}</div></div>
+      <div class="box"><div class="n" style="color:#7ee2a3">${eur(paid)}</div><div class="l">Déjà payé</div></div>
+      <div class="box"><div class="n" style="color:#ffcf7a">${eur(tot-paid)}</div><div class="l">Reste à payer</div></div>
+    </div>
+    <details class="cdet"><summary>💻 Détail des logiciels (${list.length}) — ${eur(tot)}</summary>
+      <div class="sub2" style="margin:6px 0">Ce total est <b>déduit automatiquement de ta marge COO</b> (plus besoin de le ressaisir).</div>
+      ${rows||'<div class="sub2" style="margin:6px 0">Aucun logiciel ce mois.</div>'}
+      <button type="button" class="addrow" style="margin-top:10px" onclick="addLogiLine('${M}')">+ Ajouter un logiciel</button>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveLogi('${M}')">💾 Enregistrer les logiciels</button>
+      <div class="lgMsg msg" id="lgMsg_${M}"></div>
+    </details>
+  </div>`;
+}
+function gatherLogi(M){ const box=$("logiCard"); const cur=logiList(M);
+  return [...box.querySelectorAll(".lrow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
+    const link=(r.querySelector(".lLink")?r.querySelector(".lLink").value:"").trim();
+    return { id, name:(r.querySelector(".lName").value||"").trim(), amount:Number(r.querySelector(".lAmt").value)||0, note:(r.querySelector(".lNote").value||"").trim(), paid:r.querySelector(".lPaid").checked, fileUrl:link||old.fileUrl||"", fileName:link?(old.fileName||"Facture (lien)"):(old.fileName||"") };
+  }).filter(x=>x.name||x.amount||x.fileUrl); }
+function addLogiLine(M){ const list=logiList(M).slice(); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, note:"", paid:false, fileUrl:"", fileName:""}); LOGI[M]=list; renderLogiciel(M); }
+async function saveLogi(M){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M); LOGI[M]=list; const m=$("lgMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
+  try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Logiciels enregistrés ✓ ("+eur(logiTotal(M))+")";} renderFinance(); }
+  catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
+async function delLogiLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M).filter(x=>x.id!==id); LOGI[M]=list;
+  try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); renderLogiciel(M); }catch(e){ alert("Erreur : "+e.message); } }
 /* ===================== PRESTATAIRES (hors équipe) ===================== */
 let storage=null;
 function initStorage(){ if(storage||!fbReady())return; try{ if(!db)initFirebase(); storage=firebase.storage(); }catch(e){ storage=null; } }
@@ -2573,14 +2627,14 @@ function cooGridHtml(ca){ ca=Number(ca)||0;
   </div>`; }
 function cooLineRow(x){ x=x||{}; return `<div class="drow cooline" style="display:flex;gap:6px;align-items:center;margin:4px 0"><input class="clLbl" type="text" placeholder="Libellé (charge déductible)" value="${escapeHtml(x.l||'')}" style="flex:1;min-width:0"><input class="clAmt" type="number" inputmode="numeric" placeholder="€" value="${x.a!=null?x.a:''}" style="width:88px" oninput="cooRecalc()"><button type="button" class="xrow" onclick="this.closest('.cooline').remove();cooRecalc()">✕</button></div>`; }
 function addCooLine(){ const c=$("cooLines"); if(c) c.insertAdjacentHTML("beforeend", cooLineRow({})); }
-let _cooAuto=0, _cooTeam=0, _cooPresta=0;
+let _cooAuto=0, _cooTeam=0, _cooPresta=0, _cooLogi=0;
 function renderCoo(M, caAuto, teamComm){
   const box=$("cooCard"); if(!box) return;
   if(!isAdmin()){ box.innerHTML=""; return; }
   _cooAuto=caAuto; _cooTeam=teamComm;
   const prestaAuto=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0); _cooPresta=prestaAuto;
+  const logiAuto=logiTotal(M); _cooLogi=logiAuto;
   const coo=COO[M]||{};
-  const lines=Array.isArray(coo.lines)?coo.lines:[];
   const vOr=v=>(v!=null&&v!=="")?v:'';
   box.innerHTML=`<div class="card">
     <label>CA encaissé effectif du mois (à remplir)</label>
@@ -2594,12 +2648,9 @@ function renderCoo(M, caAuto, teamComm){
     </div>
     <div class="payin">
       <div><label>➖ Rému fixe COO</label><input type="number" inputmode="numeric" id="coo_fixe" value="${vOr(coo.fixe)}" placeholder="2000" oninput="cooRecalc()"></div>
-      <div></div>
+      <div><label>➖ Logiciels (auto = section 💻 Logiciels)</label><input type="number" inputmode="numeric" id="coo_soft" value="${vOr(coo.soft)}" placeholder="auto : ${Math.round(logiAuto)}" oninput="cooRecalc()"></div>
     </div>
-    <label style="margin-top:8px">➖ Logiciels & charges déductibles (détail — le total se calcule)</label>
-    <div id="cooLines">${lines.map(cooLineRow).join("")}</div>
-    <button type="button" class="addrow" onclick="addCooLine();cooRecalc()">+ Ajouter un logiciel / une charge</button>
-    <div class="kv"><span class="k">Total logiciels & charges</span><span class="v" id="cooSoftv"></span></div>
+    <div class="sub2" style="opacity:.7">Le total des logiciels vient de la section « 💻 Logiciels » ci-dessus (${eur(logiAuto)}) — modifiable ici si besoin.</div>
     <div class="kv" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><span class="k"><b>📊 Marge du mois</b></span><span class="v"><b id="cooMarge"></b></span></div>
     <div class="sub2" id="cooMargeCalc" style="text-align:right;opacity:.75;margin:-2px 0 4px"></div>
     <div class="kv"><span class="k">Palier appliqué (selon CA)</span><span class="v"><b id="cooRate"></b></span></div>
@@ -2621,7 +2672,7 @@ function cooRecalc(){ if(!$("coo_ca")) return;
   const team=val("coo_team",_cooTeam);
   const presta=val("coo_presta",_cooPresta);
   const fixe=val("coo_fixe",2000);
-  const soft=[...document.querySelectorAll("#cooLines .cooline")].reduce((s,r)=>s+(Number(r.querySelector(".clAmt").value)||0),0);
+  const soft=val("coo_soft",_cooLogi);
   const charges=team+presta+fixe+soft;
   const marge=ca-charges, rate=cooPalier(ca), variable=marge>0?Math.round(marge*rate):0;
   const fIn=$("coo_force")&&$("coo_force").value!==""?(Number($("coo_force").value)||0):null;
@@ -2633,11 +2684,10 @@ function cooRecalc(){ if(!$("coo_ca")) return;
 }
 async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
   const gv=id=>{ const e=$(id); return (e&&e.value!=="")?Number(e.value):null; };
-  const lines=[...document.querySelectorAll("#cooLines .cooline")].map(r=>({l:(r.querySelector(".clLbl").value||"").trim(), a:Number(r.querySelector(".clAmt").value)||0})).filter(x=>x.l||x.a);
   const facture=($("coo_facture")&&$("coo_facture").value.trim())||"";
-  COO[M]={ca:gv("coo_ca"), team:gv("coo_team"), presta:gv("coo_presta"), fixe:gv("coo_fixe"), force:gv("coo_force"), facture, lines};
+  COO[M]={ca:gv("coo_ca"), team:gv("coo_team"), presta:gv("coo_presta"), fixe:gv("coo_fixe"), soft:gv("coo_soft"), force:gv("coo_force"), facture};
   const m=$("cooMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
-  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, force:COO[M].force, facture, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
+  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, soft:COO[M].soft, force:COO[M].force, facture}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
 function renderFinTable(){
