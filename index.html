@@ -2027,11 +2027,13 @@ function payMonthCard(M){
   const enAttente=due.length+late.length+orphans.length;
   return `<div class="card" style="margin-top:14px;border-color:${enAttente?'rgba(255,180,71,.45)':'rgba(52,199,89,.35)'}">
     <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
-    <p class="sub2" style="margin:0 0 10px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okCls.length})</p>
+    <p class="sub2" style="margin:0 0 6px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okCls.length})</p>
+    <details class="cdet"><summary>Voir le détail des paiements</summary>
     ${late.length?`<div class="section-title" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
     ${orphans.length?`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
     ${okCls.length?`<div class="section-title" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length}) — ${eur(totOk)}</div>${okCls.map(okRow).join("")}`:'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>'}
+    </details>
   </div>`;
 }
 async function toggleSched(id,i){
@@ -2291,6 +2293,8 @@ function renderFinance(){
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
+  const prestaTot=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const paiePlusPresta=totalPaie+prestaTot;
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
   const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
@@ -2298,7 +2302,7 @@ function renderFinance(){
     <div class="box" style="cursor:pointer" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)} 🔎</div></div>
     <div class="box"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser</div></div>
     <div class="box"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)}</div></div>
-    <div class="box"><div class="n" style="color:#d39be6">${eur(totalPaie)}</div><div class="l">💸 Paie totale</div></div>`;
+    <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>`;
   // Récap + détail par client du mois
   const nomC=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const encCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
@@ -2413,16 +2417,18 @@ function renderPresta(M){
     </div>`;
   }).join("");
   box.innerHTML=`<div class="card" style="margin-top:2px">
-    <div class="sub2" style="margin-bottom:6px">Tout ce que tu paies <b>hors équipe Écosystème</b> (monteurs, pub, outils…). Séparé des commissions.</div>
-    <div class="stat" style="margin:0 0 8px">
+    <div class="stat" style="margin:0 0 6px">
       <div class="box"><div class="n grad-text">${eur(tot)}</div><div class="l">Total prestas ${monthShort(M)}</div></div>
       <div class="box"><div class="n" style="color:#7ee2a3">${eur(paid)}</div><div class="l">Déjà payé</div></div>
       <div class="box"><div class="n" style="color:#ffcf7a">${eur(tot-paid)}</div><div class="l">Reste à payer</div></div>
     </div>
-    ${rows||'<div class="sub2" style="margin:6px 0">Aucun presta ce mois.</div>'}
-    <button type="button" class="addrow" style="margin-top:10px" onclick="addPrestaLine('${M}')">+ Ajouter un presta</button>
-    <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="savePresta('${M}')">💾 Enregistrer les prestas</button>
-    <div class="prMsg msg" id="prMsg_${M}"></div>
+    <details class="cdet"><summary>🧾 Détail des prestataires (${list.length}) — ${eur(tot)}</summary>
+      <div class="sub2" style="margin:6px 0">Tout ce que tu paies <b>hors équipe Écosystème</b> (monteurs, pub, outils…).</div>
+      ${rows||'<div class="sub2" style="margin:6px 0">Aucun presta ce mois.</div>'}
+      <button type="button" class="addrow" style="margin-top:10px" onclick="addPrestaLine('${M}')">+ Ajouter un presta</button>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="savePresta('${M}')">💾 Enregistrer les prestas</button>
+      <div class="prMsg msg" id="prMsg_${M}"></div>
+    </details>
   </div>`;
 }
 function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=prestaList(M);
@@ -2595,9 +2601,13 @@ function renderCoo(M, caAuto, teamComm){
     <button type="button" class="addrow" onclick="addCooLine();cooRecalc()">+ Ajouter un logiciel / une charge</button>
     <div class="kv"><span class="k">Total logiciels & charges</span><span class="v" id="cooSoftv"></span></div>
     <div class="kv" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><span class="k"><b>📊 Marge du mois</b></span><span class="v"><b id="cooMarge"></b></span></div>
+    <div class="sub2" id="cooMargeCalc" style="text-align:right;opacity:.75;margin:-2px 0 4px"></div>
     <div class="kv"><span class="k">Palier appliqué (selon CA)</span><span class="v"><b id="cooRate"></b></span></div>
     <div class="kv"><span class="k">Rému variable (taux × marge)</span><span class="v" style="color:#7ee2a3" id="cooVar"></span></div>
     <div class="payin" style="margin-top:6px"><div><label>💰 Forcer le total à te verser (optionnel)</label><input type="number" inputmode="numeric" id="coo_force" value="${vOr(coo.force)}" placeholder="auto" oninput="cooRecalc()"></div><div></div></div>
+    <label style="margin-top:8px">🔗 Lien de ta facture COO</label>
+    <input type="url" id="coo_facture" value="${escapeHtml(coo.facture||'')}" placeholder="Colle le lien de ta facture (Drive…) puis Enregistre">
+    ${coo.facture?`<div style="margin-top:4px"><a href="${escapeHtml(coo.facture)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 voir ta facture COO</a></div>`:""}
     <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">💰 Total à te verser</span><span class="v grad-text" style="font-weight:800;font-size:16px" id="cooTot"></span></div>
     <button class="btn ghost sm" style="margin-top:10px" onclick="saveCoo('${M}')">💾 Enregistrer ${M}</button>
     <div id="cooMsg" class="msg"></div>
@@ -2618,14 +2628,16 @@ function cooRecalc(){ if(!$("coo_ca")) return;
   const total=fIn!=null?fIn:fixe+variable;
   const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
   set("cooSoftv","-"+eur(soft)); set("cooMarge",eur(marge)); set("cooRate",Math.round(rate*100)+" %"); set("cooVar",eur(variable)); set("cooTot",eur(total)+(fIn!=null?" (forcé)":""));
+  set("cooMargeCalc", `${eur(ca)} − ${eur(team)} équipe − ${eur(presta)} prestas − ${eur(fixe)} fixe − ${eur(soft)} logiciels`);
   const g=$("cooGrid"); if(g) g.innerHTML=cooGridHtml(ca);
 }
 async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
   const gv=id=>{ const e=$(id); return (e&&e.value!=="")?Number(e.value):null; };
   const lines=[...document.querySelectorAll("#cooLines .cooline")].map(r=>({l:(r.querySelector(".clLbl").value||"").trim(), a:Number(r.querySelector(".clAmt").value)||0})).filter(x=>x.l||x.a);
-  COO[M]={ca:gv("coo_ca"), team:gv("coo_team"), presta:gv("coo_presta"), fixe:gv("coo_fixe"), force:gv("coo_force"), lines};
+  const facture=($("coo_facture")&&$("coo_facture").value.trim())||"";
+  COO[M]={ca:gv("coo_ca"), team:gv("coo_team"), presta:gv("coo_presta"), fixe:gv("coo_fixe"), force:gv("coo_force"), facture, lines};
   const m=$("cooMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
-  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, force:COO[M].force, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
+  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, force:COO[M].force, facture, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
 function renderFinTable(){
