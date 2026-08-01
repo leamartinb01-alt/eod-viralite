@@ -1280,14 +1280,15 @@ function coachAlertsCard(cs){
   const covEd=cs.filter(c=>editoStatus(c).code==="covered");
   const noDate=cs.filter(c=>!onbDate(c));
   if(!lateCalls.length && !relCalls.length && !lateEd.length && !preEd.length && !covEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
-  const row=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="$('cgSearch').value='${nom(c).replace(/'/g,'')}';renderCoachingTab()"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
-  let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 6px">🚨 Clients à relancer (calls)</h2>`;
-  if(lateCalls.length) h+=`<div class="section-title" style="margin:6px 2px 2px;color:var(--red)">❌ Calls en retard (${lateCalls.length})</div>`+lateCalls.map(c=>callRow(c,"var(--red)")).join("");
-  if(relCalls.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🟠 Calls à relancer bientôt (${relCalls.length})</div>`+relCalls.map(c=>callRow(c,"#ffcf7a")).join("");
-  if(lateEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:var(--red)">🗓 Édito en retard (${lateEd.length})</div>`+lateEd.map(c=>edRow(c,"var(--red)")).join("");
-  if(preEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">🗓 Édito à prévoir (${preEd.length})</div>`+preEd.map(c=>edRow(c,"#ffcf7a")).join("");
-  if(covEd.length) h+=`<div class="section-title" style="margin:10px 2px 2px;color:#8fb4ff">🕓 Édito en attente — couvert (${covEd.length})</div>`+covEd.map(c=>edRow(c,"#8fb4ff")).join("");
-  if(noDate.length) h+=`<div class="section-title" style="margin:10px 2px 2px">📅 Date d'onboarding manquante (${noDate.length})</div>`+noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`).join("");
+  // Chaque partie est repliable (déplier/replier) — les urgences (retard) ouvertes par défaut, le reste fermé
+  const sec=(title,color,open,rows)=>rows.length?`<details class="cdet" ${open?'open':''} style="margin-top:8px"><summary style="color:${color};font-weight:700">${title} (${rows.length})</summary><div style="margin-top:4px">${rows.map(x=>x).join("")}</div></details>`:"";
+  let h=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 4px">🚨 Relances</h2><p class="sub2" style="margin:0 0 4px">Clique sur une section pour la déplier.</p>`;
+  h+=sec("❌ Calls en retard","var(--red)",true, lateCalls.map(c=>callRow(c,"var(--red)")));
+  h+=sec("🟠 Calls à relancer bientôt","#ffcf7a",true, relCalls.map(c=>callRow(c,"#ffcf7a")));
+  h+=sec("🗓 Édito en retard","var(--red)",true, lateEd.map(c=>edRow(c,"var(--red)")));
+  h+=sec("🗓 Édito à prévoir","#ffcf7a",false, preEd.map(c=>edRow(c,"#ffcf7a")));
+  h+=sec("🕓 Édito en attente — couvert","#8fb4ff",false, covEd.map(c=>edRow(c,"#8fb4ff")));
+  h+=sec("📅 Date d'onboarding manquante","var(--muted)",false, noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne sa date d'onboarding</span></div>`));
   return h+`</div>`;
 }
 function clientLevel(done){ done=Number(done)||0;
@@ -2329,11 +2330,16 @@ function renderFinance(){
         <button type="button" class="btn ghost sm" style="margin-top:6px" onclick="resetDetail('${p.m}')">↺ Revenir au calcul auto</button>
       </div>
     </div>`;
-    const editor=`${act}${mlHtml}<div class="payin"><div><label>Commission à verser (€)</label><input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}"></div></div>
+    const ovBlock=`<div style="background:var(--card2);border:1px solid var(--gold);border-radius:12px;padding:12px;margin:0 0 12px">
+      <label style="margin:0 0 4px;font-size:13px;color:var(--txt);font-weight:700">💶 Montant à verser à ${escapeHtml(p.m)} — modifiable</label>
+      <input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}" style="font-size:18px;font-weight:700">
+      <div class="hint" style="margin-top:4px">Tape le montant que tu veux (il remplace le calcul auto). Laisse vide = auto (${eur(p.amount)}). Puis « 💾 Enregistrer » en bas.</div>
+    </div>`;
+    const editor=`${act}${mlHtml}
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
       <textarea id="st_${p.m}_note" rows="2" placeholder="Ex : prime, avance, ajustement…" style="width:100%;margin-top:4px">${escapeHtml(noteVal)}</textarea>
-      <div class="hint">Laisse le montant vide = calcul auto. Mets ta valeur pour la garder. Tout est enregistré <b>par mois</b>.</div>
-      <button class="btn ghost sm" style="margin-top:10px" onclick="saveStat('${p.m}')">💾 Enregistrer ${p.m}</button>`;
+      <div class="hint">Le montant en haut prime sur le calcul auto. Tout est enregistré <b>par mois</b>.</div>
+      <button class="btn" style="margin-top:10px" onclick="saveStat('${p.m}')">💾 Enregistrer ${escapeHtml(p.m)}</button>`;
     const adj=(ov(p.m)!=null)?' · ajusté ✎':'';
     return `<details class="clcard paycard">
       <summary>
@@ -2343,7 +2349,7 @@ function renderFinance(){
         <span class="chev">▸</span>
       </summary>
       <div class="clbody">
-      ${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${primeNote(p.role, p.caEnc||0)}${editor}
+      ${ovBlock}${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${primeNote(p.role, p.caEnc||0)}${editor}
       </div>
     </details>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
