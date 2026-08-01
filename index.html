@@ -1263,16 +1263,26 @@ async function seedCoachDates(){
   renderCoachingTab();
   alert(n+" client(s) mis à jour."+(miss.length?" Non trouvés : "+miss.join(", "):""));
 }
-// Action rapide depuis les relances : renseigner « couvert jusqu'au » → le client sort du retard et passe en attente
+// « Couvert jusqu'au » : on choisit la date dans le calendrier PUIS on valide (pas d'auto-save capricieux)
 async function quickEditoCover(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
   try{ await db.collection("clients").doc(id).update({edito_until:val||""}); c.edito_until=val||""; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
+async function applyCover(id){ const el=$("cov_"+id); const val=el&&el.value?el.value:""; if(!val){ alert("Choisis d'abord une date dans le calendrier, puis clique Valider."); return; } if(val<todayStr()){ if(!confirm("Cette date est déjà passée → le client restera en retard. Continuer quand même ?")) return; } await quickEditoCover(id,val); }
+async function clearCover(id){ await quickEditoCover(id,""); }
 function coachAlertsCard(cs){
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const st=c=>coachCallStatus(c);
   // Calls = info seulement (se mettent à jour quand Romain pointe un coaching)
   const callRow=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
   // Édito = statut + champ « couvert jusqu'au » (le remplir fait passer le client en attente)
-  const edRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:6px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:55%">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div><div style="margin-top:5px"><label class="sub2" style="display:flex;align-items:center;gap:4px;margin:0">📦 couvert jusqu'au<input type="date" style="width:auto;padding:4px 7px;font-size:12px" value="${escapeHtml(c.edito_until||'')}" onchange="quickEditoCover('${c.id}',this.value)"></label></div></div>`;
+  const edRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:8px 0">
+    <div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:52%">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <span class="sub2">📦 Couvert jusqu'au</span>
+      <input type="date" id="cov_${c.id}" value="${escapeHtml(c.edito_until||'')}" min="${todayStr()}" style="width:auto;padding:5px 8px;font-size:13px">
+      <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px" onclick="applyCover('${c.id}')">✓ Valider</button>
+      ${c.edito_until?`<button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 8px;font-size:12px" onclick="clearCover('${c.id}')">✕ retirer</button>`:''}
+    </div>
+  </div>`;
   const lateCalls=cs.filter(c=>st(c).code==="late").sort((a,b)=>(daysDiff(coachLastDate(b)||onbDate(b),todayStr())||999)-(daysDiff(coachLastDate(a)||onbDate(a),todayStr())||999));
   const relCalls=cs.filter(c=>st(c).code==="relance");
   const lateEd=cs.filter(c=>editoStatus(c).code==="late");
