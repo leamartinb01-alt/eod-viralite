@@ -2355,7 +2355,11 @@ function renderFinance(){
       <input type="number" inputmode="numeric" id="st_${p.m}_override" value="${ovVal}" placeholder="auto : ${Math.round(p.amount)}" style="font-size:18px;font-weight:700">
       <div class="hint" style="margin-top:4px">Tape le montant que tu veux (il remplace le calcul auto). Laisse vide = auto (${eur(p.amount)}). Puis « 💾 Enregistrer » en bas.</div>
     </div>`;
+    const factVal=statOf(p.m,M).facture||"";
     const editor=`${act}${mlHtml}
+      <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">🔗 Lien de la facture (Drive, mail…)</label>
+      <input type="url" id="st_${p.m}_facture" value="${escapeHtml(factVal)}" placeholder="Colle le lien de sa facture puis Enregistre" style="width:100%;margin-top:4px">
+      ${factVal?`<div style="margin-top:4px"><a href="${escapeHtml(factVal)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 voir la facture de ${escapeHtml(p.m)}</a></div>`:""}
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
       <textarea id="st_${p.m}_note" rows="2" placeholder="Ex : prime, avance, ajustement…" style="width:100%;margin-top:4px">${escapeHtml(noteVal)}</textarea>
       <div class="hint">Le montant en haut prime sur le calcul auto. Tout est enregistré <b>par mois</b>.</div>
@@ -2518,12 +2522,13 @@ async function saveSetterCalls(M,setter){
 async function saveStat(name){
   const M=$("finMonth").value||monthStr();
   const obj={member:name, month:M};
-  const r=$("st_"+name+"_rdv"), cl=$("st_"+name+"_closes"), po=$("st_"+name+"_posts"), ovEl=$("st_"+name+"_override"), noteEl=$("st_"+name+"_note");
+  const r=$("st_"+name+"_rdv"), cl=$("st_"+name+"_closes"), po=$("st_"+name+"_posts"), ovEl=$("st_"+name+"_override"), noteEl=$("st_"+name+"_note"), factEl=$("st_"+name+"_facture");
   if(r) obj.rdv = r.value===""?null:Number(r.value);
   if(cl) obj.closes=Number(cl.value)||0;
   if(po) obj.posts=Number(po.value)||0;
   if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
   if(noteEl) obj.note = noteEl.value.trim();
+  if(factEl) obj.facture = factEl.value.trim();
   const mlBox=document.getElementById("ml_"+name);
   if(mlBox && mlBox.dataset.on==="1"){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(r=>({l:(r.querySelector(".mlLabel").value||"").trim(), a:Number(r.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
   try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
