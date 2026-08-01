@@ -2221,6 +2221,8 @@ async function loadFinance(){
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  // Récupère les anciens logiciels saisis dans la carte COO (coo.lines) → section Logiciels, si pas encore de section pour ce mois
+  Object.keys(COO).forEach(mo=>{ const old=COO[mo]&&COO[mo].lines; if(Array.isArray(old)&&old.length && !(LOGI[mo]&&LOGI[mo].length)){ LOGI[mo]=old.map((l,i)=>({id:"g"+mo.replace(/-/g,"")+i, name:l.l||l.name||"", amount:Number(l.a!=null?l.a:l.amount)||0})); } });
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -2393,46 +2395,28 @@ function logiList(M){ return Array.isArray(LOGI[M])?LOGI[M]:[]; }
 function logiTotal(M){ return logiList(M).reduce((a,p)=>a+(Number(p.amount)||0),0); }
 function renderLogiciel(M){
   const box=$("logiCard"); if(!box) return;
-  const list=logiList(M); const tot=logiTotal(M); const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
-  const rows=list.map(p=>{
-    const viewLink=p.fileUrl ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline;white-space:nowrap">📎 voir la facture</a>` : "";
-    return `<div class="lrow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
-      <div class="payin">
-        <div><input class="lName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du logiciel (Skool, Calendly…)"></div>
-        <div><input class="lAmt" type="number" inputmode="numeric" value="${p.amount!=null?p.amount:""}" placeholder="Montant €"></div>
-      </div>
-      <div class="payin" style="margin-top:6px">
-        <div><input class="lNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
-        <div><input class="lLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Lien facture (Drive…)"></div>
-      </div>
-      ${viewLink?`<div style="margin-top:5px">${viewLink}</div>`:""}
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
-        <label class="ck" style="margin:0"><input class="lPaid" type="checkbox" ${p.paid?"checked":""}> payé</label>
-        <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;margin-left:auto" onclick="delLogiLine('${M}','${p.id}')">✕ Retirer</button>
-      </div>
-    </div>`;
-  }).join("");
+  const list=logiList(M); const tot=logiTotal(M);
+  const rows=list.map(p=>`<div class="lrow" data-id="${p.id}" style="display:flex;gap:6px;align-items:center;margin:4px 0">
+      <input class="lName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du logiciel (Skool, Calendly…)" style="flex:1;min-width:0">
+      <input class="lAmt" type="number" inputmode="numeric" value="${p.amount!=null?p.amount:""}" placeholder="€" style="width:92px">
+      <button type="button" class="xrow" onclick="delLogiLine('${M}','${p.id}')">✕</button>
+    </div>`).join("");
   box.innerHTML=`<div class="card" style="margin-top:2px">
-    <div class="stat" style="margin:0 0 6px">
-      <div class="box"><div class="n grad-text">${eur(tot)}</div><div class="l">Total logiciels ${monthShort(M)}</div></div>
-      <div class="box"><div class="n" style="color:#7ee2a3">${eur(paid)}</div><div class="l">Déjà payé</div></div>
-      <div class="box"><div class="n" style="color:#ffcf7a">${eur(tot-paid)}</div><div class="l">Reste à payer</div></div>
-    </div>
+    <div class="stat" style="margin:0 0 6px"><div class="box"><div class="n grad-text">${eur(tot)}</div><div class="l">Total logiciels ${monthShort(M)}</div></div></div>
     <details class="cdet"><summary>💻 Détail des logiciels (${list.length}) — ${eur(tot)}</summary>
-      <div class="sub2" style="margin:6px 0">Ce total est <b>déduit automatiquement de ta marge COO</b> (plus besoin de le ressaisir).</div>
-      ${rows||'<div class="sub2" style="margin:6px 0">Aucun logiciel ce mois.</div>'}
-      <button type="button" class="addrow" style="margin-top:10px" onclick="addLogiLine('${M}')">+ Ajouter un logiciel</button>
+      <div class="sub2" style="margin:6px 0">Juste le nom + le montant (les montants viennent de tes comptes Wio). Ce total est <b>déduit automatiquement de ta marge COO</b>.</div>
+      ${rows}
+      <button type="button" class="addrow" style="margin-top:8px" onclick="addLogiLine('${M}')">+ Ajouter un logiciel</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveLogi('${M}')">💾 Enregistrer les logiciels</button>
       <div class="lgMsg msg" id="lgMsg_${M}"></div>
     </details>
   </div>`;
 }
-function gatherLogi(M){ const box=$("logiCard"); const cur=logiList(M);
-  return [...box.querySelectorAll(".lrow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
-    const link=(r.querySelector(".lLink")?r.querySelector(".lLink").value:"").trim();
-    return { id, name:(r.querySelector(".lName").value||"").trim(), amount:Number(r.querySelector(".lAmt").value)||0, note:(r.querySelector(".lNote").value||"").trim(), paid:r.querySelector(".lPaid").checked, fileUrl:link||old.fileUrl||"", fileName:link?(old.fileName||"Facture (lien)"):(old.fileName||"") };
-  }).filter(x=>x.name||x.amount||x.fileUrl); }
-function addLogiLine(M){ const list=logiList(M).slice(); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, note:"", paid:false, fileUrl:"", fileName:""}); LOGI[M]=list; renderLogiciel(M); }
+function gatherLogi(M){ const box=$("logiCard");
+  return [...box.querySelectorAll(".lrow")].map(r=>{ const id=r.getAttribute("data-id");
+    return { id, name:(r.querySelector(".lName").value||"").trim(), amount:Number(r.querySelector(".lAmt").value)||0 };
+  }).filter(x=>x.name||x.amount); }
+function addLogiLine(M){ const list=logiList(M).slice(); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0}); LOGI[M]=list; renderLogiciel(M); }
 async function saveLogi(M){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M); LOGI[M]=list; const m=$("lgMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Logiciels enregistrés ✓ ("+eur(logiTotal(M))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
