@@ -7,6 +7,7 @@
 <title>Écosystème Viral · Pilotage</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <style>
   :root{
     --bg:#0b0b0e; --txt:#f4f2ee; --muted:#9a98a4; --faint:#6c6a76;
@@ -509,6 +510,8 @@
     <div id="cooCard"></div>
     <div class="section-title">Fiches de paie du mois</div>
     <div id="finPay"></div>
+    <div class="section-title">🧾 Prestataires (hors équipe)</div>
+    <div id="prestaCard"></div>
     <div class="section-title">Encaissements par client × mois</div>
     <div id="finTable"></div>
   </div>
@@ -1380,7 +1383,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()}));
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1604,7 +1607,7 @@ async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
   initFirebase();
-  if(!CLIENTS.length){ try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} // recharge TOUJOURS (comme les autres onglets) → jamais de client périmé
   if(!Array.isArray(SETTINGS.immersives)){ // migration de l'ancien format (1 seule journée + cases fiche)
     const old=SETTINGS.immersive; const seed=CLIENTS.filter(c=>c.immersive_participe).map(c=>c.id);
     SETTINGS.immersives = ((old&&(old.date||old.lieu))||seed.length) ? [{id:immUid(), date:(old&&old.date)||"", lieu:(old&&old.lieu)||"", clients:seed}] : [];
@@ -2131,13 +2134,14 @@ async function saveVerifyNote(id){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   const el=$("vn_"+id); const note=el?el.value.trim():"";
-  try{ await db.collection("clients").doc(id).update({verified_note:note}); c.verified_note=note; alert("Note enregistrée ✓"); }
+  try{ await db.collection("clients").doc(id).update({verified_note:note}); c.verified_note=note; renderClients(); alert("Note enregistrée ✓"); }
   catch(e){ alert("Erreur : "+e.message); }
 }
 
 /* ===================== FINANCE & PAIE ===================== */
 let SSTATS={}; // key member|month -> {rdv,closes,posts}
 let COO={};    // key month -> {ca, soft, lines} pour la commission COO de Léa
+let PRESTA={}; // key month -> [ {id,name,amount,cat,note,paid,fileUrl,fileName} ] prestataires hors équipe
 let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
 function statOf(member,month){ return SSTATS[member+"|"+month]||{}; }
 function normName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
@@ -2190,7 +2194,7 @@ async function loadFinance(){
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   renderFinance();
 }
 function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
@@ -2344,6 +2348,76 @@ function renderFinance(){
     </details>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
   renderFinTable();
+  renderPresta(M);
+}
+/* ===================== PRESTATAIRES (hors équipe) ===================== */
+let storage=null;
+function initStorage(){ if(storage||!fbReady())return; try{ if(!db)initFirebase(); storage=firebase.storage(); }catch(e){ storage=null; } }
+const PRESTA_CATS=["🎬 Montage","📣 Publicité","🛠 Outil / logiciel","✍️ Rédaction / contenu","🎨 Design","💼 Autre"];
+function prestaList(M){ return Array.isArray(PRESTA[M])?PRESTA[M]:[]; }
+function renderPresta(M){
+  const box=$("prestaCard"); if(!box) return;
+  const list=prestaList(M);
+  const tot=list.reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const rows=list.map(p=>{
+    const catOpts=PRESTA_CATS.map(o=>`<option ${o===p.cat?"selected":""}>${o}</option>`).join("");
+    const file=p.fileUrl
+      ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 ${escapeHtml(p.fileName||"facture")}</a>`
+      : `<label class="sub2" style="cursor:pointer;text-decoration:underline">📎 Ajouter la facture<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>`;
+    return `<div class="prow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
+      <div class="payin">
+        <div><input class="pName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du presta"></div>
+        <div><input class="pAmt" type="number" inputmode="numeric" value="${p.amount!=null?p.amount:""}" placeholder="Montant €"></div>
+      </div>
+      <div class="payin" style="margin-top:6px">
+        <div><select class="pCat">${catOpts}</select></div>
+        <div><input class="pNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
+        <label class="ck" style="margin:0"><input class="pPaid" type="checkbox" ${p.paid?"checked":""}> payé</label>
+        <span>${file}</span>
+        <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;margin-left:auto" onclick="delPrestaLine('${M}','${p.id}')">✕ Retirer</button>
+      </div>
+    </div>`;
+  }).join("");
+  box.innerHTML=`<div class="card" style="margin-top:2px">
+    <div class="sub2" style="margin-bottom:6px">Tout ce que tu paies <b>hors équipe Écosystème</b> (monteurs, pub, outils…). Séparé des commissions.</div>
+    <div class="stat" style="margin:0 0 8px">
+      <div class="box"><div class="n grad-text">${eur(tot)}</div><div class="l">Total prestas ${monthShort(M)}</div></div>
+      <div class="box"><div class="n" style="color:#7ee2a3">${eur(paid)}</div><div class="l">Déjà payé</div></div>
+      <div class="box"><div class="n" style="color:#ffcf7a">${eur(tot-paid)}</div><div class="l">Reste à payer</div></div>
+    </div>
+    ${rows||'<div class="sub2" style="margin:6px 0">Aucun presta ce mois.</div>'}
+    <button type="button" class="addrow" style="margin-top:10px" onclick="addPrestaLine('${M}')">+ Ajouter un presta</button>
+    <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="savePresta('${M}')">💾 Enregistrer les prestas</button>
+    <div class="prMsg msg" id="prMsg_${M}"></div>
+  </div>`;
+}
+function gatherPresta(M){ const box=$("prestaCard"); const cur=prestaList(M);
+  return [...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
+    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl:old.fileUrl||"", fileName:old.fileName||"" };
+  }).filter(x=>x.name||x.amount); }
+function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
+  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderPresta(M); }
+  catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
+async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M).filter(x=>x.id!==id); PRESTA[M]=list;
+  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderPresta(M); }catch(e){ alert("Erreur : "+e.message); } }
+async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
+  const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
+  initStorage(); if(!storage){ setMsg("Stockage Firebase non activé — active Firebase Storage (voir note).","err"); return; }
+  // on sauvegarde d'abord la ligne (pour ne pas perdre les saisies), puis on uploade
+  const list=gatherPresta(M); PRESTA[M]=list;
+  setMsg("Envoi de la facture…");
+  try{
+    const ref=storage.ref("prestas/"+M+"/"+id+"_"+f.name.replace(/[^\w.\-]/g,"_"));
+    await ref.put(f); const url=await ref.getDownloadURL();
+    const l=(PRESTA[M]||[]).map(x=> x.id===id ? {...x, fileUrl:url, fileName:f.name} : x);
+    PRESTA[M]=l;
+    await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list:l});
+    setMsg("Facture ajoutée ✓","ok"); renderPresta(M);
+  }catch(e){ setMsg("Erreur upload : "+e.message,"err"); }
 }
 function ctRow(c){
   const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
@@ -2493,7 +2567,7 @@ async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); retur
   const lines=[...document.querySelectorAll("#cooLines .cooline")].map(r=>({l:(r.querySelector(".clLbl").value||"").trim(), a:Number(r.querySelector(".clAmt").value)||0})).filter(x=>x.l||x.a);
   COO[M]={ca: ca===""?null:Number(ca), soft:Number(soft)||0, lines};
   const m=$("cooMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
-  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, soft:COO[M].soft, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } }
+  try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, soft:COO[M].soft, lines:COO[M].lines}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
 function renderFinTable(){
