@@ -2388,9 +2388,7 @@ function renderPresta(M){
   const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const rows=list.map(p=>{
     const catOpts=PRESTA_CATS.map(o=>`<option ${o===p.cat?"selected":""}>${o}</option>`).join("");
-    const file=p.fileUrl
-      ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 ${escapeHtml(p.fileName||"facture")}</a>`
-      : `<label class="sub2" style="cursor:pointer;text-decoration:underline">📎 Ajouter la facture<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>`;
+    const viewLink=p.fileUrl ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline;white-space:nowrap">📎 voir la facture</a>` : "";
     return `<div class="prow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
       <div class="payin">
         <div><input class="pName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du presta"></div>
@@ -2400,9 +2398,15 @@ function renderPresta(M){
         <div><select class="pCat">${catOpts}</select></div>
         <div><input class="pNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
       </div>
+      <div style="margin-top:6px">
+        <input class="pLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Lien de la facture (Drive, mail…) — le + fiable">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:5px">
+          <label class="sub2" style="cursor:pointer;text-decoration:underline;white-space:nowrap">📎 ou uploader un fichier<input type="file" accept="application/pdf,image/*" style="display:none" onchange="uploadPrestaFile('${M}','${p.id}',this)"></label>
+          ${viewLink}
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
         <label class="ck" style="margin:0"><input class="pPaid" type="checkbox" ${p.paid?"checked":""}> payé</label>
-        <span>${file}</span>
         <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;margin-left:auto" onclick="delPrestaLine('${M}','${p.id}')">✕ Retirer</button>
       </div>
     </div>`;
@@ -2420,10 +2424,14 @@ function renderPresta(M){
     <div class="prMsg msg" id="prMsg_${M}"></div>
   </div>`;
 }
-function gatherPresta(M){ const box=$("prestaCard"); const cur=prestaList(M);
-  return [...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
-    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl:old.fileUrl||"", fileName:old.fileName||"" };
-  }).filter(x=>x.name||x.amount); }
+function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=prestaList(M);
+  const arr=[...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
+    const link=(r.querySelector(".pLink")?r.querySelector(".pLink").value:"").trim();
+    const fileUrl = link || old.fileUrl || "";                       // lien collé OU URL uploadée
+    const fileName = link ? (old.fileName||"Facture (lien)") : (old.fileName||"");
+    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl, fileName };
+  });
+  return keepEmpty ? arr : arr.filter(x=>x.name||x.amount||x.fileUrl); }
 function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderPresta(M); }
@@ -2432,9 +2440,9 @@ async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const 
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderPresta(M); }catch(e){ alert("Erreur : "+e.message); } }
 async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
   const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  initStorage(); if(!storage){ setMsg("Stockage Firebase non activé — active Firebase Storage (voir note).","err"); return; }
-  // on sauvegarde d'abord la ligne (pour ne pas perdre les saisies), puis on uploade
-  const list=gatherPresta(M); PRESTA[M]=list;
+  initStorage(); if(!storage){ setMsg("⚠️ L'upload de fichier nécessite Firebase Storage (pas encore activé). En attendant, colle simplement le LIEN de la facture dans le champ 🔗 juste au-dessus — ça marche tout de suite.","err"); return; }
+  // on garde TOUTES les lignes (même vides) pour ne pas perdre celle qui reçoit la facture
+  const list=gatherPresta(M, true); PRESTA[M]=list;
   setMsg("Envoi de la facture…");
   try{
     const ref=storage.ref("prestas/"+M+"/"+id+"_"+f.name.replace(/[^\w.\-]/g,"_"));
