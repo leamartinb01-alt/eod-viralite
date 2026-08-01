@@ -2423,10 +2423,11 @@ function renderPresta(M){
     <div class="prMsg msg" id="prMsg_${M}"></div>
   </div>`;
 }
-function gatherPresta(M){ const box=$("prestaCard"); const cur=prestaList(M);
-  return [...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
+function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=prestaList(M);
+  const arr=[...box.querySelectorAll(".prow")].map(r=>{ const id=r.getAttribute("data-id"); const old=cur.find(x=>x.id===id)||{};
     return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl:old.fileUrl||"", fileDoc:old.fileDoc||"", fileName:old.fileName||"" };
-  }).filter(x=>x.name||x.amount); }
+  });
+  return keepEmpty ? arr : arr.filter(x=>x.name||x.amount||x.fileDoc||x.fileUrl); }
 function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileDoc:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderPresta(M); }
@@ -2436,8 +2437,8 @@ async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const 
 async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
   const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
   if(!fbReady())return; initFirebase();
-  // on sauvegarde d'abord la ligne (pour ne pas perdre les saisies)
-  const list=gatherPresta(M); PRESTA[M]=list;
+  // on garde TOUTES les lignes (même vides) pour ne pas perdre celle qui reçoit la facture
+  const list=gatherPresta(M, true); PRESTA[M]=list;
   setMsg("Envoi de la facture…");
   try{
     const dataUrl=await prestaFileToDataUrl(f);
