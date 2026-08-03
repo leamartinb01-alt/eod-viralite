@@ -1441,7 +1441,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()}));
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1917,7 +1917,7 @@ function renderInsights(selM, doneSet){
   const byCloser={};
   CONFIG.TEAM.filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>x.member===m.name && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
   const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
-  if(top && top[1]>0) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
+  if(top && top[1]>0 && canSeeMoney()) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
   let best=null; CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
   if(best) ins.push(["🔥",`Plus longue série : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
   const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
@@ -1936,7 +1936,7 @@ function openMember(name){
   const m=member(name), selM=$("teamMonth").value||monthStr();
   const list=EODS.filter(x=>x.member===name);
   const month=list.filter(x=>(x.report_date||"").slice(0,7)===selM);
-  const metrics=SUIVI[m.role]||SUIVI.setter;
+  const metrics=(SUIVI[m.role]||SUIVI.setter).filter(mt=>!mt.money||canSeeMoney()); // cash = admin only
   let stats=metrics.map(mt=>{
     let val;
     if(mt.agg==="last"){ val=lastMonthVal(month,mt.key); }
@@ -2371,7 +2371,7 @@ function renderFinance(){
       if(c.setter==="Lucas") lucasCA+=e;
       const mt=Number(c.montant)||e; coachTot += C.coachPerClient*(e/mt); nbCoachClients++;
     }
-    (c.schedule||[]).forEach(s=>{ if(s.month===M && !s.paid) dueTot+=Number(s.amount)||0; });
+    dueTot += dueInMonth(c,M); // garde « client déjà entièrement encaissé » → pas de faux reste à encaisser
   });
   // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
   let newCash=0, recCash=0;
@@ -2556,11 +2556,12 @@ function renderLogiciel(M){
     </details>
   </div>`;
 }
-function gatherLogi(M){ const box=$("logiCard");
-  return [...box.querySelectorAll(".lrow")].map(r=>{ const id=r.getAttribute("data-id");
+function gatherLogi(M, keepEmpty){ const box=$("logiCard"); if(!box) return logiList(M).slice();
+  const arr=[...box.querySelectorAll(".lrow")].map(r=>{ const id=r.getAttribute("data-id");
     return { id, name:(r.querySelector(".lName").value||"").trim(), amount:Number(r.querySelector(".lAmt").value)||0 };
-  }).filter(x=>x.name||x.amount); }
-function addLogiLine(M){ const list=logiList(M).slice(); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0}); LOGI[M]=list; renderLogiciel(M); }
+  });
+  return keepEmpty ? arr : arr.filter(x=>x.name||x.amount); }
+function addLogiLine(M){ const list=gatherLogi(M,true); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0}); LOGI[M]=list; renderLogiciel(M); }
 async function saveLogi(M){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M); LOGI[M]=list; const m=$("lgMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Logiciels enregistrés ✓ ("+eur(logiTotal(M))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
@@ -2621,12 +2622,12 @@ function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=presta
     return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl, fileName };
   });
   return keepEmpty ? arr : arr.filter(x=>x.name||x.amount||x.fileUrl); }
-function addPrestaLine(M){ const list=prestaList(M).slice(); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+function addPrestaLine(M){ const list=gatherPresta(M,true); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
-  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderPresta(M); }
+  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
-async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M).filter(x=>x.id!==id); PRESTA[M]=list;
-  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderPresta(M); }catch(e){ alert("Erreur : "+e.message); } }
+async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M,true).filter(x=>x.id!==id); PRESTA[M]=list;
+  try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderFinance(); }catch(e){ alert("Erreur : "+e.message); } }
 async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
   const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
   initStorage(); if(!storage){ setMsg("⚠️ L'upload de fichier nécessite Firebase Storage (pas encore activé). En attendant, colle simplement le LIEN de la facture dans le champ 🔗 juste au-dessus — ça marche tout de suite.","err"); return; }
