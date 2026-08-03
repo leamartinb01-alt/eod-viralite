@@ -1815,10 +1815,19 @@ function closeMonth(c){
   if(dd&&cr) return dd<cr?dd:cr;
   return dd||cr||baseMonth(c);
 }
+// Même prospect ? gère les noms écrits différemment : « Lauranne B » = « Lauranne Bondoerffer »
+// (même prénom + le reste du nom de l'un commence par le reste de l'autre), en plus du match exact (ordre/accents insensibles).
+function sameProspect(a,b){
+  const ta=noAcc(a).split(/\s+/).filter(Boolean), tb=noAcc(b).split(/\s+/).filter(Boolean);
+  if(!ta.length||!tb.length) return false;
+  if(ta.slice().sort().join(" ")===tb.slice().sort().join(" ")) return true;
+  if(ta[0]===tb[0]){ const la=ta.slice(1).join(""), lb=tb.slice(1).join(""); if(la&&lb&&(la.startsWith(lb)||lb.startsWith(la))) return true; }
+  return false;
+}
 function monthCloses(M){
-  const list=[]; const seen=new Set(); const norm=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ const k=norm(c.p); if(seen.has(k))return; seen.add(k); list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=closeMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
+  const list=[]; const dup=nm=>list.some(l=>sameProspect(l.prospect,nm));
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ if(dup(c.p))return; list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=closeMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; if(dup(nm))return; list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
   return list;
 }
 // Appels = PROSPECTS UNIQUES (un client vu en R1+R2+R3 = 1 seul appel/prospect). On garde le meilleur résultat par prospect.
