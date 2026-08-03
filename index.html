@@ -1807,10 +1807,18 @@ function renderTeam(){
 function prevMonth(M){ const p=(M||monthStr()).split("-").map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
 // SOURCE UNIQUE des closés du mois = tags EOD « Closé » + clients signés ce mois (dédup insensible ordre/accents). Utilisée par Conversions ET « Closés du mois » pour être cohérent.
+// Mois du CLOSING d'un client = le plus tôt entre la création de sa fiche (≈ signature) et sa date de début de contrat.
+// → un client signé en juillet mais dont le contrat démarre en août/septembre compte bien en JUILLET, pas au démarrage.
+function closeMonth(c){
+  const dd=(c&&c.date_debut||"").slice(0,7);
+  let cr=""; const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ cr=ca.toDate().toISOString().slice(0,7); }catch(e){} }
+  if(dd&&cr) return dd<cr?dd:cr;
+  return dd||cr||baseMonth(c);
+}
 function monthCloses(M){
   const list=[]; const seen=new Set(); const norm=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
   EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ const k=norm(c.p); if(seen.has(k))return; seen.add(k); list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=(c.date_debut||"").slice(0,7)||baseMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=closeMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; const k=norm(nm); if(seen.has(k))return; seen.add(k); list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
   return list;
 }
 // Appels = PROSPECTS UNIQUES (un client vu en R1+R2+R3 = 1 seul appel/prospect). On garde le meilleur résultat par prospect.
