@@ -631,7 +631,8 @@
       <button class="btn" style="margin-top:10px" onclick="saveLinkedin()">💾 Enregistrer la semaine</button>
       <div id="liMsg" class="msg"></div>
     </div>
-    <div class="section-title">📈 Évolution semaine par semaine</div>
+    <div class="section-title">📈 Évolution</div>
+    <div id="liChart"></div>
     <div id="liList"></div>
   </div>
 </div>
@@ -1647,7 +1648,29 @@ async function submitEod(){
 
 /* ===================== NAV (animée) ===================== */
 /* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
-let LINKEDIN=[];
+let LINKEDIN=[], _liMetric="impr";
+const LI_METRICS=[["impr","Impressions"],["abo","Abonnés"],["vues","Vues profil"],["rech","Recherches"]];
+function setLiMetric(k){ _liMetric=k; renderLinkedin(); }
+function liChartSvg(ws,key){
+  if(!ws.length) return '<div class="sub2" style="text-align:center;padding:20px 0">Ajoute des semaines pour voir la courbe.</div>';
+  const vals=ws.map(w=>Number(w[key])||0), max=Math.max(...vals,1), min=Math.min(...vals,0);
+  const W=520,H=150,pad=28, n=ws.length;
+  const X=i=> n<=1?W/2 : pad+(W-2*pad)*i/(n-1);
+  const Y=v=> H-22-(H-22-pad)*((v-min)/((max-min)||1));
+  const nf=v=>Number(v).toLocaleString('fr-FR');
+  const pts=vals.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+  const area=`M${X(0).toFixed(1)},${(H-22).toFixed(1)} L`+pts.replace(/ /g," L")+` L${X(n-1).toFixed(1)},${(H-22).toFixed(1)} Z`;
+  const dots=vals.map((v,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#ff7a3d"/>`).join("");
+  const xl=ws.map((w,i)=>`<text x="${X(i).toFixed(1)}" y="${H-6}" fill="#9b9aa3" font-size="9" text-anchor="middle">${(w.date||'').slice(8,10)}/${(w.date||'').slice(5,7)}</text>`).join("");
+  const lastLbl=`<text x="${X(n-1).toFixed(1)}" y="${(Y(vals[n-1])-8).toFixed(1)}" fill="#f3f1ea" font-size="11" font-weight="700" text-anchor="${n>1?'end':'middle'}">${nf(vals[n-1])}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+    <defs><linearGradient id="ligl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7f5bc4"/><stop offset="1" stop-color="#ff7a3d"/></linearGradient>
+      <linearGradient id="liga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d" stop-opacity="0.25"/><stop offset="1" stop-color="#ff7a3d" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#liga)"/>
+    <polyline points="${pts}" fill="none" stroke="url(#ligl)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${dots}${xl}${lastLbl}
+  </svg>`;
+}
 // OCR : lire une capture LinkedIn et pré-remplir les champs (best-effort, à vérifier)
 function loadTesseract(){ return new Promise((res,rej)=>{ if(window.Tesseract) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"; s.onload=()=>res(); s.onerror=()=>rej(new Error("chargement OCR échoué")); document.head.appendChild(s); }); }
 function parseLiText(text){
@@ -1689,6 +1712,8 @@ function renderLinkedin(){
   const box=$("liList"), kb=$("liKpis"); if(!box) return;
   const ws=LINKEDIN.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const nf=n=>Number(n||0).toLocaleString('fr-FR');
+  // Graphique d'évolution + sélecteur de métrique
+  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" "); ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${liChartSvg(ws,_liMetric)}</div>`:""; }
   // 1re fois : pré-remplir le formulaire avec la capture de Clément (semaine du 30/07)
   if(!ws.length){ const pf=(id,v)=>{const e=$(id);if(e&&!e.value)e.value=v;}; pf("li_date","2026-07-30"); pf("li_impr","81231"); pf("li_abo","7132"); pf("li_vues","2506"); pf("li_rech","126"); }
   else if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
@@ -2074,7 +2099,7 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const montant=Number(($("cf_montant")&&$("cf_montant").value)||0)||0;
   const schedPaid=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0);
   const glob=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0;
-  const enc=Math.max(schedPaid, glob); // même règle que clientEncaisse : on ne perd jamais l'argent du champ global
+  const enc=schedPaid+glob; // ADDITIF : échéances cochées + acompte hors échéancier
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
@@ -2228,9 +2253,9 @@ function renderClients(){
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=Math.max(0,(Number(c.montant)||0)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
-    const money=canSeeMoney();
-    const sched=money?(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month)))
-      .map(s=>`<div class="mm ${s.paid?'paid':'due'}"><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅':'⏳'}</div></div>`).join(""):"";
+    const money=canSeeMoney(); const clk=isAdmin();
+    const sched=money?(c.schedule||[]).map((s,i)=>({s,i})).sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month)))
+      .map(({s,i})=>`<div class="mm ${s.paid?'paid':'due'}"${clk?` onclick="toggleSched('${c.id}',${i})" style="cursor:pointer" title="Cocher / décocher payé"`:''}><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅ payé':(clk?'⏳ cocher':'⏳')}</div></div>`).join(""):"";
     const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
     const metaLine=`📅 onb ${shd(c.onboarding_date)} · 🏁 fin ${shd(endDate(c))} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
@@ -2458,15 +2483,15 @@ function renderFinance(){
     const cCA=nn(coo.ca,encTot), cTeam=nn(coo.team,teamComm), cPresta=nn(coo.presta,prestaTot), cFixe=nn(coo.fixe,2000), cSoft=nn(coo.soft,logiTot);
     const margeHorsVar=encTot-(teamComm+prestaTot+logiTot);           // marge écosystème, hors ta rému
     const cMargeVar=cCA-(cTeam+cPresta+cFixe+cSoft), cRate=cooPalier(cCA), cVar=cMargeVar>0?Math.round(cMargeVar*cRate):0;
-    const cooTotal=(coo.force!=null&&coo.force!=="")?Number(coo.force):(cFixe+cVar);
-    const margeNette=margeHorsVar-cooTotal;
+    const cooTotal=Math.max(cFixe, (coo.force!=null&&coo.force!=="")?Number(coo.force):(cFixe+cVar)); // ta rému : jamais < fixe (2 000 € garantis)
+    const margeNette=margeHorsVar-cooTotal; // résultat écosystème après t'avoir payée (peut être négatif un mois creux)
     mb.innerHTML=`<div class="card" style="margin:0;border-color:rgba(212,175,55,.4)">
       <div class="kv"><span class="k">💵 Revenus (encaissé)</span><span class="v">${eur(encTot)}</span></div>
       <div class="kv"><span class="k">➖ Commissions équipe · prestas · logiciels</span><span class="v">-${eur(teamComm+prestaTot+logiTot)}</span></div>
-      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k"><b>📊 Marge nette (hors ta commission)</b></span><span class="v"><b style="color:#7ee2a3">${eur(margeHorsVar)}</b></span></div>
+      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k"><b>📊 Marge écosystème (avant ta rému)</b></span><span class="v"><b style="color:#7ee2a3">${eur(margeHorsVar)}</b></span></div>
       <div class="sub2" style="text-align:right;opacity:.7;margin:-2px 0 4px">${eur(encTot)} − ${eur(teamComm)} équipe − ${eur(prestaTot)} prestas − ${eur(logiTot)} logiciels</div>
-      <div class="kv"><span class="k">➖ Ta commission COO (fixe + variable)</span><span class="v">-${eur(cooTotal)}</span></div>
-      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k" style="font-weight:800">✅ Marge nette finale (après ta comm)</span><span class="v grad-text" style="font-weight:800;font-size:16px">${eur(margeNette)}</span></div>
+      <div class="kv"><span class="k">➖ Ta rému COO <span class="sub2">(2 000 € min garantis)</span></span><span class="v">-${eur(cooTotal)}</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k" style="font-weight:800">${margeNette>=0?"✅":"🔻"} Résultat net écosystème</span><span class="v" style="font-weight:800;font-size:16px;color:${margeNette>=0?"#7ee2a3":"#ff6b6b"}">${eur(margeNette)}</span></div>
     </div>`;
   })();
   // Récap + détail par client du mois
@@ -2747,9 +2772,9 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
    - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
-/* Encaissé = MAX(échéances cochées, champ "encaissé global") — jamais de double comptage, jamais d'argent perdu.
-   encGlobal = la part du champ global qui n'est pas déjà couverte par les échéances payées. */
-function encGlobal(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
+/* Encaissé = échéances cochées "payé" + acompte HORS échéancier (champ global) — ADDITIF (le champ est libellé « hors échéancier »).
+   ⚠️ le champ acompte ne doit contenir QUE de l'argent qui n'est PAS dans l'échéancier (sinon double comptage). */
+function encGlobal(c){ return Number(c&&c.encaisse)||0; }
 /* Mois de rattachement du "déjà encaissé global" : date de démarrage, sinon 1re échéance, sinon création, sinon mois courant.
    → l'argent n'est JAMAIS perdu, même si la fiche n'a pas de date de démarrage (cas Mutualise). */
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
@@ -2822,7 +2847,7 @@ function cooRecalc(){ if(!$("coo_ca")) return;
   const charges=team+presta+fixe+soft;
   const marge=ca-charges, rate=cooPalier(ca), variable=marge>0?Math.round(marge*rate):0;
   const fIn=$("coo_force")&&$("coo_force").value!==""?(Number($("coo_force").value)||0):null;
-  const total=fIn!=null?fIn:fixe+variable;
+  const total=Math.max(fixe, fIn!=null?fIn:fixe+variable); // plancher : jamais en dessous du fixe (2 000 €), même sans marge
   const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
   set("cooSoftv","-"+eur(soft)); set("cooMarge",eur(marge)); set("cooRate",Math.round(rate*100)+" %"); set("cooVar",eur(variable)); set("cooTot",eur(total)+(fIn!=null?" (forcé)":""));
   set("cooMargeCalc", `${eur(ca)} − ${eur(team)} équipe − ${eur(presta)} prestas − ${eur(fixe)} fixe − ${eur(soft)} logiciels`);
