@@ -504,6 +504,9 @@
         <h2 style="margin:0">Finance &amp; paie</h2>
         <select id="finMonth" style="width:auto; min-width:150px" onchange="renderFinance()"></select>
       </div>
+      <button class="btn" style="margin-top:12px;width:100%;font-size:15px" onclick="saveAllFinance($('finMonth').value)">💾 TOUT enregistrer (paie, logiciels, prestas, ma commission)</button>
+      <div id="saveAllMsg" class="msg"></div>
+      <div class="hint" style="margin-top:4px">Un seul clic enregistre absolument tout ce qui est saisi sur ce mois — rien n'est oublié.</div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
       <div id="encBreak" class="hide" style="margin-top:12px"></div>
       <div id="genBreak" class="hide" style="margin-top:12px"></div>
@@ -1231,7 +1234,12 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
   const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({edito,edito_until,edito_note}); c.edito=edito; c.edito_until=edito_until; c.edito_note=edito_note; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
-function onbDate(c){ return (c&&c.onboarding_date) || (c&&c.date_debut) || ""; } // onboarding sinon date de contrat
+function firstCoachDate(c){ // 1er coaching pointé = call d'onboarding
+  const log=(c&&c.coaching&&c.coaching.log)||[];
+  const ds=log.map(e=>e&&e.date).filter(Boolean).sort();
+  return ds[0]||"";
+}
+function onbDate(c){ return (c&&c.onboarding_date) || firstCoachDate(c) || (c&&c.date_debut) || ""; } // onboarding saisi, sinon 1er coaching, sinon date de contrat
 function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-").map(Number); if(p.length<3||!p[0]||!p[1]||!p[2]) return ""; const d=new Date(p[0],p[1]-1+Number(m),p[2]); if(d.getDate()!==p[2]) d.setDate(0); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // sinon : onboarding + mois de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10)
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
@@ -2048,7 +2056,7 @@ const CLIENT_FIELDS=[
   { key:"programme",label:"Programme",type:"select" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
-  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Acompte encaissé HORS échéancier (€) — laisse vide si tu utilises l'échéancier ci-dessous",type:"number" },
+  { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
@@ -2099,7 +2107,7 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const montant=Number(($("cf_montant")&&$("cf_montant").value)||0)||0;
   const schedPaid=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0);
   const glob=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0;
-  const enc=schedPaid+glob; // ADDITIF : échéances cochées + acompte hors échéancier
+  const enc=Math.max(schedPaid, glob); // MAX : le plus grand entre l'acompte et les échéances cochées (jamais de double)
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
@@ -2257,7 +2265,7 @@ function renderClients(){
     const sched=money?(c.schedule||[]).map((s,i)=>({s,i})).sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month)))
       .map(({s,i})=>`<div class="mm ${s.paid?'paid':'due'}"${clk?` onclick="toggleSched('${c.id}',${i})" style="cursor:pointer" title="Cocher / décocher payé"`:''}><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅ payé':(clk?'⏳ cocher':'⏳')}</div></div>`).join(""):"";
     const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
-    const metaLine=`📅 onb ${shd(c.onboarding_date)} · 🏁 fin ${shd(endDate(c))} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
+    const metaLine=`📅 ${(c.onboarding_date||firstCoachDate(c))?"onb":"début"} ${shd(onbDate(c))} · 🏁 fin ${shd(endDate(c))} · 📞 ${coachDone(c)} call${coachDone(c)>1?"s":""} · 🗓 ${editoDone(c)}/${editoNb(c)} édito`;
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
@@ -2557,6 +2565,8 @@ function renderFinance(){
       ${factVal?`<div style="margin-top:4px"><a href="${escapeHtml(factVal)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 voir la facture de ${escapeHtml(p.m)}</a></div>`:""}
       <label style="display:block;margin-top:8px;font-size:12px;color:var(--muted)">Note (optionnel)</label>
       <textarea id="st_${p.m}_note" rows="2" placeholder="Ex : prime, avance, ajustement…" style="width:100%;margin-top:4px">${escapeHtml(noteVal)}</textarea>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;background:${statOf(p.m,M).paid?'rgba(52,199,89,.14)':'var(--card2)'};border:1px solid ${statOf(p.m,M).paid?'rgba(52,199,89,.5)':'var(--line)'};border-radius:10px;cursor:pointer;font-weight:700">
+        <input type="checkbox" id="st_${p.m}_paid" ${statOf(p.m,M).paid?"checked":""} onchange="saveStat('${p.m}')" style="width:18px;height:18px"> ✅ Commission versée / payée à ${escapeHtml(p.m)}</label>
       <div class="hint">Le montant en haut prime sur le calcul auto. Tout est enregistré <b>par mois</b>.</div>
       <button class="btn" style="margin-top:10px" onclick="saveStat('${p.m}')">💾 Enregistrer ${escapeHtml(p.m)}</button>`;
     const adj=(ov(p.m)!=null)?' · ajusté ✎':'';
@@ -2564,7 +2574,7 @@ function renderFinance(){
       <summary>
         <div class="avatar sm ${avClass(p.role==="coach"?"coach":(p.role==="closer"?"closer":(p.role==="setter"?"setter":"")))}">${initials(p.m)}</div>
         <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${escapeHtml(p.label||"")}${p.custom?" · manuel":""}</div></div>
-        <div style="text-align:right"><div style="font-size:18px;font-weight:800" class="grad-text">${eur(p.eff)}</div><div style="font-size:10px;color:var(--muted)">à verser${adj}</div></div>
+        <div style="text-align:right"><div style="font-size:18px;font-weight:800" class="grad-text">${eur(p.eff)}</div><div style="font-size:10px;color:var(--muted)">${statOf(p.m,M).paid?"✅ payé":"à verser"+adj}</div></div>
         <span class="chev">▸</span>
       </summary>
       <div class="clbody">
@@ -2593,6 +2603,7 @@ function renderLogiciel(M){
       <div class="sub2" style="margin:6px 0">Juste le nom + le montant (les montants viennent de tes comptes Wio). Ce total est <b>déduit automatiquement de ta marge COO</b>.</div>
       ${rows}
       <button type="button" class="addrow" style="margin-top:8px" onclick="addLogiLine('${M}')">+ Ajouter un logiciel</button>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="importLogiFromAccounts('${M}')">⬇ Importer depuis les comptes Wio (${monthShort(M)})</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveLogi('${M}')">💾 Enregistrer les logiciels</button>
       <div class="lgMsg msg" id="lgMsg_${M}"></div>
     </details>
@@ -2609,6 +2620,24 @@ async function saveLogi(M){ if(!fbReady())return; initFirebase(); const list=gat
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
 async function delLogiLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M).filter(x=>x.id!==id); LOGI[M]=list;
   try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); renderLogiciel(M); }catch(e){ alert("Erreur : "+e.message); } }
+// Reprend les lignes catégorie "Logiciels" des comptes Wio du mois → section Logiciels (déjà saisi dans les comptes, on ne ressaisit pas)
+async function importLogiFromAccounts(M){ if(!fbReady())return; initFirebase(); const m=$("lgMsg_"+M);
+  const msg=(cls,t)=>{ if(m){m.className="msg "+cls;m.style.display="block";m.textContent=t;} };
+  msg("","Import depuis les comptes…");
+  try{
+    const doc=await db.collection("setter_stats").doc("ATX_"+M).get();
+    const lines=doc.exists&&Array.isArray(doc.data().lines)?doc.data().lines:[];
+    const logi=lines.filter(l=>String(l.cat||"").toLowerCase().startsWith("logiciel"));
+    if(!logi.length){ msg("err","Aucune ligne « Logiciels » dans les comptes de "+monthShort(M)+" (importe d'abord tes relevés dans l'onglet Comptes)."); return; }
+    const cur=gatherLogi(M,true).filter(x=>x.name||x.amount); // garde les saisies en cours (hors lignes Wio déjà importées)
+    const keep=cur.filter(x=>!String(x.id||"").startsWith("wio_"+M));
+    const imported=logi.map((l,i)=>({ id:"wio_"+M+"_"+i, name:(l.label||l.cat||"Logiciel"), amount:Math.abs(Number(l.eur!=null?l.eur:l.amount)||0) }));
+    const list=keep.concat(imported); LOGI[M]=list;
+    await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list});
+    renderLogiciel(M); renderFinance();
+    const tot=imported.reduce((a,x)=>a+x.amount,0);
+    const m2=$("lgMsg_"+M); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent=imported.length+" logiciels importés depuis les comptes ✓ ("+eur(tot)+")"; }
+  }catch(e){ msg("err","Erreur : "+e.message); } }
 /* ===================== PRESTATAIRES (hors équipe) ===================== */
 let storage=null;
 function initStorage(){ if(storage||!fbReady())return; try{ if(!db)initFirebase(); storage=firebase.storage(); }catch(e){ storage=null; } }
@@ -2760,10 +2789,48 @@ async function saveStat(name){
   if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
   if(noteEl) obj.note = noteEl.value.trim();
   if(factEl) obj.facture = factEl.value.trim();
+  const paidEl=$("st_"+name+"_paid"); if(paidEl) obj.paid = paidEl.checked;
   const mlBox=document.getElementById("ml_"+name);
   if(mlBox && mlBox.dataset.on==="1"){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(r=>({l:(r.querySelector(".mlLabel").value||"").trim(), a:Number(r.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
   try{ await db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}); SSTATS[name+"|"+M]={...statOf(name,M),...obj}; renderFinance(); }
   catch(e){ alert("Erreur : "+e.message); }
+}
+// TOUT enregistrer : rassemble tout le DOM Finance AVANT d'écrire (sinon un re-render effacerait les saisies non sauvées), écrit tout, puis re-render une seule fois. Rien n'est oublié.
+async function saveAllFinance(M){ M=M||($("finMonth")&&$("finMonth").value)||monthStr();
+  const box=$("saveAllMsg"); const setMsg=(cls,t)=>{ if(box){ box.className="msg "+cls; box.style.display="block"; box.textContent=t; } };
+  if(!fbReady()){ setMsg("err","Firebase non prêt."); return; } initFirebase();
+  setMsg("","Enregistrement de tout en cours…");
+  try{
+    const writes=[]; let nFiches=0;
+    // 1) Toutes les fiches de paie présentes à l'écran
+    document.querySelectorAll("[id^='ml_']").forEach(mlBox=>{
+      const name=mlBox.id.slice(3); if(!name) return;
+      const obj={member:name, month:M};
+      const r=$("st_"+name+"_rdv"), cl=$("st_"+name+"_closes"), po=$("st_"+name+"_posts"), ovEl=$("st_"+name+"_override"), noteEl=$("st_"+name+"_note"), factEl=$("st_"+name+"_facture"), paidEl=$("st_"+name+"_paid");
+      if(r) obj.rdv = r.value===""?null:Number(r.value);
+      if(cl) obj.closes=Number(cl.value)||0;
+      if(po) obj.posts=Number(po.value)||0;
+      if(ovEl) obj.override = ovEl.value===""?null:Number(ovEl.value);
+      if(noteEl) obj.note = noteEl.value.trim();
+      if(factEl) obj.facture = factEl.value.trim();
+      if(paidEl) obj.paid = paidEl.checked;
+      if(mlBox.dataset.on==="1"){ obj.lines=[...mlBox.querySelectorAll(".mlrow")].map(rr=>({l:(rr.querySelector(".mlLabel").value||"").trim(), a:Number(rr.querySelector(".mlAmt").value)||0})).filter(x=>x.l||x.a); }
+      SSTATS[name+"|"+M]={...statOf(name,M),...obj}; nFiches++;
+      writes.push(db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true}));
+    });
+    // 2) Logiciels
+    if($("logiCard")){ const logi=gatherLogi(M); LOGI[M]=logi; writes.push(db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list:logi})); }
+    // 3) Prestataires
+    if($("prestaCard")){ const presta=gatherPresta(M); PRESTA[M]=presta; writes.push(db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list:presta})); }
+    // 4) Ma commission COO
+    if($("coo_ca")){ const gv=id=>{ const e=$(id); return (e&&e.value!=="")?Number(e.value):null; };
+      const facture=($("coo_facture")&&$("coo_facture").value.trim())||"";
+      COO[M]={ca:gv("coo_ca"),team:gv("coo_team"),presta:gv("coo_presta"),fixe:gv("coo_fixe"),soft:gv("coo_soft"),force:gv("coo_force"),facture};
+      writes.push(db.collection("setter_stats").doc("coo_"+M).set({isCoo:true,month:M,ca:COO[M].ca,team:COO[M].team,presta:COO[M].presta,fixe:COO[M].fixe,soft:COO[M].soft,force:COO[M].force,facture})); }
+    await Promise.all(writes);
+    renderFinance();
+    const m2=$("saveAllMsg"); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent="✅ Tout est enregistré ("+nFiches+" fiches de paie + logiciels + prestas + ta commission) — rien n'a été oublié."; }
+  }catch(e){ setMsg("err","Erreur : "+e.message); }
 }
 function startMonth(c){ return (c.date_debut||"").slice(0,7); }
 /* RÈGLE UNIQUE (partout dans l'app) — ni double comptage, ni argent perdu :
@@ -2772,9 +2839,9 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
    - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
 function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
-/* Encaissé = échéances cochées "payé" + acompte HORS échéancier (champ global) — ADDITIF (le champ est libellé « hors échéancier »).
-   ⚠️ le champ acompte ne doit contenir QUE de l'argent qui n'est PAS dans l'échéancier (sinon double comptage). */
-function encGlobal(c){ return Number(c&&c.encaisse)||0; }
+/* Encaissé = MAX(acompte saisi, somme des échéances cochées) — jamais de double comptage.
+   L'acompte = le total encaissé (running) ; l'échéancier = le plan de paiement coché au fur et à mesure. On prend le plus grand des deux. */
+function encGlobal(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaidAll(c)); }
 /* Mois de rattachement du "déjà encaissé global" : date de démarrage, sinon 1re échéance, sinon création, sinon mois courant.
    → l'argent n'est JAMAIS perdu, même si la fiche n'a pas de date de démarrage (cas Mutualise). */
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
