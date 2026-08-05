@@ -1855,13 +1855,35 @@ function sameProspect(a,b){
   if(!ta.length||!tb.length) return false;
   if(ta.slice().sort().join(" ")===tb.slice().sort().join(" ")) return true;
   if(ta[0]===tb[0]){ const la=ta.slice(1).join(""), lb=tb.slice(1).join(""); if(la&&lb&&(la.startsWith(lb)||lb.startsWith(la))) return true; }
+  // Mots dans un ordre différent + initiales (ex. "Betty H" = "Haury Betty", "Lauranne B" = "Lauranne Bondoerffer").
+  // Chaque mot du plus court doit matcher un mot de l'autre (égal, OU l'un est une initiale ≤2 lettres préfixe de l'autre) ; au moins un vrai prénom/nom (≥3 lettres) en commun.
+  const tok=(t,u)=> t===u || (t.length<=2 && u.startsWith(t)) || (u.length<=2 && t.startsWith(u));
+  const [sh,lo]=ta.length<=tb.length?[ta,tb]:[tb,ta];
+  const used=new Array(lo.length).fill(false); let matched=0, hasFull=false;
+  for(const t of sh){ for(let i=0;i<lo.length;i++){ if(used[i])continue; if(tok(t,lo[i])){ used[i]=true; matched++; if(t.length>=3 && lo[i].length>=3 && t===lo[i]) hasFull=true; break; } } }
+  if(matched===sh.length && hasFull) return true;
   return false;
 }
+// SOURCE UNIQUE ET DÉTERMINISTE des closés : une FICHE client signée ce mois = un closé, identifiée par son ID.
+// Plus AUCune devinette de nom dans le compte → doublon impossible (fini "Betty H" vs "Haury Betty").
 function monthCloses(M){
-  const list=[]; const dup=nm=>list.some(l=>sameProspect(l.prospect,nm));
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(c.res==="Closé"&&!junkName(c.p)){ if(dup(c.p))return; list.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date, from:"eod"}); } }); });
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; const cm=closeMonth(c); if(cm!==M) return; const closer=(c.closer||"").trim(); const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return; if(dup(nm))return; list.push({prospect:nm, closer:closer||"—", src:c.programme||"", date:c.date_debut||"", from:"client"}); });
+  const list=[];
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return;
+    const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return;
+    list.push({prospect:nm, closer:(c.closer||"").trim()||"—", src:c.programme||"", date:c.date_debut||"", from:"client", id:c.id}); });
   return list;
+}
+// Rappels : personnes marquées "Closé" dans un EOD mais SANS fiche client → à créer. NE comptent PAS (juste un rappel visuel).
+function orphanEodCloses(M){
+  const res=[], seen=[];
+  const hasFiche=nm=>(CLIENTS||[]).some(cl=>(cl.statut||"")!=="Annulé / Litige" && sameProspect(((cl.nom||"")+" "+(cl.prenom||"")).trim(), nm));
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{
+    if(c.res!=="Closé"||junkName(c.p)) return;
+    if(hasFiche(c.p)) return;
+    if(seen.some(s=>sameProspect(s,c.p))) return; seen.push(c.p);
+    res.push({prospect:c.p, closer:x.member, src:c.src||"", date:x.report_date});
+  }); });
+  return res;
 }
 // Appels = PROSPECTS UNIQUES (un client vu en R1+R2+R3 = 1 seul appel/prospect). On garde le meilleur résultat par prospect.
 function closerConv(name,M){
@@ -1911,8 +1933,12 @@ function renderClosed(M){
   list.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const byCloser={}; list.forEach(l=>{ if(l.closer&&l.closer!=="—") byCloser[l.closer]=(byCloser[l.closer]||0)+1; });
   const head=`<div class="sub2" style="margin-bottom:8px"><b>${list.length}</b> closé(s) en ${monthLabel(M)}${Object.keys(byCloser).length?" · "+Object.entries(byCloser).sort((a,b)=>b[1]-a[1]).map(([n,v])=>escapeHtml(n)+" "+v).join(" · "):""}</div>`;
-  if(!list.length){ box.innerHTML=head+'<div class="sub2">Aucun closé ce mois pour l\'instant.</div>'; return; }
-  box.innerHTML=head+list.map(l=>`<div class="kv"><span class="k">🎯 ${escapeHtml(l.prospect||"?")}${l.src?` <span class="sub2">· ${escapeHtml(l.src)}</span>`:""}${l.from==="client"?' <span class="sub2" style="opacity:.6">· signé</span>':''}</span><span class="v">${escapeHtml(l.closer||"")} <span class="sub2">· ${escapeHtml(l.date?dayLabel(l.date):"")}</span></span></div>`).join("");
+  const orph=orphanEodCloses(M);
+  const orphHtml=orph.length?`<details class="cdet" style="margin-top:10px"><summary>⚠️ Marqués « closé » en EOD mais sans fiche client (${orph.length}) — à créer</summary>
+    <div class="sub2" style="margin:4px 0 6px">Ces personnes ont été notées « Closé » par un closer mais n'ont pas encore de fiche client. Elles <b>ne comptent pas</b> tant que la fiche n'est pas créée (crée-la dans l'onglet Clients).</div>
+    ${orph.map(l=>`<div class="kv"><span class="k">🕓 ${escapeHtml(l.prospect||"?")}${l.src?` <span class="sub2">· ${escapeHtml(l.src)}</span>`:""}</span><span class="v">${escapeHtml(l.closer||"")} <span class="sub2">· ${escapeHtml(l.date?dayLabel(l.date):"")}</span></span></div>`).join("")}</details>`:"";
+  if(!list.length){ box.innerHTML=head+'<div class="sub2">Aucune fiche signée ce mois pour l\'instant.</div>'+orphHtml; return; }
+  box.innerHTML=head+list.map(l=>`<div class="kv"><span class="k">🎯 ${escapeHtml(l.prospect||"?")}${l.src?` <span class="sub2">· ${escapeHtml(l.src)}</span>`:""} <span class="sub2" style="opacity:.6">· signé</span></span><span class="v">${escapeHtml(l.closer||"")} <span class="sub2">· ${escapeHtml(l.date?dayLabel(l.date):"")}</span></span></div>`).join("")+orphHtml;
 }
 function renderTeamDigest(){
   const wk=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
