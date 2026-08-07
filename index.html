@@ -765,8 +765,17 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
-function monthLabel(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }catch(e){ return ym; } }
-function monthShort(ym){ try{ return new Date(ym+"-01T00:00:00").toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}); }catch(e){ return ym; } }
+// Accepte tous les formats tapés à la main : "09/2026", "09.2026", "9-2026", "2026/09", "202609"… → "2026-09"
+function normMonth(s){ s=String(s||"").trim(); if(!s) return "";
+  let m;
+  if(m=/^(\d{4})[-\/. ](\d{1,2})$/.exec(s)) return m[1]+"-"+String(m[2]).padStart(2,"0");   // 2026-09, 2026/9
+  if(m=/^(\d{1,2})[-\/. ](\d{4})$/.exec(s)) return m[2]+"-"+String(m[1]).padStart(2,"0");   // 09/2026, 9.2026
+  if(m=/^(\d{1,2})[-\/. ](\d{2})$/.exec(s)) return "20"+m[2]+"-"+String(m[1]).padStart(2,"0"); // 09/26
+  if(m=/^(\d{4})(\d{2})$/.exec(s)) return m[1]+"-"+m[2];                                       // 202609
+  if(m=/^(\d{4})-(\d{2})/.exec(s)) return m[1]+"-"+m[2];                                       // déjà 2026-09(-xx)
+  return s; }
+function monthLabel(ym){ ym=normMonth(ym); const d=new Date(ym+"-01T00:00:00"); return isNaN(d.getTime())?(ym||""):d.toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }
+function monthShort(ym){ ym=normMonth(ym); const d=new Date(ym+"-01T00:00:00"); return isNaN(d.getTime())?(ym||""):d.toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}); }
 function monthsBetween(a,b){ if(!a||!b) return 0; const d1=new Date(a+"T00:00:00"), d2=new Date(b+"T00:00:00"); if(isNaN(d1)||isNaN(d2)) return 0; return Math.max(0,(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth())); }
 function normOffer(s){ return String(s||"").toLowerCase().normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"").replace(/\s+/g," ").trim(); }
 function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=SETTINGS.offers||[];
@@ -801,17 +810,23 @@ function streakOf(dates){
   let s=0; while(set.has(iso(d))){ s++; d.setDate(d.getDate()-1); } return s;
 }
 function pickMood(el,val){ el.parentNode.querySelectorAll(".mood").forEach(b=>b.classList.remove("sel")); el.classList.add("sel"); const h=document.getElementById(el.getAttribute("data-for")); if(h) h.value=val; }
-function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; box.insertAdjacentHTML("beforeend",
+// Tous les noms déjà connus (fiches clients + prospects/RDV des EOD) → menu déroulant à la saisie, pour resélectionner un même prospect (2e call) sans réécrire le nom différemment.
+function prospectNames(){ const set=new Set();
+  (CLIENTS||[]).forEach(c=>{ const n=((c.nom||"")+" "+(c.prenom||"")).trim(); if(n) set.add(n); });
+  (EODS||[]).forEach(x=>{ (typeof callsArr==="function"?callsArr(x):[]).forEach(c=>{ if(c&&c.p) set.add(String(c.p).trim()); }); (typeof bookedArr==="function"?bookedArr(x):[]).forEach(b=>{ if(b&&b.name) set.add(String(b.name).trim()); }); });
+  return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,"fr")); }
+function ensureProspectDL(){ let dl=document.getElementById("prospectDL"); if(!dl){ dl=document.createElement("datalist"); dl.id="prospectDL"; document.body.appendChild(dl); } dl.innerHTML=prospectNames().map(n=>`<option value="${escapeHtml(n)}"></option>`).join(""); }
+function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensureProspectDL(); box.insertAdjacentHTML("beforeend",
   `<div class="drow callRow">
-    <input class="cP" type="text" placeholder="Prospect" value="${escapeHtml(d.p||'')}" style="flex:1.4">
+    <input class="cP" type="text" list="prospectDL" autocomplete="off" placeholder="Prospect" value="${escapeHtml(d.p||'')}" style="flex:1.4">
     <select class="cS" style="flex:1.3">${CALL_SOURCES.map(o=>`<option ${o===d.src?'selected':''}>${o}</option>`).join("")}</select>
     <select class="cR" style="flex:1.1">${CALL_RESULTS.map(o=>`<option ${o===d.res?'selected':''}>${o}</option>`).join("")}</select>
     <button type="button" class="xrow" onclick="this.closest('.callRow').remove()">✕</button>
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
-function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; box.insertAdjacentHTML("beforeend",
+function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL(); box.insertAdjacentHTML("beforeend",
   `<div class="drow bookRow">
-    <input class="bkN" type="text" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1">
+    <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1">
     <label class="ck"><input class="bkV" type="checkbox" ${d.verified?'checked':''}>vérifié</label>
     <button type="button" class="xrow" onclick="this.closest('.bookRow').remove()">✕</button>
   </div>`); }
@@ -2123,7 +2138,7 @@ function recalcFin(){ const man=$("cf_date_fin_manual"); const df=$("cf_date_fin
 }
 function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   `<div class="drow schedRow">
-    <input class="sMonth" type="month" value="${d.month||''}" onchange="updateEncTotal()">
+    <input class="sMonth" type="month" value="${normMonth(d.month)||''}" placeholder="AAAA-MM" onblur="this.value=normMonth(this.value);updateEncTotal()" onchange="this.value=normMonth(this.value);updateEncTotal()">
     <input class="sAmt" type="number" inputmode="numeric" placeholder="€" value="${d.amount!=null?d.amount:''}" oninput="updateEncTotal()">
     <label class="ck"><input class="sPaid" type="checkbox" ${d.paid?'checked':''} onchange="updateEncTotal()">payé</label>
     <button type="button" class="xrow" onclick="this.closest('.schedRow').remove();updateEncTotal()">✕</button>
@@ -2141,7 +2156,7 @@ function newClient(){ currentClientId=null; $("clientFormTitle").textContent="No
 function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
 function gatherSchedule(){ const defM=(($("cf_date_debut")&&$("cf_date_debut").value)||todayStr()).slice(0,7);
-  return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>{ const amount=Number(r.querySelector(".sAmt").value)||0; let month=r.querySelector(".sMonth").value; if(!month && amount) month=defM; // pas de mois saisi + un montant → on rattache au mois de démarrage pour ne pas perdre l'argent
+  return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>{ const amount=Number(r.querySelector(".sAmt").value)||0; let month=normMonth(r.querySelector(".sMonth").value); if(!month && amount) month=defM; // pas de mois saisi + un montant → on rattache au mois de démarrage pour ne pas perdre l'argent
     return { month, amount, paid:r.querySelector(".sPaid").checked }; }).filter(x=>x.month||x.amount); }
 async function saveClient(){
   if(!fbReady()){ const m=$("clientMsg"); m.className="msg err"; m.textContent="Backend non configuré."; return; }
