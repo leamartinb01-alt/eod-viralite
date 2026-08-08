@@ -509,6 +509,7 @@
       <div class="hint" style="margin-top:4px">Un seul clic enregistre absolument tout ce qui est saisi sur ce mois — rien n'est oublié.</div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
       <div id="encBreak" class="hide" style="margin-top:12px"></div>
+      <div id="dueBreak" class="hide" style="margin-top:12px"></div>
       <div id="genBreak" class="hide" style="margin-top:12px"></div>
       <div id="margeBox" style="margin-top:12px"></div>
     </div>
@@ -798,7 +799,6 @@ function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
-function isoWeekStr(d){ d=d?new Date(d):new Date(); const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wn=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-W"+String(wn).padStart(2,"0"); }
 function weekDates(wstr){ const m=/^(\d{4})-W(\d{2})$/.exec(wstr||""); if(!m) return null; const y=+m[1], w=+m[2]; const simple=new Date(Date.UTC(y,0,1+(w-1)*7)); const dow=simple.getUTCDay(); const start=new Date(simple); if(dow<=4) start.setUTCDate(simple.getUTCDate()-dow+1); else start.setUTCDate(simple.getUTCDate()+8-dow); const end=new Date(start); end.setUTCDate(start.getUTCDate()+6); return [start,end]; }
 function cgWeekLabel(wstr){ const r=weekDates(wstr); if(!r) return wstr||""; const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "sem. "+f(r[0])+" → "+f(r[1]); }
 function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
@@ -1211,12 +1211,6 @@ function renderCoachingTab(){
       </div>
     </div>`; }).join("");
 }
-async function saveEdito(id,val,el){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id);
-  if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Enregistrement…"; s.style.color="var(--muted)"; } }
-  try{ await db.collection("clients").doc(id).update({calendrier_edito:val||""}); if(c) c.calendrier_edito=val||"";
-    if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent=val?("✓ noté le "+dayLabel(val)):"✓ effacé"; s.style.color="var(--green)"; } }
-    const rr=document.querySelector('.rcrow[data-id="'+id+'"] .rced'); if(rr){ rr.innerHTML=val?('📅 '+escapeHtml(dayLabel(val))):'<span style="color:var(--red);font-weight:700">⚠️ à envoyer</span>'; }
-  }catch(e){ if(el){ const s=el.parentNode.querySelector(".editoMsg"); if(s){ s.textContent="Erreur"; s.style.color="var(--red)"; } } alert("Erreur : "+e.message); } }
 function editoMonthsCount(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
 function editoNb(c){ return editoMonthsCount(c)*2; } // 2 calendriers par mois = 1 par quinzaine
 function editoDone(c){ const em=(c&&c.edito)||{}; return Object.keys(em).filter(k=>em[k]&&em[k].sent).length; }
@@ -1259,7 +1253,6 @@ function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-"
 function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // sinon : onboarding + mois de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10)
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
 function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
-function monthsSinceStart(c){ const sm=(onbDate(c)||"").slice(0,7); if(!sm||sm.length<7) return 0; const p=sm.split("-").map(Number); const now=new Date(); return Math.max(0,(now.getFullYear()-p[0])*12+(now.getMonth()+1-p[1])+1); }
 // Statut calls = récence du dernier contact (call ou onboarding). Vert ≤7 j · orange 8–13 j · rouge ≥14 j ou aucun call depuis l'onboarding.
 function coachCallStatus(c){
   const today=todayStr(), onb=onbDate(c), last=coachLastDate(c);
@@ -1297,7 +1290,6 @@ function editoStatus(c){
 }
 function editoExpected(c){ return onbDate(c)?0:-1; } // conservé pour compat (n'affiche plus de retard cumulé)
 function editoLate(c){ return editoStatus(c).code==="late" ? 1 : 0; }
-function coachUpToDate(c){ if(!onbDate(c)) return {nodate:true}; const st=coachCallStatus(c); return {call:st, edito:editoLate(c), editoExp:editoExpected(c)}; }
 // Pré-remplissage une fois : dates d'onboarding + derniers calls fournies par Léa (24/07/2026)
 const COACH_SEED=[
   {k:"bailly", onb:"2026-07-24"}, {k:"dottori", onb:"2026-07-21"}, {k:"gehin", lc:"2026-07-16"},
@@ -1931,10 +1923,13 @@ function renderSources(M){
   const box=$("sourcesList"); if(!box) return;
   const pkey=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
   const rank=r=> r==="Closé"?3:(r==="Show-up"?2:(r==="No-show"?1:0));
-  const bySrc={}; // src -> Map(prospect -> best res)
-  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const s=(c.src||"?").trim()||"?"; const k=pkey(c.p); if(!k) return; (bySrc[s]=bySrc[s]||new Map()); const cur=bySrc[s].get(k); if(!cur||rank(c.res)>rank(cur)) bySrc[s].set(k,c.res); }); });
+  const bySrc={}; // src -> Map(pkey -> {name, res})
+  EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const s=(c.src||"?").trim()||"?"; const k=pkey(c.p); if(!k) return; (bySrc[s]=bySrc[s]||new Map()); const cur=bySrc[s].get(k); if(!cur||rank(c.res)>rank(cur.res)) bySrc[s].set(k,{name:c.p,res:c.res}); }); });
+  // Closé = vraie fiche signée (source unique), pas le tag EOD → un close LinkedIn taggé "Show-up" compte quand même.
+  const closeList=monthCloses(M).map(l=>l.prospect);
+  const isClosed=nm=>closeList.some(cn=>sameProspect(cn,nm));
   const emoji=s=>/insta/i.test(s)?"📸":/typeform|type form|formulaire/i.test(s)?"📝":/linkedin/i.test(s)?"💼":/setting|closer/i.test(s)?"🤝":"🌐";
-  const rows=Object.entries(bySrc).map(([s,mp])=>{ let calls=0,closed=0; mp.forEach(res=>{ calls++; if(res==="Closé")closed++; }); return {s,calls,closed}; }).sort((a,b)=>b.calls-a.calls);
+  const rows=Object.entries(bySrc).map(([s,mp])=>{ let calls=0,closed=0; mp.forEach(v=>{ calls++; if(isClosed(v.name))closed++; }); return {s,calls,closed}; }).sort((a,b)=>b.calls-a.calls);
   const totCalls=rows.reduce((a,r)=>a+r.calls,0);
   if(!totCalls){ box.innerHTML='<div class="sub2">Aucun call source ce mois.</div>'; return; }
   box.innerHTML=`<div class="sub2" style="margin-bottom:6px">${monthLabel(M)} · prospects uniques par source · closés / appels.</div>`+rows.map(r=>{
@@ -2185,6 +2180,7 @@ async function loadClients(){
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
     CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); fillClientMonths(); renderClients();
+    if($("finMonth")) renderFinance(); // toute modif client (montant, encaissé, échéancier) se répercute direct dans la Finance
   }catch(err){ wrap.innerHTML=`<div class="empty">Erreur : ${err.message}</div>`; }
 }
 function fillClientMonths(){
@@ -2207,6 +2203,8 @@ function clientIssues(c){
   return iss;
 }
 function clientEncaisse(c){ return schedPaidAll(c) + encGlobal(c); }
+// Reste dû sur le contrat = montant − déjà encaissé. Un client Annulé/Litige n'a plus rien à encaisser (0). Source unique du « reste à encaisser » (KPI + tableau + détail).
+function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; return Math.max(0,(Number(c&&c.montant)||0)-clientEncaisse(c)); }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -2435,7 +2433,6 @@ async function loadFinance(){
   Object.keys(COO).forEach(mo=>{ const old=COO[mo]&&COO[mo].lines; if(Array.isArray(old)&&old.length && !(LOGI[mo]&&LOGI[mo].length)){ LOGI[mo]=old.map((l,i)=>({id:"g"+mo.replace(/-/g,"")+i, name:l.l||l.name||"", amount:Number(l.a!=null?l.a:l.amount)||0})); } });
   renderFinance();
 }
-function encaisseMonth(c,M){ return (c.schedule||[]).filter(s=>s.paid && s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 function palier(n,table){ for(const [seuil,prime] of table){ if(n>=seuil) return prime; } return 0; }
 // Prime d'équipe par palier d'encaissé du mois (versée à CHAQUE closer et CHAQUE setter)
 const PALIERS_PRIME=[[100000,700,300],[75000,500,250],[50000,350,150],[25000,150,100]];
@@ -2451,6 +2448,13 @@ function primeNote(role, enc){
     <details class="cdet" style="margin-top:4px"><summary style="font-size:12px;color:var(--muted)">📋 Grille des primes par palier</summary>${grid}
     <div class="sub2" style="margin-top:4px">Prime basée sur <b>son propre encaissé du mois</b> (le CA de ses clients) — <b>ajoutée automatiquement</b> à sa commission.</div></details></div>`;
 }
+// Le champ closer/setter d'une fiche correspond-il à ce membre ? Tolère accents/majuscules/espaces + closers multiples ("Loïc et Céline", "Anthony & Célia", "Loïc/Céline").
+function isPerson(field, name){ if(!field||!name) return false;
+  const norm=s=>noAcc(String(s)).replace(/\s+/g," ").trim();
+  const fn=norm(field), nn=norm(name); if(!nn) return false;
+  if(fn===nn) return true;
+  return fn.split(/\s*(?:\bet\b|&|\/|,|\+)\s*/).map(x=>x.trim()).some(p=>p===nn);
+}
 function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBase[M]:(M>="2026-07"?CONFIG.COMM.lucasBase.default:0); }
 function renderFinance(){
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
@@ -2462,7 +2466,7 @@ function renderFinance(){
       if(c.setter==="Lucas") lucasCA+=e;
       const mt=Number(c.montant)||e; coachTot += C.coachPerClient*(e/mt); nbCoachClients++;
     }
-    dueTot += dueInMonth(c,M); // garde « client déjà entièrement encaissé » → pas de faux reste à encaisser
+    dueTot += clientReste(c); // reste à encaisser = ce qui reste dû sur le contrat (même chiffre que le tableau)
   });
   // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
   let newCash=0, recCash=0;
@@ -2485,9 +2489,10 @@ function renderFinance(){
   const pay=payList.map(normPay).filter(it=>it&&it.name).map(it=>{
     const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
     let cls=[];
-    if(role==="closer")      cls=CLIENTS.filter(c=>c.closer===n && paidInMonth(c,M)>0);   // ses closings
-    else if(role==="setter") cls=CLIENTS.filter(c=>c.setter===n && paidInMonth(c,M)>0);   // ses leads
-    else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];            // tous les clients encaissés (si %)
+    if(role==="closer")      cls=CLIENTS.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0);   // ses closings
+    else if(role==="setter") cls=CLIENTS.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0);   // ses leads
+    else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];                     // tous les clients encaissés (si %)
+    else if(pct)             cls=CLIENTS.filter(c=>(isPerson(c.closer,n)||isPerson(c.setter,n)) && paidInMonth(c,M)>0); // rôle "autre" avec % → ses clients closés OU settés (ex. Célia)
     const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
     const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0; // prime palier sur SON encaissé
     const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
@@ -2516,7 +2521,7 @@ function renderFinance(){
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
     <div class="box" style="cursor:pointer" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)} 🔎</div></div>
-    <div class="box"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser</div></div>
+    <div class="box" style="cursor:pointer" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser 🔎</div></div>
     <div class="box" style="cursor:pointer" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)} 🔎</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
     <div class="box"><div class="n" style="color:#8fb4ff">${eur(logiTot)}</div><div class="l">💻 Logiciels</div></div>`;
@@ -2535,32 +2540,36 @@ function renderFinance(){
     const cooTotal=Math.max(cFixe, (coo.force!=null&&coo.force!=="")?Number(coo.force):(cFixe+cVar)); // ta rému : jamais < fixe (2 000 € garantis)
     const margeNette=margeHorsVar-cooTotal; // résultat écosystème après t'avoir payée (peut être négatif un mois creux)
     mb.innerHTML=`<div class="card" style="margin:0;border-color:rgba(212,175,55,.4)">
-      <div class="kv"><span class="k">💵 Revenus (encaissé)</span><span class="v">${eur(encTot)}</span></div>
-      <div class="kv"><span class="k">➖ Commissions équipe · prestas · logiciels</span><span class="v">-${eur(teamComm+prestaTot+logiTot)}</span></div>
-      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k"><b>📊 Marge écosystème (avant ta rému)</b></span><span class="v"><b style="color:#7ee2a3">${eur(margeHorsVar)}</b></span></div>
-      <div class="sub2" style="text-align:right;opacity:.7;margin:-2px 0 4px">${eur(encTot)} − ${eur(teamComm)} équipe − ${eur(prestaTot)} prestas − ${eur(logiTot)} logiciels</div>
-      <div class="kv"><span class="k">➖ Ta rému COO <span class="sub2">(2 000 € min garantis)</span></span><span class="v">-${eur(cooTotal)}</span></div>
-      <div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k" style="font-weight:800">${margeNette>=0?"✅":"🔻"} Résultat net écosystème</span><span class="v" style="font-weight:800;font-size:16px;color:${margeNette>=0?"#7ee2a3":"#ff6b6b"}">${eur(margeNette)}</span></div>
+      <div style="font-weight:800;margin-bottom:8px">📊 Marge de l'écosystème — ${monthLabel(M)}</div>
+      <div class="kv"><span class="k">💵 Revenus encaissés</span><span class="v" style="color:#7ee2a3">${eur(encTot)}</span></div>
+      <div class="kv"><span class="k" style="opacity:.85">➖ Commissions équipe</span><span class="v">-${eur(teamComm)}</span></div>
+      <div class="kv"><span class="k" style="opacity:.85">➖ Prestataires</span><span class="v">-${eur(prestaTot)}</span></div>
+      <div class="kv"><span class="k" style="opacity:.85">➖ Logiciels</span><span class="v">-${eur(logiTot)}</span></div>
+      <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k"><b>= Marge avant ta rému</b></span><span class="v"><b style="color:#7ee2a3;font-size:15px">${eur(margeHorsVar)}</b></span></div>
+      <div class="kv" style="margin-top:2px"><span class="k" style="opacity:.85">➖ Ta rému COO <span class="sub2">(2 000 € min)</span></span><span class="v">-${eur(cooTotal)}</span></div>
+      <div class="kv" style="border-top:2px solid var(--gold);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">${margeNette>=0?"✅ Résultat net final":"🔻 Résultat net final"}</span><span class="v" style="font-weight:800;font-size:17px;color:${margeNette>=0?"#7ee2a3":"#ff6b6b"}">${eur(margeNette)}</span></div>
     </div>`;
   })();
   // Récap + détail par client du mois
   const nomC=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const encCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
   const dueCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
-  // Détail cliquable du 💰 Encaissé : ce qui est compté ce mois + où atterrit l'argent des autres
+  // Détail cliquable du 💰 Encaissé : uniquement ce qui est compté ce mois
   (function(){ const eb=$("encBreak"); if(!eb) return;
-    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" (global · démarrage "+monthShort(M)+")"); return parts.join(" + "); };
-    const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien compté sur ce mois.</div>';
-    // Clients qui ont encaissé quelque chose mais dont l'argent tombe sur un AUTRE mois
-    const others=CLIENTS.filter(c=>clientEncaisse(c)>0 && paidInMonth(c,M)===0).map(c=>{
-      const mois=[...new Set([...(c.schedule||[]).filter(s=>s.paid).map(s=>s.month), ...(encGlobal(c)>0?[baseMonth(c)]:[])].filter(Boolean))].sort();
-      return {c, mois, tot:clientEncaisse(c)};
-    }).filter(o=>o.mois.length).sort((a,b)=>String(a.mois[0]).localeCompare(String(b.mois[0])));
-    const othHtml=others.length?others.map(o=>`<div class="kv"><span class="k">${offerEmoji(o.c.programme)} ${nomC(o.c)}</span><span class="v"><b>${eur(o.tot)}</b> <span class="sub2">· compté sur ${o.mois.map(monthShort).join(", ")}</span></span></div>`).join(""):'<div class="sub2" style="margin:6px 0">Tout l\'argent encaissé tombe bien sur '+monthShort(M)+'.</div>';
+    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" (acompte)"); return parts.join(" + "); };
+    const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>';
     eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
-      <div style="font-weight:800;margin-bottom:6px">💰 Détail encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
+      <div style="font-weight:800;margin-bottom:6px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
       ${counted}
-      <details class="cdet" style="margin-top:10px"><summary>🔁 Encaissé d'autres clients, compté sur un autre mois (${others.length})</summary><div class="sub2" style="margin:4px 0 6px">Ces clients ont bien payé, mais leur montant est rattaché au mois indiqué (démarrage ou échéance). Rien n'est perdu — c'est juste sur un autre mois.</div>${othHtml}</details>
+    </div>`;
+  })();
+  // Détail cliquable du ⏳ Reste à encaisser : ce qui reste dû sur chaque contrat (même total que le tableau)
+  (function(){ const db=$("dueBreak"); if(!db) return;
+    const resteCls=CLIENTS.filter(c=>clientReste(c)>0).sort((a,b)=>clientReste(b)-clientReste(a));
+    const rows=resteCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${eur(clientEncaisse(c))} / ${eur(c.montant)} encaissé</span></span><span class="v" style="color:#ffcf7a">${eur(clientReste(c))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien à encaisser — tous les contrats sont soldés. 🎉</div>';
+    db.innerHTML=`<div class="card" style="border-color:rgba(255,207,122,.35);margin:0">
+      <div style="font-weight:800;margin-bottom:6px">⏳ Reste à encaisser (tous contrats) — ${eur(dueTot)}</div>
+      ${rows}
     </div>`;
   })();
   const monthCard=`<div class="card" style="margin-top:2px;padding:12px 14px">
@@ -2680,8 +2689,6 @@ async function importLogiFromAccounts(M){ if(!fbReady())return; initFirebase(); 
     const m2=$("lgMsg_"+M); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent=imported.length+" logiciels importés depuis les comptes ✓ ("+eur(tot)+")"; }
   }catch(e){ msg("err","Erreur : "+e.message); } }
 /* ===================== PRESTATAIRES (hors équipe) ===================== */
-let storage=null;
-function initStorage(){ if(storage||!fbReady())return; try{ if(!db)initFirebase(); storage=firebase.storage(); }catch(e){ storage=null; } }
 const PRESTA_CATS=["🎬 Montage","📣 Publicité","🛠 Outil / logiciel","✍️ Rédaction / contenu","🎨 Design","💼 Autre"];
 function prestaList(M){ return Array.isArray(PRESTA[M])?PRESTA[M]:[]; }
 function renderPresta(M){
@@ -2740,21 +2747,6 @@ async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=g
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
 async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M,true).filter(x=>x.id!==id); PRESTA[M]=list;
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); renderFinance(); }catch(e){ alert("Erreur : "+e.message); } }
-async function uploadPrestaFile(M,id,input){ const f=input&&input.files&&input.files[0]; if(!f)return;
-  const m=$("prMsg_"+M); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  initStorage(); if(!storage){ setMsg("⚠️ L'upload de fichier nécessite Firebase Storage (pas encore activé). En attendant, colle simplement le LIEN de la facture dans le champ 🔗 juste au-dessus — ça marche tout de suite.","err"); return; }
-  // on garde TOUTES les lignes (même vides) pour ne pas perdre celle qui reçoit la facture
-  const list=gatherPresta(M, true); PRESTA[M]=list;
-  setMsg("Envoi de la facture…");
-  try{
-    const ref=storage.ref("prestas/"+M+"/"+id+"_"+f.name.replace(/[^\w.\-]/g,"_"));
-    await ref.put(f); const url=await ref.getDownloadURL();
-    const l=(PRESTA[M]||[]).map(x=> x.id===id ? {...x, fileUrl:url, fileName:f.name} : x);
-    PRESTA[M]=l;
-    await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list:l});
-    setMsg("Facture ajoutée ✓","ok"); renderPresta(M);
-  }catch(e){ setMsg("Erreur upload : "+e.message,"err"); }
-}
 function ctRow(c){
   const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
   const showSel=`<select class="ctShow"><option value=""${cur===""?" selected":""}>— statut</option><option value="show"${cur==="show"?" selected":""}>✅ Show-up</option><option value="closed"${cur==="closed"?" selected":""}>🎯 Closé</option><option value="no"${cur==="no"?" selected":""}>❌ No-show</option></select>`;
@@ -2770,27 +2762,6 @@ function ctRow(c){
       <button type="button" class="xrow" onclick="this.closest('.ctrow').remove()">✕</button>
     </div>
   </div>`; }
-function setterCallsBlock(M, setter){
-  const all=mergeCalls(M).filter(c=>c.setter===setter).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-  const pending=all.filter(c=>!c.verified), done=all.filter(c=>c.verified);
-  const leads=done.filter(c=>c.show===true).length;
-  const pRows=pending.length?pending.map(ctRow).join(""):'<div class="sub2" style="margin:8px 0">Rien à vérifier 👌 — les nouveaux calls remonteront ici.</div>';
-  return `<div class="ctbox" data-set="${setter}" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
-    <div class="sub2" style="margin:0 0 4px"><b>📞 Calls de ${escapeHtml(setter)}</b>${(()=>{const src=Object.keys(SRC_SETTER).find(k=>SRC_SETTER[k]===setter); return src?" ("+escapeHtml(src)+")":"";})()} · ${leads} lead(s) payé(s) ce mois.</div>
-    <div class="sub2" style="margin:0 0 2px;color:var(--faint)">À vérifier (${pending.length}) — choisis le statut, coche « vérifié », puis Enregistrer.</div>
-    <div class="ctRows">${pRows}</div>
-    <button type="button" class="addrow" onclick="addSetterCall(this)">+ Ajouter un call</button>
-    ${done.length?`<details class="cdet" style="margin-top:8px"><summary>✅ Calls vérifiés — archive (${done.length}) · modifiable</summary>
-      <div class="sub2" style="margin:4px 0;color:var(--faint)">Tu peux modifier un call archivé (statut, setter, ✕ pour retirer) puis « Enregistrer / valider ».</div>
-      <div class="arch-tools">
-        <input class="archSearch" placeholder="🔎 Rechercher un client…" oninput="filterArchive(this)">
-        <input type="date" class="archDate" onchange="filterArchive(this)">
-      </div>
-      <div class="ctRows archRows">${done.map(ctRow).join("")}</div></details>`:""}
-    <button class="btn ghost sm" style="margin-top:10px" onclick="saveSetterCalls('${M}','${setter}')">💾 Enregistrer / valider</button>
-    <div class="ctMsg msg"></div>
-  </div>`;
-}
 function addSetterCall(btn){ const ctb=btn.closest(".ctbox"); const box=ctb.querySelector(".ctRows"); if(box){ box.insertAdjacentHTML("beforeend", ctRow({prospect:"",date:todayStr(),show:null,verified:false,setter:ctb.getAttribute("data-set")})); const i=box.lastElementChild.querySelector(".ctP"); if(i) i.focus(); } }
 function mlRow(x){ return `<div class="mlrow" style="display:flex;gap:6px;align-items:center;margin:5px 0">
     <input class="mlLabel" placeholder="Libellé (prime, avance, retrait d'un lead…)" value="${escapeHtml(x&&x.l||'')}" style="flex:1;min-width:0">
@@ -2878,7 +2849,6 @@ function startMonth(c){ return (c.date_debut||"").slice(0,7); }
    - encaissé total = échéances cochées "payé"  +  la part du champ "Déjà encaissé global" NON couverte par ces échéances.
    - donc si les deux sont remplis pour le même argent (cas fréquent), on ne compte qu'une fois ;
    - et si l'argent n'est saisi QUE dans "Déjà encaissé global", il est bien compté (rattaché au mois de démarrage). */
-function hasSched(c){ return Array.isArray(c&&c.schedule) && c.schedule.length>0; }
 function schedPaidAll(c){ return (c&&c.schedule||[]).filter(s=>s.paid).reduce((a,b)=>a+(Number(b.amount)||0),0); }
 /* Encaissé = MAX(acompte saisi, somme des échéances cochées) — jamais de double comptage.
    L'acompte = le total encaissé (running) ; l'échéancier = le plan de paiement coché au fur et à mesure. On prend le plus grand des deux. */
@@ -2904,8 +2874,6 @@ function cooGridHtml(ca){ ca=Number(ca)||0;
     <div style="display:flex;background:var(--card2);font-size:11.5px;font-weight:700;color:var(--muted)"><div style="flex:1;padding:7px 10px">CA encaissé effectif du mois</div><div style="width:74px;padding:7px 10px;text-align:center">Taux marge</div></div>
     ${rows.map(r=>`<div style="display:flex;border-top:1px solid var(--line);${r[2]?'background:rgba(52,199,89,.12)':''}"><div style="flex:1;padding:8px 10px;font-size:13px;${r[2]?'font-weight:700;color:#7ee2a3':''}">${r[2]?'➡️ ':''}${r[0]}</div><div style="width:74px;padding:8px 10px;text-align:center;font-size:14px;${r[2]?'font-weight:800;color:#7ee2a3':'font-weight:600'}">${r[1]}</div></div>`).join("")}
   </div>`; }
-function cooLineRow(x){ x=x||{}; return `<div class="drow cooline" style="display:flex;gap:6px;align-items:center;margin:4px 0"><input class="clLbl" type="text" placeholder="Libellé (charge déductible)" value="${escapeHtml(x.l||'')}" style="flex:1;min-width:0"><input class="clAmt" type="number" inputmode="numeric" placeholder="€" value="${x.a!=null?x.a:''}" style="width:88px" oninput="cooRecalc()"><button type="button" class="xrow" onclick="this.closest('.cooline').remove();cooRecalc()">✕</button></div>`; }
-function addCooLine(){ const c=$("cooLines"); if(c) c.insertAdjacentHTML("beforeend", cooLineRow({})); }
 let _cooAuto=0, _cooTeam=0, _cooPresta=0, _cooLogi=0;
 function renderCoo(M, caAuto, teamComm){
   const box=$("cooCard"); if(!box) return;
@@ -2915,7 +2883,7 @@ function renderCoo(M, caAuto, teamComm){
   const logiAuto=logiTotal(M); _cooLogi=logiAuto;
   const coo=COO[M]||{};
   const vOr=v=>(v!=null&&v!=="")?v:'';
-  box.innerHTML=`<div class="card">
+  box.innerHTML=`<details class="cdet"><summary style="font-weight:800;padding:10px 2px">💎 Détail de ma commission COO <span class="sub2" style="font-weight:600">— clique pour déplier</span></summary><div class="card" style="margin-top:6px">
     <label>CA encaissé effectif du mois (à remplir)</label>
     <input type="number" inputmode="numeric" id="coo_ca" value="${vOr(coo.ca)}" placeholder="auto : ${Math.round(caAuto)}" oninput="cooRecalc()">
     <div style="font-size:12px;color:var(--muted);margin:8px 0 2px">📊 Grille des taux (le taux dépend du CA, puis s'applique sur la marge) :</div>
@@ -2942,7 +2910,7 @@ function renderCoo(M, caAuto, teamComm){
     <button class="btn ghost sm" style="margin-top:10px" onclick="saveCoo('${M}')">💾 Enregistrer ${M}</button>
     <div id="cooMsg" class="msg"></div>
     <div class="hint">Marge = CA − (commissions équipe + prestas hors équipe + rému fixe + logiciels/charges). Le taux (3/4/5/6 %) dépend du CA, appliqué sur la marge. Tout est modifiable ; champ vide = valeur auto. « Forcer le total » écrase le calcul.</div>
-  </div>`;
+  </div></details>`;
   cooRecalc();
 }
 function cooRecalc(){ if(!$("coo_ca")) return;
@@ -2978,7 +2946,7 @@ function renderFinTable(){
   if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Aucun client pour l'instant.</div>`; return; }
   const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Encaissé</th><th>Reste</th></tr>`;
   const body=rows.map(c=>{
-    const enc=clientEncaisse(c), reste=Math.max(0,(Number(c.montant)||0)-enc);
+    const enc=clientEncaisse(c), reste=clientReste(c);
     const nomP=((c.nom||"")+" "+(c.prenom||"")).trim();
     const tds=ms.map(m=>{ const p=paidInMonth(c,m), d=dueInMonth(c,m);
       if(p) return `<td class="paid">${eur(p)}</td>`;
@@ -2988,7 +2956,7 @@ function renderFinTable(){
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
-  const totReste=rows.reduce((s,c)=>s+Math.max(0,(Number(c.montant)||0)-clientEncaisse(c)),0);
+  const totReste=rows.reduce((s,c)=>s+clientReste(c),0);
   $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
 }
 
