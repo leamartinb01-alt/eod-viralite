@@ -2204,7 +2204,8 @@ function clientIssues(c){
 }
 function clientEncaisse(c){ return schedPaidAll(c) + encGlobal(c); }
 // Reste dû sur le contrat = montant − déjà encaissé. Un client Annulé/Litige n'a plus rien à encaisser (0). Source unique du « reste à encaisser » (KPI + tableau + détail).
-function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; return Math.max(0,(Number(c&&c.montant)||0)-clientEncaisse(c)); }
+// On ignore les résidus sous 1 € (arrondis) → pas de « 1 € » fantôme.
+function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; const r=(Number(c&&c.montant)||0)-clientEncaisse(c); return r>=1?Math.round(r):0; }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -2459,15 +2460,17 @@ function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBa
 function renderFinance(){
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
   // encaissements du mois
-  let encTot=0, dueTot=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
+  let encTot=0, dueMonth=0, dueTotal=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
   CLIENTS.forEach(c=>{
     const e=paidInMonth(c,M); if(e>0){ encTot+=e;
       if(c.closer) byCloser[c.closer]=(byCloser[c.closer]||0)+e;
       if(c.setter==="Lucas") lucasCA+=e;
       const mt=Number(c.montant)||e; coachTot += C.coachPerClient*(e/mt); nbCoachClients++;
     }
-    dueTot += clientReste(c); // reste à encaisser = ce qui reste dû sur le contrat (même chiffre que le tableau)
+    dueMonth += dueInMonth(c,M);   // échéances planifiées à encaisser CE mois
+    dueTotal += clientReste(c);    // reste total dû sur tous les contrats
   });
+  const dueTot=dueTotal; // (compat) total = même chiffre que le tableau
   // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
   let newCash=0, recCash=0;
   CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
@@ -2521,7 +2524,7 @@ function renderFinance(){
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
     <div class="box" style="cursor:pointer" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)} 🔎</div></div>
-    <div class="box" style="cursor:pointer" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueTot)}</div><div class="l">⏳ Reste à encaisser 🔎</div></div>
+    <div class="box" style="cursor:pointer" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueMonth)}</div><div class="l">⏳ À encaisser en ${monthShort(M)} 🔎</div><div class="sub2" style="margin-top:2px">total contrats : ${eur(dueTotal)}</div></div>
     <div class="box" style="cursor:pointer" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)} 🔎</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
     <div class="box"><div class="n" style="color:#8fb4ff">${eur(logiTot)}</div><div class="l">💻 Logiciels</div></div>`;
@@ -2563,13 +2566,20 @@ function renderFinance(){
       ${counted}
     </div>`;
   })();
-  // Détail cliquable du ⏳ Reste à encaisser : ce qui reste dû sur chaque contrat (même total que le tableau)
+  // Détail cliquable du ⏳ Reste à encaisser : partie CE MOIS (échéances planifiées) + partie TOTAL (reste dû sur les contrats)
   (function(){ const db=$("dueBreak"); if(!db) return;
+    const moisCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
+    const moisRows=moisCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#ffcf7a">${eur(dueInMonth(c,M))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Aucune échéance planifiée à encaisser ce mois.</div>';
     const resteCls=CLIENTS.filter(c=>clientReste(c)>0).sort((a,b)=>clientReste(b)-clientReste(a));
-    const rows=resteCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${eur(clientEncaisse(c))} / ${eur(c.montant)} encaissé</span></span><span class="v" style="color:#ffcf7a">${eur(clientReste(c))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien à encaisser — tous les contrats sont soldés. 🎉</div>';
+    const resteRows=resteCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${eur(clientEncaisse(c))} / ${eur(c.montant)}</span></span><span class="v" style="color:#ffcf7a">${eur(clientReste(c))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Tous les contrats sont soldés. 🎉</div>';
     db.innerHTML=`<div class="card" style="border-color:rgba(255,207,122,.35);margin:0">
-      <div style="font-weight:800;margin-bottom:6px">⏳ Reste à encaisser (tous contrats) — ${eur(dueTot)}</div>
-      ${rows}
+      <div style="font-weight:800;margin-bottom:6px">⏳ À encaisser en ${monthLabel(M)} — ${eur(dueMonth)}</div>
+      <div class="sub2" style="margin:-2px 0 6px">Les échéances planifiées dont le mois = ${monthShort(M)}.</div>
+      ${moisRows}
+      <details class="cdet" style="margin-top:10px"><summary>📋 Reste total dû sur les contrats — ${eur(dueTotal)}</summary>
+        <div class="sub2" style="margin:4px 0 6px">Tout ce qui reste à encaisser sur l'ensemble des contrats (tous mois confondus).</div>
+        ${resteRows}
+      </details>
     </div>`;
   })();
   const monthCard=`<div class="card" style="margin-top:2px;padding:12px 14px">
@@ -2954,8 +2964,8 @@ function renderFinTable(){
     const unsched=Math.max(0, reste-schedDue); // reste NON couvert par une échéance planifiée → rattaché au mois de démarrage pour être visible
     const tds=ms.map(m=>{ const p=paidInMonth(c,m); let d=isLit?0:dueInMonth(c,m); if(m===bm) d+=unsched;
       const parts=[];
-      if(p>0) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
-      if(d>0) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
+      if(Math.round(p)>=1) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
+      if(Math.round(d)>=1) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
       return `<td>${parts.length?parts.join('<br>'):'<span style="color:var(--faint)">—</span>'}</td>`; }).join("");
     return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(c.montant)}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
