@@ -2939,7 +2939,7 @@ async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); retur
 }
 function renderFinTable(){
   const monthsSet=new Set();
-  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encGlobal(c)>0) monthsSet.add(baseMonth(c)); });
+  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encGlobal(c)>0||clientReste(c)>0) monthsSet.add(baseMonth(c)); });
   let ms=[...monthsSet].filter(Boolean).sort();
   if(!ms.length) ms=lastMonths(4).reverse();
   const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
@@ -2948,10 +2948,15 @@ function renderFinTable(){
   const body=rows.map(c=>{
     const enc=clientEncaisse(c), reste=clientReste(c);
     const nomP=((c.nom||"")+" "+(c.prenom||"")).trim();
-    const tds=ms.map(m=>{ const p=paidInMonth(c,m), d=dueInMonth(c,m);
-      if(p) return `<td class="paid">${eur(p)}</td>`;
-      if(d) return `<td class="due">${eur(d)} ⏳</td>`;
-      return `<td style="color:var(--faint)">—</td>`; }).join("");
+    const isLit=(c.statut||"")==="Annulé / Litige";
+    const bm=baseMonth(c);
+    const schedDue=isLit?0:ms.reduce((s,m)=>s+dueInMonth(c,m),0);
+    const unsched=Math.max(0, reste-schedDue); // reste NON couvert par une échéance planifiée → rattaché au mois de démarrage pour être visible
+    const tds=ms.map(m=>{ const p=paidInMonth(c,m); let d=isLit?0:dueInMonth(c,m); if(m===bm) d+=unsched;
+      const parts=[];
+      if(p>0) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
+      if(d>0) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
+      return `<td>${parts.length?parts.join('<br>'):'<span style="color:var(--faint)">—</span>'}</td>`; }).join("");
     return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(c.montant)}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
