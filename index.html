@@ -516,8 +516,6 @@
       <div id="genBreak" class="hide" style="margin-top:12px"></div>
       <div id="margeBox" style="margin-top:12px"></div>
     </div>
-    <div class="section-title">💎 Ma commission (Léa · COO)</div>
-    <div id="cooCard"></div>
     <div class="section-title">Fiches de paie du mois</div>
     <div id="finPay"></div>
     <div class="section-title">🧾 Prestataires (hors équipe)</div>
@@ -526,6 +524,8 @@
     <div id="logiCard"></div>
     <div class="section-title">Encaissements par client × mois</div>
     <div id="finTable"></div>
+    <div class="section-title" style="margin-top:22px">💎 Ma rémunération (Léa · COO)</div>
+    <div id="cooCard"></div>
   </div>
 
   <!-- RÉGLAGES -->
@@ -616,30 +616,32 @@
   <div id="view-linkedin" class="wrap hide">
     <div class="card">
       <h2 style="margin:0 0 4px">💼 LinkedIn — Clément</h2>
-      <p class="sub2" style="margin:0">Suivi hebdo des perfs. Ajoute une ligne chaque semaine (chiffres de la capture) → évolution semaine/semaine.</p>
+      <p class="sub2" style="margin:0">Chaque semaine : saisis les chiffres de tes captures et garde les captures pour pouvoir revérifier plus tard.</p>
     </div>
     <div id="liKpis" class="stat"></div>
+    <div class="section-title">📈 Évolution</div>
+    <div id="liChart"></div>
     <div class="card">
-      <h2 style="margin:0 0 8px">➕ Ajouter une semaine</h2>
-      <label class="btn ghost" style="display:block;text-align:center;cursor:pointer;margin:0 0 10px">📷 Importer une capture LinkedIn (remplit les chiffres tout seul)<input type="file" accept="image/*" style="display:none" onchange="importLiScreenshot(this)"></label>
-      <div class="hint" style="margin:-4px 0 8px">Prends la capture de la « Vue d'ensemble » (les 4 chiffres). L'OCR pré-remplit les champs — vérifie puis Enregistre.</div>
+      <h2 style="margin:0 0 8px">➕ Ajouter / mettre à jour une semaine</h2>
       <div class="payin">
         <div><label>Date (fin de semaine)</label><input type="date" id="li_date"></div>
         <div><label>Impressions (7 j)</label><input type="number" inputmode="numeric" id="li_impr" placeholder="ex : 81231"></div>
       </div>
       <div class="payin">
-        <div><label>Total abonnés</label><input type="number" inputmode="numeric" id="li_abo" placeholder="ex : 7132"></div>
+        <div><label>Total abonnés</label><input type="number" inputmode="numeric" id="li_abo" placeholder="ex : 7453"></div>
         <div><label>Vues du profil (90 j)</label><input type="number" inputmode="numeric" id="li_vues" placeholder="ex : 2506"></div>
       </div>
       <div class="payin">
         <div><label>Apparitions recherches</label><input type="number" inputmode="numeric" id="li_rech" placeholder="ex : 126"></div>
-        <div><label>Note (optionnel)</label><input type="text" id="li_note" placeholder="ex : gros post viral"></div>
+        <div><label>Engagement (28 j)</label><input type="number" inputmode="numeric" id="li_eng" placeholder="ex : 1914"></div>
       </div>
-      <button class="btn" style="margin-top:10px" onclick="saveLinkedin()">💾 Enregistrer la semaine</button>
+      <label style="margin-top:8px;display:block">Note (optionnel)</label>
+      <input type="text" id="li_note" placeholder="ex : gros post viral" style="width:100%">
+      <button class="btn" style="margin-top:12px" onclick="saveLinkedin()">💾 Enregistrer la semaine</button>
+      <button class="btn ghost sm" id="liSeedBtn" style="margin-top:8px;width:auto;padding:6px 12px" onclick="seedLinkedin()">⚡ Importer la semaine du 30/07 (capture Vue d'ensemble)</button>
       <div id="liMsg" class="msg"></div>
     </div>
-    <div class="section-title">📈 Évolution</div>
-    <div id="liChart"></div>
+    <div class="section-title">🗂 Historique des semaines</div>
     <div id="liList"></div>
   </div>
 </div>
@@ -1667,7 +1669,7 @@ async function submitEod(){
 /* ===================== NAV (animée) ===================== */
 /* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
 let LINKEDIN=[], _liMetric="impr";
-const LI_METRICS=[["impr","Impressions"],["abo","Abonnés"],["vues","Vues profil"],["rech","Recherches"]];
+const LI_METRICS=[["impr","Impressions 7j"],["abo","Abonnés"],["vues","Vues profil"],["rech","Recherches"],["eng","Engagement"]];
 function setLiMetric(k){ _liMetric=k; renderLinkedin(); }
 function liChartSvg(ws,key){
   if(!ws.length) return '<div class="sub2" style="text-align:center;padding:20px 0">Ajoute des semaines pour voir la courbe.</div>';
@@ -1689,61 +1691,67 @@ function liChartSvg(ws,key){
     ${dots}${xl}${lastLbl}
   </svg>`;
 }
-// OCR : lire une capture LinkedIn et pré-remplir les champs (best-effort, à vérifier)
-function loadTesseract(){ return new Promise((res,rej)=>{ if(window.Tesseract) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"; s.onload=()=>res(); s.onerror=()=>rej(new Error("chargement OCR échoué")); document.head.appendChild(s); }); }
-function parseLiText(text){
-  const lines=String(text||"").replace(/ /g," ").split(/\n+/).map(l=>l.trim()).filter(Boolean);
-  const numNear=(keys)=>{ for(let i=0;i<lines.length;i++){ const l=lines[i].toLowerCase(); if(keys.some(k=>l.includes(k))){ for(let j=i;j>=Math.max(0,i-2);j--){ const mm=lines[j].match(/(\d[\d  .]{1,})/); if(mm){ const n=parseInt(mm[1].replace(/[^\d]/g,""),10); if(n) return n; } } } } return null; };
-  const set=(id,v)=>{ if(v!=null){ const e=$(id); if(e) e.value=v; } };
-  set("li_impr", numNear(["impression"]));
-  set("li_abo", numNear(["abonné","abonnes","abonn"]));
-  set("li_vues", numNear(["vues du profil","vue du profil","vues"]));
-  set("li_rech", numNear(["apparition","recherche"]));
-  if($("li_date")&&!$("li_date").value) $("li_date").value=todayStr();
-}
-async function importLiScreenshot(input){ const f=input&&input.files&&input.files[0]; if(!f) return;
-  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  setMsg("Lecture de la capture… (10-20 s, patiente)");
-  try{ await loadTesseract(); const { data }=await Tesseract.recognize(f, "fra"); parseLiText(data&&data.text||""); setMsg("Chiffres extraits ✓ — vérifie-les puis clique « Enregistrer la semaine ».","ok"); }
-  catch(e){ setMsg("Lecture auto impossible ("+e.message+"). Saisis les chiffres à la main.","err"); }
-  finally{ if(input) input.value=""; }
-}
 async function loadLinkedin(){
   if(!fbReady()){ $("liList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; } initFirebase();
-  try{ const d=await db.collection("setter_stats").doc("linkedin").get(); LINKEDIN=(d.exists&&Array.isArray(d.data().weeks))?d.data().weeks:[]; }catch(e){ LINKEDIN=[]; }
+  const byDate={};
+  try{ const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
+    snap.docs.forEach(d=>{ const x=d.data();
+      if(Array.isArray(x.weeks)){ x.weeks.forEach(w=>{ if(w&&w.date) byDate[w.date]={date:w.date,impr:w.impr||0,abo:w.abo||0,vues:w.vues||0,rech:w.rech||0,eng:w.eng||0,note:w.note||""}; }); }
+      else if(x.date && !x.deleted){ byDate[x.date]={date:x.date,impr:x.impr||0,abo:x.abo||0,vues:x.vues||0,rech:x.rech||0,eng:x.eng||0,note:x.note||""}; }
+      else if(x.date && x.deleted){ delete byDate[x.date]; }
+    });
+  }catch(e){}
+  LINKEDIN=Object.values(byDate).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   renderLinkedin();
 }
 async function saveLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
   const g=id=>{ const e=$(id); return e?e.value:""; };
   const date=g("li_date")||todayStr();
-  const w={date, impr:Number(g("li_impr"))||0, abo:Number(g("li_abo"))||0, vues:Number(g("li_vues"))||0, rech:Number(g("li_rech"))||0, note:(g("li_note")||"").trim()};
-  const m=$("liMsg");
-  if(!w.impr&&!w.abo&&!w.vues&&!w.rech){ if(m){m.className="msg err";m.style.display="block";m.textContent="Remplis au moins un chiffre.";} return; }
-  const arr=LINKEDIN.filter(x=>x.date!==date); arr.push(w); arr.sort((a,b)=>String(a.date).localeCompare(String(b.date))); LINKEDIN=arr;
-  if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
-  try{ await db.collection("setter_stats").doc("linkedin").set({isLinkedin:true, weeks:LINKEDIN}); if(m){m.className="msg ok";m.textContent="Semaine enregistrée ✓";} ["li_impr","li_abo","li_vues","li_rech","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";}); renderLinkedin(); }
-  catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} }
+  const prev=LINKEDIN.find(x=>x.date===date)||{};
+  const w={date, impr:Number(g("li_impr"))||0, abo:Number(g("li_abo"))||0, vues:Number(g("li_vues"))||0, rech:Number(g("li_rech"))||0, eng:Number(g("li_eng"))||0, note:(g("li_note")||"").trim()};
+  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
+  if(!w.impr&&!w.abo&&!w.vues&&!w.rech&&!w.eng){ setMsg("Remplis au moins un chiffre.","err"); return; }
+  setMsg("Enregistrement…");
+  try{
+    await db.collection("setter_stats").doc("liweek_"+date).set({isLinkedin:true, date, impr:w.impr, abo:w.abo, vues:w.vues, rech:w.rech, eng:w.eng, note:w.note});
+    ["li_impr","li_abo","li_vues","li_rech","li_eng","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";});
+    await loadLinkedin();
+    setMsg("Semaine enregistrée ✓","ok");
+  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
 }
-async function delLinkedin(date){ if(!isAdmin())return; if(!confirm("Supprimer cette semaine ?"))return; initFirebase(); LINKEDIN=LINKEDIN.filter(x=>x.date!==date);
-  try{ await db.collection("setter_stats").doc("linkedin").set({isLinkedin:true,weeks:LINKEDIN}); renderLinkedin(); }catch(e){ alert("Erreur : "+e.message); } }
+async function delLinkedin(date){ if(!isAdmin())return; if(!confirm("Supprimer cette semaine ?"))return; initFirebase();
+  try{ await db.collection("setter_stats").doc("liweek_"+date).set({isLinkedin:true, date, deleted:true}); await loadLinkedin(); }
+  catch(e){ alert("Erreur : "+e.message); } }
 function renderLinkedin(){
   const box=$("liList"), kb=$("liKpis"); if(!box) return;
   const ws=LINKEDIN.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const nf=n=>Number(n||0).toLocaleString('fr-FR');
-  // Graphique d'évolution + sélecteur de métrique
-  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" "); ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${liChartSvg(ws,_liMetric)}</div>`:""; }
-  // 1re fois : pré-remplir le formulaire avec la capture de Clément (semaine du 30/07)
-  if(!ws.length){ const pf=(id,v)=>{const e=$(id);if(e&&!e.value)e.value=v;}; pf("li_date","2026-07-30"); pf("li_impr","81231"); pf("li_abo","7132"); pf("li_vues","2506"); pf("li_rech","126"); }
-  else if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
+  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" "); ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${liChartSvg(ws,_liMetric)}</div>`:'<div class="sub2" style="padding:6px 2px">La courbe apparaît dès la 1re semaine enregistrée.</div>'; }
+  if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
   if(kb){ const cur=ws[ws.length-1], prev=ws[ws.length-2];
-    const kpi=(label,key)=>{ if(!cur) return `<div class="box"><div class="n">—</div><div class="l">${label}</div></div>`; const v=cur[key]||0; let delta=""; if(prev){ const d=v-(prev[key]||0), pct=prev[key]?Math.round(d/prev[key]*100):0, col=d>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col}">${d>=0?"▲":"▼"} ${nf(Math.abs(d))} (${pct>=0?'+':''}${pct}%)</div>`; } return `<div class="box"><div class="n grad-text">${nf(v)}</div><div class="l">${label}</div>${delta}</div>`; };
-    kb.innerHTML=kpi("Impressions 7j","impr")+kpi("Abonnés","abo")+kpi("Vues profil","vues")+kpi("Recherches","rech"); }
-  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Les chiffres de la capture sont pré-remplis ci-dessus — clique « Enregistrer la semaine ».</div>'; return; }
+    const kpi=(label,key)=>{ if(!cur) return `<div class="box"><div class="n">—</div><div class="l">${label}</div></div>`; const v=cur[key]||0; let delta=""; if(prev){ const d=v-(prev[key]||0), pct=prev[key]?Math.round(d/prev[key]*100):0, col=d>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col};margin-top:2px">${d>=0?"▲":"▼"} ${nf(Math.abs(d))} (${pct>=0?'+':''}${pct}%)</div>`; } return `<div class="box"><div class="n grad-text">${nf(v)}</div><div class="l">${label}</div>${delta}</div>`; };
+    kb.innerHTML=kpi("Impressions 7j","impr")+kpi("Abonnés","abo")+kpi("Vues profil","vues")+kpi("Recherches","rech")+kpi("Engagement","eng"); }
+  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Saisis les chiffres puis « Enregistrer la semaine ».</div>'; return; }
   const desc=ws.slice().reverse();
   box.innerHTML=desc.map((w,i)=>{ const prev=desc[i+1];
     const line=(lbl,key)=>{ const v=w[key]||0; let d=""; if(prev){ const diff=v-(prev[key]||0), pct=prev[key]?Math.round(diff/prev[key]*100):0, col=diff>=0?"#7ee2a3":"#ff6b6b"; d=` <span style="color:${col};font-size:12px">${diff>=0?"▲":"▼"} ${nf(Math.abs(diff))} (${pct>=0?'+':''}${pct}%)</span>`; } return `<div class="kv"><span class="k">${lbl}</span><span class="v">${nf(v)}${d}</span></div>`; };
-    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center">${w.note?`<span class="sub2">${escapeHtml(w.note)}</span>`:""}<button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${line("Impressions 7j","impr")}${line("Abonnés","abo")}${line("Vues profil 90j","vues")}${line("Recherches","rech")}</div>`;
+    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center"><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="editLiWeek('${w.date}')">✎</button><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${w.note?`<div class="sub2" style="margin:2px 0 4px">${escapeHtml(w.note)}</div>`:""}${line("Impressions 7j","impr")}${line("Abonnés","abo")}${line("Vues profil 90j","vues")}${line("Recherches","rech")}${w.eng?line("Engagement","eng"):""}</div>`;
   }).join("");
+}
+// Import de la semaine du 30/07 (capture "Vue d'ensemble" de Clément) — chiffres réels.
+async function seedLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
+  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
+  const w={date:"2026-07-30", impr:81231, abo:7132, vues:2506, rech:126, eng:0, note:""};
+  setMsg("Import de la semaine du 30/07…");
+  try{ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, ...w});
+    await loadLinkedin(); setMsg("Semaine du 30/07 importée ✓","ok");
+  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
+}
+function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) return;
+  const s=(id,v)=>{const e=$(id);if(e)e.value=v;};
+  s("li_date",w.date); s("li_impr",w.impr||""); s("li_abo",w.abo||""); s("li_vues",w.vues||""); s("li_rech",w.rech||""); s("li_eng",w.eng||""); s("li_note",w.note||"");
+  const m=$("liMsg"); if(m){m.className="msg";m.style.display="block";m.textContent="Semaine chargée — modifie les chiffres puis « Enregistrer ».";}
+  const f=$("li_date"); if(f) f.scrollIntoView({behavior:"smooth",block:"center"});
 }
 function show(v){
   // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
@@ -2478,7 +2486,9 @@ function renderFinance(){
   let newCash=0, recCash=0;
   CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
-  const genMonth=monthCashSum(monthEods.filter(x=>x.role==="closer"),"cash_gen_day","cash_gen_month");
+  // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
+  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M);
+  const genMonth=closedThisMonth.reduce((s,c)=>s+(Number(c.montant)||0),0);
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
@@ -2528,14 +2538,13 @@ function renderFinance(){
   $("finStats").innerHTML=`
     <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
     <div class="box clic" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueMonth)}</div><div class="l">⏳ À encaisser en ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">total contrats : ${eur(dueTotal)}</div></div>
-    <div class="box clic" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 Généré ${monthShort(M)}</div></div>
+    <div class="box clic" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 CA signé ${monthShort(M)}</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
     <div class="box"><div class="n" style="color:#8fb4ff">${eur(logiTot)}</div><div class="l">💻 Logiciels</div></div>`;
-  // Détail « Généré » par closer (cliquable)
+  // Détail « CA signé » PAR CLIENT (cliquable) — à quel client correspond chaque euro généré ce mois.
   (function(){ const gb=$("genBreak"); if(!gb) return;
-    const closers=CONFIG.TEAM.filter(m=>m.role==="closer");
-    const rows=closers.map(m=>{ const me=monthEods.filter(x=>x.member===m.name&&x.role==="closer"); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); return g>0?`<div class="kv"><span class="k">${escapeHtml(m.name)}</span><span class="v" style="color:#7ee2a3">${eur(g)}</span></div>`:""; }).filter(Boolean).join("");
-    gb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0"><div style="font-weight:800;margin-bottom:4px">📈 Généré ${monthLabel(M)} — ${eur(genMonth)}</div>${rows||'<div class="sub2">Aucun cash généré saisi ce mois.</div>'}</div>`;
+    const rows=closedThisMonth.slice().sort((a,b)=>(Number(b.montant)||0)-(Number(a.montant)||0)).map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim())} <span class="sub2">· ${escapeHtml(c.closer||"—")}</span></span><span class="v" style="color:#7ee2a3">${eur(c.montant)}</span></div>`).join("");
+    gb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0"><div style="font-weight:800;margin-bottom:4px">📈 CA signé ${monthLabel(M)} — ${eur(genMonth)}</div><div class="sub2" style="margin-bottom:6px">${closedThisMonth.length} client${closedThisMonth.length>1?"s":""} signé${closedThisMonth.length>1?"s":""} ce mois · montant du contrat.</div>${rows||'<div class="sub2">Aucun client signé ce mois.</div>'}</div>`;
   })();
   // Bloc MARGE (formule call : Revenus − équipe − prestas − logiciels ; puis − ta comm COO)
   (function(){ const mb=$("margeBox"); if(!mb) return;
