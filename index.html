@@ -622,23 +622,28 @@
     <div class="section-title">📈 Évolution</div>
     <div id="liChart"></div>
     <div class="card">
-      <h2 style="margin:0 0 8px">➕ Ajouter / mettre à jour une semaine</h2>
+      <h2 style="margin:0 0 4px">➕ Ajouter / mettre à jour une semaine</h2>
+      <div class="hint" style="margin:0 0 8px">Remplis uniquement les chiffres présents sur tes captures — chaque champ a sa fenêtre (7 j / 28 j / 90 j), rien ne se mélange. Le <b>Total abonnés</b> est la référence d'évolution (toujours comparable).</div>
       <div class="payin">
         <div><label>Date (fin de semaine)</label><input type="date" id="li_date"></div>
-        <div><label>Impressions (7 j)</label><input type="number" inputmode="numeric" id="li_impr" placeholder="ex : 81231"></div>
+        <div><label>⭐ Total abonnés</label><input type="number" inputmode="numeric" id="li_abo" placeholder="ex : 7707"></div>
       </div>
       <div class="payin">
-        <div><label>Total abonnés</label><input type="number" inputmode="numeric" id="li_abo" placeholder="ex : 7453"></div>
+        <div><label>Impressions (7 j)</label><input type="number" inputmode="numeric" id="li_impr7" placeholder="ex : 14383"></div>
+        <div><label>Impressions (28 j)</label><input type="number" inputmode="numeric" id="li_impr28" placeholder="ex : 145632"></div>
+      </div>
+      <div class="payin">
+        <div><label>Engagement (7 j)</label><input type="number" inputmode="numeric" id="li_eng7" placeholder="ex : 416"></div>
+        <div><label>Engagement (28 j)</label><input type="number" inputmode="numeric" id="li_eng28" placeholder="ex : 1914"></div>
+      </div>
+      <div class="payin">
         <div><label>Vues du profil (90 j)</label><input type="number" inputmode="numeric" id="li_vues" placeholder="ex : 2506"></div>
-      </div>
-      <div class="payin">
         <div><label>Apparitions recherches</label><input type="number" inputmode="numeric" id="li_rech" placeholder="ex : 126"></div>
-        <div><label>Engagement (28 j)</label><input type="number" inputmode="numeric" id="li_eng" placeholder="ex : 1914"></div>
       </div>
       <label style="margin-top:8px;display:block">Note (optionnel)</label>
       <input type="text" id="li_note" placeholder="ex : gros post viral" style="width:100%">
       <button class="btn" style="margin-top:12px" onclick="saveLinkedin()">💾 Enregistrer la semaine</button>
-      <button class="btn ghost sm" id="liSeedBtn" style="margin-top:8px;width:auto;padding:6px 12px" onclick="seedLinkedin()">⚡ Importer la semaine du 30/07 (capture Vue d'ensemble)</button>
+      <button class="btn ghost sm" id="liSeedBtn" style="margin-top:8px;width:auto;padding:6px 12px" onclick="seedLinkedin()">⚡ Importer les 3 semaines (30/07 · 07/08 · 14/08)</button>
       <div id="liMsg" class="msg"></div>
     </div>
     <div class="section-title">🗂 Historique des semaines</div>
@@ -1668,8 +1673,9 @@ async function submitEod(){
 
 /* ===================== NAV (animée) ===================== */
 /* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
-let LINKEDIN=[], _liMetric="impr";
-const LI_METRICS=[["impr","Impressions 7j"],["abo","Abonnés"],["vues","Vues profil"],["rech","Recherches"],["eng","Engagement"]];
+let LINKEDIN=[], _liMetric="abo";
+const LI_METRICS=[["abo","Abonnés"],["impr7","Impressions 7j"],["impr28","Impressions 28j"],["eng7","Engagement 7j"],["eng28","Engagement 28j"],["vues","Vues profil 90j"],["rech","Recherches"]];
+const LI_LBL={abo:"⭐ Total abonnés",impr7:"Impressions 7j",impr28:"Impressions 28j",eng7:"Engagement 7j",eng28:"Engagement 28j",vues:"Vues profil 90j",rech:"Apparitions recherches"};
 function setLiMetric(k){ _liMetric=k; renderLinkedin(); }
 function liChartSvg(ws,key){
   if(!ws.length) return '<div class="sub2" style="text-align:center;padding:20px 0">Ajoute des semaines pour voir la courbe.</div>';
@@ -1694,10 +1700,11 @@ function liChartSvg(ws,key){
 async function loadLinkedin(){
   if(!fbReady()){ $("liList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; } initFirebase();
   const byDate={};
+  const mk=x=>({date:x.date, abo:x.abo||0, impr7:(x.impr7!=null?x.impr7:x.impr)||0, impr28:x.impr28||0, eng7:x.eng7||0, eng28:(x.eng28!=null?x.eng28:x.eng)||0, vues:x.vues||0, rech:x.rech||0, note:x.note||""});
   try{ const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
     snap.docs.forEach(d=>{ const x=d.data();
-      if(Array.isArray(x.weeks)){ x.weeks.forEach(w=>{ if(w&&w.date) byDate[w.date]={date:w.date,impr:w.impr||0,abo:w.abo||0,vues:w.vues||0,rech:w.rech||0,eng:w.eng||0,note:w.note||""}; }); }
-      else if(x.date && !x.deleted){ byDate[x.date]={date:x.date,impr:x.impr||0,abo:x.abo||0,vues:x.vues||0,rech:x.rech||0,eng:x.eng||0,note:x.note||""}; }
+      if(Array.isArray(x.weeks)){ x.weeks.forEach(w=>{ if(w&&w.date) byDate[w.date]=mk(w); }); }
+      else if(x.date && !x.deleted){ byDate[x.date]=mk(x); }
       else if(x.date && x.deleted){ delete byDate[x.date]; }
     });
   }catch(e){}
@@ -1705,18 +1712,15 @@ async function loadLinkedin(){
   renderLinkedin();
 }
 async function saveLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
-  const g=id=>{ const e=$(id); return e?e.value:""; };
-  const date=g("li_date")||todayStr();
-  const prev=LINKEDIN.find(x=>x.date===date)||{};
-  const w={date, impr:Number(g("li_impr"))||0, abo:Number(g("li_abo"))||0, vues:Number(g("li_vues"))||0, rech:Number(g("li_rech"))||0, eng:Number(g("li_eng"))||0, note:(g("li_note")||"").trim()};
+  const g=id=>{ const e=$(id); return e?(Number(e.value)||0):0; };
+  const date=($("li_date")&&$("li_date").value)||todayStr();
+  const w={isLinkedin:true, date, abo:g("li_abo"), impr7:g("li_impr7"), impr28:g("li_impr28"), eng7:g("li_eng7"), eng28:g("li_eng28"), vues:g("li_vues"), rech:g("li_rech"), note:(($("li_note")&&$("li_note").value)||"").trim()};
   const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  if(!w.impr&&!w.abo&&!w.vues&&!w.rech&&!w.eng){ setMsg("Remplis au moins un chiffre.","err"); return; }
+  if(!w.abo&&!w.impr7&&!w.impr28&&!w.eng7&&!w.eng28&&!w.vues&&!w.rech){ setMsg("Remplis au moins un chiffre.","err"); return; }
   setMsg("Enregistrement…");
-  try{
-    await db.collection("setter_stats").doc("liweek_"+date).set({isLinkedin:true, date, impr:w.impr, abo:w.abo, vues:w.vues, rech:w.rech, eng:w.eng, note:w.note});
-    ["li_impr","li_abo","li_vues","li_rech","li_eng","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";});
-    await loadLinkedin();
-    setMsg("Semaine enregistrée ✓","ok");
+  try{ await db.collection("setter_stats").doc("liweek_"+date).set(w);
+    ["li_abo","li_impr7","li_impr28","li_eng7","li_eng28","li_vues","li_rech","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";});
+    await loadLinkedin(); setMsg("Semaine enregistrée ✓","ok");
   }catch(e){ setMsg("Erreur : "+e.message,"err"); }
 }
 async function delLinkedin(date){ if(!isAdmin())return; if(!confirm("Supprimer cette semaine ?"))return; initFirebase();
@@ -1726,30 +1730,41 @@ function renderLinkedin(){
   const box=$("liList"), kb=$("liKpis"); if(!box) return;
   const ws=LINKEDIN.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const nf=n=>Number(n||0).toLocaleString('fr-FR');
-  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" "); ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${liChartSvg(ws,_liMetric)}</div>`:'<div class="sub2" style="padding:6px 2px">La courbe apparaît dès la 1re semaine enregistrée.</div>'; }
+  const series=k=>ws.filter(w=>Number(w[k])>0);
+  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" ");
+    const cw=series(_liMetric);
+    ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${cw.length?liChartSvg(cw,_liMetric):'<div class="sub2" style="text-align:center;padding:18px 0">Pas encore de donnée pour « '+(LI_LBL[_liMetric]||_liMetric)+' ».</div>'}</div>`:'<div class="sub2" style="padding:6px 2px">La courbe apparaît dès la 1re semaine enregistrée.</div>'; }
   if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
-  if(kb){ const cur=ws[ws.length-1], prev=ws[ws.length-2];
-    const kpi=(label,key)=>{ if(!cur) return `<div class="box"><div class="n">—</div><div class="l">${label}</div></div>`; const v=cur[key]||0; let delta=""; if(prev){ const d=v-(prev[key]||0), pct=prev[key]?Math.round(d/prev[key]*100):0, col=d>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col};margin-top:2px">${d>=0?"▲":"▼"} ${nf(Math.abs(d))} (${pct>=0?'+':''}${pct}%)</div>`; } return `<div class="box"><div class="n grad-text">${nf(v)}</div><div class="l">${label}</div>${delta}</div>`; };
-    kb.innerHTML=kpi("Impressions 7j","impr")+kpi("Abonnés","abo")+kpi("Vues profil","vues")+kpi("Recherches","rech")+kpi("Engagement","eng"); }
-  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Saisis les chiffres puis « Enregistrer la semaine ».</div>'; return; }
+  if(kb){ const cards=LI_METRICS.map(([k,l])=>{ const s=series(k); if(!s.length) return ""; const cur=s[s.length-1], prev=s[s.length-2];
+      let delta=""; if(prev){ const dd=Number(cur[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(dd/Number(prev[k])*100):0, col=dd>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col};margin-top:2px">${dd>=0?"▲":"▼"} ${nf(Math.abs(dd))} (${pct>=0?'+':''}${pct}%)</div>`; }
+      return `<div class="box"><div class="n grad-text">${nf(cur[k])}</div><div class="l">${l}</div>${delta}</div>`; }).filter(Boolean).join("");
+    kb.innerHTML=cards||'<div class="sub2" style="padding:6px 2px">Ajoute une semaine pour voir les indicateurs.</div>'; }
+  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Saisis les chiffres de tes captures puis « Enregistrer la semaine ».</div>'; return; }
   const desc=ws.slice().reverse();
-  box.innerHTML=desc.map((w,i)=>{ const prev=desc[i+1];
-    const line=(lbl,key)=>{ const v=w[key]||0; let d=""; if(prev){ const diff=v-(prev[key]||0), pct=prev[key]?Math.round(diff/prev[key]*100):0, col=diff>=0?"#7ee2a3":"#ff6b6b"; d=` <span style="color:${col};font-size:12px">${diff>=0?"▲":"▼"} ${nf(Math.abs(diff))} (${pct>=0?'+':''}${pct}%)</span>`; } return `<div class="kv"><span class="k">${lbl}</span><span class="v">${nf(v)}${d}</span></div>`; };
-    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center"><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="editLiWeek('${w.date}')">✎</button><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${w.note?`<div class="sub2" style="margin:2px 0 4px">${escapeHtml(w.note)}</div>`:""}${line("Impressions 7j","impr")}${line("Abonnés","abo")}${line("Vues profil 90j","vues")}${line("Recherches","rech")}${w.eng?line("Engagement","eng"):""}</div>`;
+  box.innerHTML=desc.map(w=>{
+    const lines=LI_METRICS.map(([k,l])=>{ if(!(Number(w[k])>0)) return "";
+      const s=series(k); const idx=s.findIndex(x=>x.date===w.date); const prev=idx>0?s[idx-1]:null;
+      let d=""; if(prev){ const diff=Number(w[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(diff/Number(prev[k])*100):0, col=diff>=0?"#7ee2a3":"#ff6b6b"; d=` <span style="color:${col};font-size:12px">${diff>=0?"▲":"▼"} ${nf(Math.abs(diff))} (${pct>=0?'+':''}${pct}%)</span>`; }
+      return `<div class="kv"><span class="k">${l}</span><span class="v">${nf(w[k])}${d}</span></div>`; }).filter(Boolean).join("");
+    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center"><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="editLiWeek('${w.date}')">✎</button><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${w.note?`<div class="sub2" style="margin:2px 0 4px">${escapeHtml(w.note)}</div>`:""}${lines}</div>`;
   }).join("");
 }
-// Import de la semaine du 30/07 (capture "Vue d'ensemble" de Clément) — chiffres réels.
+// Import des 3 semaines réelles des captures de Clément (chaque chiffre dans le bon champ / la bonne fenêtre).
 async function seedLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
   const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  const w={date:"2026-07-30", impr:81231, abo:7132, vues:2506, rech:126, eng:0, note:""};
-  setMsg("Import de la semaine du 30/07…");
-  try{ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, ...w});
-    await loadLinkedin(); setMsg("Semaine du 30/07 importée ✓","ok");
+  const weeks=[
+    {date:"2026-07-30", abo:7132, impr7:81231, vues:2506, rech:126, note:"Vue d'ensemble (7 j)"},
+    {date:"2026-08-07", abo:7453, impr28:145632, eng28:1914, note:"Stats contenu (28 j)"},
+    {date:"2026-08-14", abo:7707, impr7:14383, eng7:416, note:"Stats contenu 7 j (8→14 août)"}
+  ];
+  setMsg("Import des 3 semaines…");
+  try{ for(const w of weeks){ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, abo:0,impr7:0,impr28:0,eng7:0,eng28:0,vues:0,rech:0, ...w}); }
+    await loadLinkedin(); setMsg("3 semaines importées ✓","ok");
   }catch(e){ setMsg("Erreur : "+e.message,"err"); }
 }
 function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) return;
-  const s=(id,v)=>{const e=$(id);if(e)e.value=v;};
-  s("li_date",w.date); s("li_impr",w.impr||""); s("li_abo",w.abo||""); s("li_vues",w.vues||""); s("li_rech",w.rech||""); s("li_eng",w.eng||""); s("li_note",w.note||"");
+  const s=(id,v)=>{const e=$(id);if(e)e.value=(v?v:"");};
+  s("li_date",w.date); s("li_abo",w.abo); s("li_impr7",w.impr7); s("li_impr28",w.impr28); s("li_eng7",w.eng7); s("li_eng28",w.eng28); s("li_vues",w.vues); s("li_rech",w.rech); s("li_note",w.note);
   const m=$("liMsg"); if(m){m.className="msg";m.style.display="block";m.textContent="Semaine chargée — modifie les chiffres puis « Enregistrer ».";}
   const f=$("li_date"); if(f) f.scrollIntoView({behavior:"smooth",block:"center"});
 }
