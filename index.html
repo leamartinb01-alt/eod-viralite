@@ -447,6 +447,7 @@
       <h2>📚 Suivi coaching</h2>
       <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
+      <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select></div>
     </div>
     <div id="coachingList"></div>
   </div>
@@ -496,6 +497,7 @@
         <option value="">Tous les statuts</option>
         <option value="Actif">Actif</option><option value="Terminé">Terminé</option><option value="Annulé / Litige">Annulé / Litige</option>
       </select>
+      <select id="cfCoachF" onchange="renderClients()"><option value="">👤 Tous les coachs</option></select>
     </div>
     <div id="clientList"></div>
   </div>
@@ -675,7 +677,7 @@ const CONFIG = {
     messagingSenderId:"605349501477",
     appId:"1:605349501477:web:8659ddb89f1f512d92fdcc",
   },
-  PASSWORD_TEAM : "ECOVIRAL26@10",
+  PASSWORD_TEAM : "TEAM-VIRAL26@",
   PASSWORD_ADMIN: "ADMIN-VIRALITE2026@01",
   PASSWORD_CLIENT: "CLIENTS-VIRALITE2026@01",
   TEAM : [
@@ -1132,6 +1134,10 @@ function dayLabel(ds){ try{ return new Date(ds+"T00:00:00").toLocaleDateString("
 function entryDay(e){ if(e.date) return e.date; if(e.week){ const r=weekDates(e.week); if(r) return r[0].toISOString().slice(0,10); } return ""; }
 function coachColor(name){ const arr=SETTINGS.coachs||[]; const pal=["#ff8b47","#5aa9ff","#62e29a","#d39be6","#ffcf7a","#ff7a9c"]; const i=arr.indexOf(name); if(i>=0) return pal[i%pal.length]; let h=0; const s=name||""; for(let k=0;k<s.length;k++) h=(h*31+s.charCodeAt(k))>>>0; return pal[h%pal.length]; }
 function coachAbbr(name){ name=(name||"").trim(); if(!name) return "?"; const w=name.split(/\s+/); if(w.length>=2) return (w[0][0]+w[1][0]).toUpperCase(); return name.slice(0,2).toUpperCase(); }
+// Coach(s) d'un client → gère 1 ou 2 coachs (tableau, ou ancienne valeur texte). Badge = 1re lettre du prénom (R Romain, J John).
+function coachesOf(c){ const v=c&&c.coach; if(Array.isArray(v)) return v.filter(Boolean); if(typeof v==="string"&&v.trim()) return [v.trim()]; return []; }
+function coachTag(name){ const l=((name||"").trim().charAt(0)||"?").toUpperCase(); const col=coachColor(name); return `<span title="${escapeHtml(name)}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:800;background:${col}22;color:${col};border:1px solid ${col}66;margin-left:4px;vertical-align:middle">${l}</span>`; }
+function coachBadges(c){ return coachesOf(c).map(coachTag).join(""); }
 function localYM(d){ d=d||new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function shiftYM(ym,delta){ let Y=+ym.slice(0,4), M=+ym.slice(5,7)-1+delta; Y+=Math.floor(M/12); M=((M%12)+12)%12; return Y+"-"+String(M+1).padStart(2,"0"); }
 function sessionsByDay(c){ const map={}; ((c.coaching&&c.coaching.log)||[]).forEach(e=>{ const d=entryDay(e); if(d){ (map[d]=map[d]||[]).push(e); } }); return map; }
@@ -1179,23 +1185,15 @@ async function loadCoaching(){
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ box.innerHTML='<div class="empty">Erreur de chargement.</div>'; return; }
   renderCoachingTab();
 }
-function renderCoachingTab(){
-  const box=$("coachingList"); if(!box) return;
-  const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
-  let cs=CLIENTS.filter(isSuivi);
-  if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
-  cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
-  if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
-  const coachOpts=SETTINGS.coachs||[];
-  const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  box.innerHTML=seedBtn+coachAlertsCard(cs)+cs.map(c=>{ const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
+function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
+    const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
     const lv=clientLevel(done); const cs2=coachCallStatus(c);
     const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span><span class="cwk-prog">${done} / ${tot}</span></div>
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
@@ -1219,7 +1217,33 @@ function renderCoachingTab(){
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
         <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
       </div>
-    </div>`; }).join("");
+    </div>`;
+}
+function renderCoachingTab(){
+  const box=$("coachingList"); if(!box) return;
+  const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
+  const fcSel=$("cgCoachF"); const fc=(fcSel&&fcSel.value)||"";
+  if(fcSel){ const cur=fcSel.value; fcSel.innerHTML='<option value="">👥 Tous les coachs (sections)</option>'+(SETTINGS.coachs||[]).map(n=>`<option ${n===cur?'selected':''}>${escapeHtml(n)}</option>`).join(""); }
+  let cs=CLIENTS.filter(isSuivi);
+  if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
+  cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
+  if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
+  const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
+  // Filtre sur un coach précis → liste plate
+  if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
+    box.innerHTML=seedBtn+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    return; }
+  // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
+  let html=seedBtn+coachAlertsCard(cs);
+  (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
+    const col=coachColor(coach); const l=((coach||"?").trim().charAt(0)||"?").toUpperCase();
+    html+=`<details class="cdet" ${idx<2?"open":""} style="margin-top:10px;border-left:3px solid ${col};padding-left:6px">
+      <summary style="font-weight:800;font-size:15px"><span style="display:inline-flex;width:18px;height:18px;border-radius:6px;background:${col}22;color:${col};border:1px solid ${col}66;align-items:center;justify-content:center;font-size:11px;font-weight:800;margin-right:6px;vertical-align:middle">${l}</span>${escapeHtml(coach)} — ${list.length} client${list.length>1?"s":""}</summary>
+      ${list.map(coachCardHtml).join("")}</details>`;
+  });
+  const none=cs.filter(c=>coachesOf(c).length===0);
+  if(none.length) html+=`<details class="cdet" style="margin-top:10px"><summary style="font-weight:800;font-size:15px">❔ Sans coach assigné — ${none.length}</summary>${none.map(coachCardHtml).join("")}</details>`;
+  box.innerHTML=html;
 }
 function editoMonthsCount(c){ const o=offerFor(c&&c.programme); if(o&&o.months) return Number(o.months)||1; const t=Number(coachTotal(c)); return t?Math.max(1,Math.round(t/3)):6; }
 function editoNb(c){ return editoMonthsCount(c)*2; } // 2 calendriers par mois = 1 par quinzaine
@@ -1757,9 +1781,19 @@ async function seedLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); r
     {date:"2026-08-07", abo:7453, impr28:145632, eng28:1914, note:"Stats contenu (28 j)"},
     {date:"2026-08-14", abo:7707, impr7:14383, eng7:416, note:"Stats contenu 7 j (8→14 août)"}
   ];
-  setMsg("Import des 3 semaines…");
-  try{ for(const w of weeks){ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, abo:0,impr7:0,impr28:0,eng7:0,eng28:0,vues:0,rech:0, ...w}); }
-    await loadLinkedin(); setMsg("3 semaines importées ✓","ok");
+  if(!confirm("Ça remplace toutes les données LinkedIn actuelles par les 3 semaines propres (30/07, 07/08, 14/08). OK ?")) return;
+  setMsg("Nettoyage des anciennes données…");
+  try{
+    // 1) on efface tout l'existant (ancien doc unique + semaines mal rangées) pour repartir propre
+    const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
+    for(const doc of snap.docs){
+      if(doc.id==="linkedin"){ await doc.ref.set({isLinkedin:true, weeks:[]}); }         // vide l'ancien doc unique
+      else { const dt=(doc.data().date)||doc.id.replace("liweek_",""); await doc.ref.set({isLinkedin:true, date:dt, deleted:true}); } // marque supprimé
+    }
+    // 2) on écrit les 3 semaines aux bons endroits
+    setMsg("Import des 3 semaines…");
+    for(const w of weeks){ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, abo:0,impr7:0,impr28:0,eng7:0,eng28:0,vues:0,rech:0, ...w}); }
+    await loadLinkedin(); setMsg("3 semaines importées proprement ✓","ok");
   }catch(e){ setMsg("Erreur : "+e.message,"err"); }
 }
 function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) return;
@@ -2139,6 +2173,10 @@ function renderClientForm(data){
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
+  // Coach(s) assigné(s) — coche un ou les deux
+  const sel=coachesOf(data);
+  const coachChecks=(SETTINGS.coachs||[]).map(n=>`<label class="ckline" style="display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin:0;cursor:pointer;width:auto"><input type="checkbox" class="cfCoach" value="${escapeHtml(n)}" ${sel.includes(n)?"checked":""} style="width:auto"> ${escapeHtml(n)}</label>`).join("");
+  box.insertAdjacentHTML("beforeend", `<label>👤 Coach(s) assigné(s)</label><div id="cf_coachbox" style="display:flex;gap:8px;flex-wrap:wrap">${coachChecks||'<span class="sub2">Ajoute des coachs dans Réglages.</span>'}</div><div class="hint">Coche un ou les deux. Un petit R / J apparaît à côté du client dans Coaching et sur sa fiche.</div>`);
   $("schedRows").innerHTML=""; (data.schedule||[]).forEach(addSchedRow);
   const ms=$("moneySection"); if(ms) ms.classList.toggle("hide", !canSeeMoney()); // argent = admin + Anthony
   onOfferPick(true); updateEncTotal();
@@ -2184,6 +2222,7 @@ async function saveClient(){
   initFirebase();
   const obj={}; CLIENT_FIELDS.forEach(f=>{ const el=$("cf_"+f.key); if(!el){ return; } /* champ masqué (ex. argent pour non-admin) → on n'y touche pas */ if(f.type==="check"){ obj[f.key]=!!el.checked; return; } let v=(el.value||"").trim(); if(f.type==="number") v=v===""?0:Number(v); obj[f.key]=v; });
   (SETTINGS.checks||[]).forEach(f=>{ const el=$("cf_"+f.key); if(el) obj[f.key]=!!el.checked; });
+  obj.coach=[...document.querySelectorAll("#cf_coachbox .cfCoach:checked")].map(x=>x.value); // 1 ou 2 coachs
   obj.date_fin_manual = !!($("cf_date_fin_manual") && $("cf_date_fin_manual").value==="1"); // date de fin fixée à la main → prioritaire sur l'auto
   if(canSeeMoney()) obj.schedule=gatherSchedule(); // admin + Anthony éditent l'échéancier ; l'équipe ne touche pas à l'argent
   const m=$("clientMsg");
@@ -2203,10 +2242,12 @@ async function loadClients(){
   await loadAcks();
   const fpSel=$("cfProg"), fp0=fpSel.value; fpSel.innerHTML='<option value="">Tous les programmes</option>'; SETTINGS.programmes.forEach(p=>fpSel.insertAdjacentHTML("beforeend",`<option ${p===fp0?"selected":""}>${escapeHtml(p)}</option>`));
   const fsSel=$("cfStatut"), fs0=fsSel.value; fsSel.innerHTML='<option value="">Tous les statuts</option>'; SETTINGS.statuts.forEach(p=>fsSel.insertAdjacentHTML("beforeend",`<option ${p===fs0?"selected":""}>${escapeHtml(p)}</option>`));
+  const fcSel=$("cfCoachF"); if(fcSel){ const fc0=fcSel.value; fcSel.innerHTML='<option value="">👤 Tous les coachs</option>'; (SETTINGS.coachs||[]).forEach(p=>fcSel.insertAdjacentHTML("beforeend",`<option ${p===fc0?"selected":""}>${escapeHtml(p)}</option>`)); }
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
   try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
     CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); fillClientMonths(); renderClients();
     if($("finMonth")) renderFinance(); // toute modif client (montant, encaissé, échéancier) se répercute direct dans la Finance
+    if($("coachingList")) try{ renderCoachingTab(); }catch(e){} // le coach assigné se met à jour direct dans Coaching
   }catch(err){ wrap.innerHTML=`<div class="empty">Erreur : ${err.message}</div>`; }
 }
 function fillClientMonths(){
@@ -2308,9 +2349,11 @@ function renderClients(){
       </div>` : `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin-top:14px"><h2 style="margin:0">✅ Rien à checker</h2>${archBox}</div>`);
     } else al.innerHTML="";
   }
+  const fc=($("cfCoachF")&&$("cfCoachF").value)||"";
   let rows=CLIENTS.slice();
   if(fp) rows=rows.filter(x=>sameProg(x.programme,fp));
   if(fs) rows=rows.filter(x=>x.statut===fs);
+  if(fc) rows=rows.filter(x=>coachesOf(x).includes(fc));
   if(fm) rows=rows.filter(x=>paidInMonth(x,fm)>0 || dueInMonth(x,fm)>0);
   if(q) rows=rows.filter(x=>((x.nom||"")+" "+(x.prenom||"")+" "+(x.mail||"")+" "+(x.programme||"")).toLowerCase().includes(q));
   const active=rows.filter(isSuivi), old=rows.filter(x=>!isSuivi(x));
@@ -2335,7 +2378,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>`:""}
