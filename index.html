@@ -801,6 +801,10 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
 function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
 function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s); } // tous en suivi sauf terminé / annulé
 function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); }
+// Match tolérant sur le nom du coach ("John" = "John LB", accents/casse) — pour l'EOD coach.
+function sameCoachName(a,b){ a=noAcc(a||"").trim(); b=noAcc(b||"").trim(); if(!a||!b) return false; if(a===b) return true; return a.split(/\s+/)[0]===b.split(/\s+/)[0]; }
+// Clients assignés à CE coach uniquement (pour que John ne voie que ses clients dans son EOD).
+function coachClientsFor(name){ return coachClients().filter(c=>coachesOf(c).some(x=>sameCoachName(x,name))); }
 function setterGoalsBlock(name){ const goals=(SETTINGS.setterGoals||[]).filter(g=>!g.who || g.who===name); if(!goals.length) return "";
   const M=monthStr(); const mine=EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M);
   const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
@@ -831,7 +835,7 @@ function ensureProspectDL(){ let dl=document.getElementById("prospectDL"); if(!d
 function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensureProspectDL(); box.insertAdjacentHTML("beforeend",
   `<div class="drow callRow">
     <input class="cP" type="text" list="prospectDL" autocomplete="off" placeholder="Prospect" value="${escapeHtml(d.p||'')}" style="flex:1.4">
-    <select class="cS" style="flex:1.3">${CALL_SOURCES.map(o=>`<option ${o===d.src?'selected':''}>${o}</option>`).join("")}</select>
+    <select class="cS" style="flex:1.3">${(function(){ let opts=(SETTINGS.callSources&&SETTINGS.callSources.length)?SETTINGS.callSources.slice():CALL_SOURCES.slice(); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src); return opts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`).join(""); })()}</select>
     <select class="cR" style="flex:1.1">${CALL_RESULTS.map(o=>`<option ${o===d.res?'selected':''}>${o}</option>`).join("")}</select>
     <button type="button" class="xrow" onclick="this.closest('.callRow').remove()">✕</button>
   </div>`); }
@@ -930,6 +934,7 @@ function login(){
   else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; return; }
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
   $("nav-clients").classList.toggle("hide", !canClients());
+  $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
   $("nav-finance").classList.toggle("hide", !isAdmin());
   $("nav-accounts").classList.toggle("hide", !isAdmin());
   $("nav-linkedin").classList.toggle("hide", !isAdmin());
@@ -949,6 +954,7 @@ const SETTINGS_DEFAULT={
   setters:["Ilyas","Lucas","N/A"],
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
+  callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
@@ -978,8 +984,8 @@ function normPay(it){
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","callSources","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
@@ -1625,8 +1631,8 @@ function onMember(){
     } else if(f.type==="booked"){
       inp=`<div id="bookRows"></div><button type="button" class="addrow" onclick="addBookRow()">+ Ajouter un RDV pris</button>`;
     } else if(f.type==="clientlog"){
-      const cs=coachClients();
-      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'}</div>`;
+      const who=$("member").value; const cs=coachClientsFor(who);
+      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`}</div>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
@@ -1637,8 +1643,8 @@ function onMember(){
   if(role==="setter" && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
-  if(role==="coach" && $("clientLog") && fbReady()){ initFirebase();
-    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClients(); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):'<div class="sub2" style="margin:8px 0">Aucun client — ajoute des clients dans l\'onglet Clients.</div>'; } }).catch(()=>{}); }
+  if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
+    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClientsFor(who); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; } }).catch(()=>{}); }
 }
 function fillEodForm(x){
   const role=member(x.member).role;
@@ -1805,6 +1811,7 @@ function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) retur
 function show(v){
   // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
   if((v==="finance"||v==="settings"||v==="accounts"||v==="linkedin") && !isAdmin()) v="form";
+  if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
   ["form","team","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
   ["form","team","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
