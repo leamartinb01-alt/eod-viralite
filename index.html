@@ -1203,6 +1203,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
+      <div class="cwk-sub" style="margin-top:2px">📅 Démarrage (onboarding) : <b>${onbDate(c)?frDate(onbDate(c)):"—"}</b></div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
@@ -1238,12 +1239,13 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
+  const loicC=loicCallsCard(cs); // calls Loïc à prendre (1/mois) — basé sur tous les clients en suivi
   // Filtre sur un coach précis → liste plate
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
-  let html=seedBtn+coachAlertsCard(cs);
+  let html=seedBtn+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
     const col=coachColor(coach); const l=((coach||"?").trim().charAt(0)||"?").toUpperCase();
     html+=`<details class="cdet" ${idx<2?"open":""} style="margin-top:10px;border-left:3px solid ${col};padding-left:6px">
@@ -1293,6 +1295,24 @@ function firstCoachDate(c){ // 1er coaching pointé = call d'onboarding
 }
 function onbDate(c){ return (c&&c.onboarding_date) || firstCoachDate(c) || (c&&c.date_debut) || ""; } // onboarding saisi, sinon 1er coaching, sinon date de contrat
 function addMonthsISO(ds,m){ if(!ds||!m) return ""; const p=String(ds).split("-").map(Number); if(p.length<3||!p[0]||!p[1]||!p[2]) return ""; const d=new Date(p[0],p[1]-1+Number(m),p[2]); if(d.getDate()!==p[2]) d.setDate(0); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function frDate(d){ d=String(d||""); return d.length>=10?d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4):"—"; }
+// Calls Loïc : 1 par mois par client. Dernière date = champ loic_calls[] ou pointage coaching avec coach = Loïc.
+function lastLoicDate(c){ const ds=[];
+  if(c&&Array.isArray(c.loic_calls)) c.loic_calls.forEach(d=>{ if(d) ds.push(String(d).slice(0,10)); });
+  ((c&&c.coaching&&c.coaching.log)||[]).forEach(e=>{ if(e&&e.date&&sameCoachName(e.coach,"Loïc")) ds.push(String(e.date).slice(0,10)); });
+  ds.sort(); return ds.length?ds[ds.length-1]:"";
+}
+function loicDueDate(c){ const base=lastLoicDate(c)||onbDate(c); return base?addMonthsISO(base.slice(0,10),1):""; } // échéance = dernier appel (ou onboarding) + 1 mois
+async function markLoicCall(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
+  const arr=Array.isArray(c.loic_calls)?c.loic_calls.slice():[]; arr.push(todayStr());
+  try{ await db.collection("clients").doc(id).update({loic_calls:arr}); c.loic_calls=arr; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
+function loicCallsCard(cs){
+  const today=todayStr(); const soon=(()=>{ const d=new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
+  const items=cs.map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
+  const row=o=>{ const overdue=o.due<today; const col=overdue?"#ff6b6b":"#ffcf7a";
+    return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${o.last?"dernier appel Loïc "+frDate(o.last):"jamais appelé"}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} <button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button></span></div>`; };
+  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:6px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients sont à jour de leur appel Loïc du mois.</div>'}</div>`;
+}
 function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // sinon : onboarding + mois de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10)
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
 function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
