@@ -1144,6 +1144,8 @@ function coachAbbr(name){ name=(name||"").trim(); if(!name) return "?"; const w=
 function coachesOf(c){ const v=c&&c.coach; if(Array.isArray(v)) return v.filter(Boolean); if(typeof v==="string"&&v.trim()) return [v.trim()]; return []; }
 function coachTag(name){ const l=((name||"").trim().charAt(0)||"?").toUpperCase(); const col=coachColor(name); return `<span title="${escapeHtml(name)}" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:800;background:${col}22;color:${col};border:1px solid ${col}66;margin-left:4px;vertical-align:middle">${l}</span>`; }
 function coachBadges(c){ return coachesOf(c).map(coachTag).join(""); }
+// Lien Insta : accepte @pseudo, pseudo, ou URL complète.
+function instaUrl(v){ v=(v||"").trim(); if(!v) return ""; if(/^https?:\/\//i.test(v)) return v; return "https://instagram.com/"+v.replace(/^@/,""); }
 function localYM(d){ d=d||new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function shiftYM(ym,delta){ let Y=+ym.slice(0,4), M=+ym.slice(5,7)-1+delta; Y+=Math.floor(M/12); M=((M%12)+12)%12; return Y+"-"+String(M+1).padStart(2,"0"); }
 function sessionsByDay(c){ const map={}; ((c.coaching&&c.coaching.log)||[]).forEach(e=>{ const d=entryDay(e); if(d){ (map[d]=map[d]||[]).push(e); } }); return map; }
@@ -1201,6 +1203,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
     return `<div class="card cwkcard" data-id="${c.id}">
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
+      ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
@@ -2156,6 +2159,7 @@ async function deleteEod(id){
 const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
+  { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
