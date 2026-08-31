@@ -3717,11 +3717,15 @@ function acFillSelectors(){
 }
 function acFillKeep(){ const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,cf=($("acCatF")&&$("acCatF").value)||""; acFillSelectors(); $("acMonth").value=m;$("acAcc").value=a;$("acType").value=t; if($("acCatF"))$("acCatF").value=cf; }
 function syncAcctCur(){ $("acCur").textContent=acAccObj($("acAccSel").value).cur; }
+const FX_FALLBACK={USD:0.92, CHF:1.06, GBP:1.17, CAD:0.68}; // taux de secours si l'API ne répond pas (jamais de conversion à 0)
 async function acEurRate(cur,date){
   if(cur==="EUR") return 1;
   if(cur==="AED") return AEDR;
   try{ const r=await fetch(`https://api.frankfurter.app/${date}?from=${cur}&to=EUR`); const j=await r.json(); if(j&&j.rates&&j.rates.EUR) return j.rates.EUR; }catch(e){}
-  const m=prompt(`Taux ${cur}→EUR introuvable auto. Entre le taux (1 ${cur} = ? €) :`,""); return m?Number(m.replace(",","."))||0:0;
+  const fb=FX_FALLBACK[cur]||1; // secours : on pré-remplit avec un taux réaliste, et si l'utilisateur annule on l'utilise (plus jamais 0 €)
+  const m=prompt(`Taux ${cur}→EUR introuvable (date ${date}). Vérifie / corrige le taux (1 ${cur} = ? €) :`, String(fb));
+  const v=m!=null?(Number(String(m).replace(",","."))||0):0;
+  return v>0?v:fb;
 }
 function acFiltered(){
   const m=$("acMonth").value,a=$("acAcc").value,t=$("acType").value,cf=($("acCatF")&&$("acCatF").value)||"",q=($("acSearch").value||"").toLowerCase().trim();
