@@ -3872,6 +3872,8 @@ function acWiseDate(d){const p=(d||"").split("-");return p.length===3?(p[2]+"-"+
 async function acMapCsv(text){
   const rows=acParseCSV(text); if(!rows.length) return [];
   const wise=("TransferWise ID" in rows[0]); const out=[];
+  const rateCache={}; // taux demandé/récupéré UNE seule fois par devise (plus de fenêtre par ligne)
+  async function getRate(cur,date){ if(cur==="EUR")return 1; if(cur==="AED")return AEDR; if(rateCache[cur]!=null)return rateCache[cur]; const r=await acEurRate(cur,date); rateCache[cur]=r; return r; }
   for(const r of rows){
     let date,cur,amount,desc,extId,ttype,exto;
     if(wise){ date=acWiseDate(r["Date"]); cur=r["Currency"]; amount=parseFloat(r["Amount"]); desc=r["Description"]; extId=r["TransferWise ID"]; ttype=r["Transaction Type"]; exto=r["Exchange To Amount"]; }
@@ -3883,7 +3885,7 @@ async function acMapCsv(text){
     if(cur==="EUR"){eur=amount;rate=1;}
     else if(cur==="AED"){rate=AEDR;eur=amount*AEDR;}
     else if(exto){ eur=(amount>0?1:-1)*Math.abs(parseFloat(exto)); rate=amount?eur/amount:1; }
-    else { rate=await acEurRate(cur,date); eur=amount*rate; }
+    else { rate=await getRate(cur,date); eur=amount*rate; }
     const type = cat==="Transferts internes"?"transfer":(amount>0?"in":"out");
     out.push({id:acUid(),extId,date,account,cur,cat,type,amount:Math.round(Math.abs(amount)*100)/100,eur:Math.round(Math.abs(eur)*100)/100,rate,label:(desc||"").replace(/\s+/g," ").trim().slice(0,60)});
   }
