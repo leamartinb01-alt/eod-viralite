@@ -382,14 +382,16 @@
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
   </div>
   <div class="card">
+    <label>Email</label>
+    <input id="loginEmail" type="email" placeholder="ton@email.com" autocomplete="username" style="margin-bottom:12px" />
     <label>Mot de passe</label>
     <div class="pwwrap">
-      <input id="pw" type="password" placeholder="••••••••" autocomplete="off" />
+      <input id="pw" type="password" placeholder="••••••••" autocomplete="current-password" />
       <button type="button" class="eye" id="eyeBtn" onclick="togglePw()" aria-label="Afficher le mot de passe">👁️</button>
     </div>
     <button class="btn" onclick="login()">Entrer</button>
     <div id="loginErr" class="msg"></div>
-    <div class="hint" style="text-align:center; margin-top:12px">Accès équipe ou admin selon ton mot de passe.</div>
+    <div class="hint" style="text-align:center; margin-top:12px">Connecte-toi avec ton email + ton code perso (ou un code d'équipe).</div>
   </div>
 </div>
 
@@ -677,7 +679,7 @@ const CONFIG = {
     messagingSenderId:"605349501477",
     appId:"1:605349501477:web:8659ddb89f1f512d92fdcc",
   },
-  PASSWORD_TEAM : "TEAM-VIRAL26@",
+  PASSWORD_TEAM : "TEAM-VIRAL26@2",
   PASSWORD_ADMIN: "ADMIN-VIRALITE2026@01",
   PASSWORD_CLIENT: "CLIENTS-VIRALITE2026@01",
   TEAM : [
@@ -926,12 +928,8 @@ function renderTeamManage(){
 }
 
 /* ===================== LOGIN ===================== */
-function login(){
-  const v=$("pw").value.trim();
-  if(v===CONFIG.PASSWORD_ADMIN) ACCESS="admin";
-  else if(v===CONFIG.PASSWORD_CLIENT) ACCESS="client";
-  else if(v===CONFIG.PASSWORD_TEAM) ACCESS="team";
-  else { const e=$("loginErr"); e.className="msg err"; e.textContent="Mot de passe incorrect."; return; }
+let LOGIN_NAME=""; // nom de la personne connectée (via identifiant individuel)
+function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
   $("nav-clients").classList.toggle("hide", !canClients());
   $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
@@ -941,7 +939,23 @@ function login(){
   $("nav-settings").classList.toggle("hide", !isAdmin());
   initApp();
 }
+async function login(){
+  const email=(($("loginEmail")&&$("loginEmail").value)||"").trim().toLowerCase();
+  const v=($("pw").value||"").trim();
+  const e=$("loginErr");
+  // 1) Code admin maître (secours réservé à Léa — les codes équipe/clients ne donnent plus accès)
+  if(v===CONFIG.PASSWORD_ADMIN){ ACCESS="admin"; LOGIN_NAME=""; return applyNavAccess(); }
+  // 2) Identifiants individuels (email + code perso) — gérés dans Réglages
+  e.className="msg"; e.style.display="block"; e.textContent="Vérification…";
+  try{ initFirebase(); let logins=[];
+    if(db){ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get(); if(d.exists&&Array.isArray(d.data().logins)) logins=d.data().logins; }
+    const m=logins.find(u=>u && email && String(u.email||"").trim().toLowerCase()===email && String(u.code||"")===v);
+    if(m){ ACCESS=(m.role==="admin"||m.role==="client")?m.role:"team"; LOGIN_NAME=m.name||""; return applyNavAccess(); }
+  }catch(err){}
+  e.className="msg err"; e.style.display="block"; e.textContent="Email ou mot de passe incorrect.";
+}
 $("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
+if($("loginEmail")) $("loginEmail").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
 function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type==="password"){ i.type="text"; b.textContent="🙈"; } else { i.type="password"; b.textContent="👁️"; } }
 
 /* ===================== RÉGLAGES (listes éditables partagées) ===================== */
@@ -955,6 +969,7 @@ const SETTINGS_DEFAULT={
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
+  logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
 const PAYLIST_DEFAULT=[
@@ -994,6 +1009,7 @@ async function loadSettings(){
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
       if(Array.isArray(x.setterGoals)) SETTINGS.setterGoals=x.setterGoals;
+      if(Array.isArray(x.logins)) SETTINGS.logins=x.logins;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -1046,6 +1062,15 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
+function loginRow(it){ it=it||{}; const roles=[["team","Équipe"],["client","Clients (Anthony)"],["admin","Admin (tout)"]];
+  return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
+    <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
+    <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
+    <input class="lgCode" type="text" placeholder="code perso" value="${escapeHtml(it.code||"")}" style="flex:1;min-width:100px">
+    <select class="lgRole" style="flex:1;min-width:130px">${roles.map(r=>`<option value="${r[0]}" ${r[0]===(it.role||"team")?"selected":""}>${r[1]}</option>`).join("")}</select>
+    <button type="button" class="xrow" onclick="this.closest('.lgrow').remove()">✕</button>
+  </div>`; }
+function addLogin(){ const box=$("loginBox"); if(box){ box.insertAdjacentHTML("beforeend", loginRow({role:"team"})); const i=box.lastElementChild.querySelector(".lgName"); if(i) i.focus(); } }
 function renderSettings(){
   const box=$("settingsBox"); if(!box) return;
   let html=SET_KEYS.map(k=>{
@@ -1076,6 +1101,11 @@ function renderSettings(){
     <div id="checkBox">${ck}</div>
     <button type="button" class="addrow" onclick="addChk()">+ Ajouter une case</button>
     <div class="hint">Ce sont les cases d'onboarding (WhatsApp, accès, etc.) qui apparaissent sur chaque fiche client. Mets un emoji + un texte court.</div></div>`;
+  const lg=(SETTINGS.logins||[]).map(loginRow).join("");
+  html+=`<div class="setblock"><h3>🔑 Identifiants (accès par personne)</h3>
+    <div id="loginBox">${lg}</div>
+    <button type="button" class="addrow" onclick="addLogin()">+ Ajouter une personne</button>
+    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son niveau : <b>Équipe</b> (EOD, Coaching…), <b>Clients</b> (comme Anthony, avec les montants), <b>Admin</b> (tout). Quand quelqu'un part, supprime sa ligne — les codes des autres ne bougent pas. Les 3 codes maîtres restent toujours en secours.</div></div>`;
   box.innerHTML=html;
 }
 async function saveSettings(){
@@ -1083,6 +1113,7 @@ async function saveSettings(){
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({who:r.querySelector('.glWho').value, label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
+  SETTINGS.logins=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
     name:r.querySelector('.pyName').value.trim(),
     label:(r.querySelector('.pyLabel').value||"").trim(),
@@ -1201,7 +1232,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span><span class="cwk-prog">${done} / ${tot}</span></div>
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-sub" style="margin-top:2px">📅 Démarrage (onboarding) : <b>${onbDate(c)?frDate(onbDate(c)):"—"}</b></div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
@@ -1239,13 +1270,13 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  const loicC=loicCallsCard(cs); // calls Loïc à prendre (1/mois) — basé sur tous les clients en suivi
+  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Loïc (1/mois) + upsells à préparer (J-10)
   // Filtre sur un coach précis → liste plate
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+upC+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
-  let html=seedBtn+loicC+coachAlertsCard(cs);
+  let html=seedBtn+upC+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
     const col=coachColor(coach); const l=((coach||"?").trim().charAt(0)||"?").toUpperCase();
     html+=`<details class="cdet" ${idx<2?"open":""} style="margin-top:10px;border-left:3px solid ${col};padding-left:6px">
@@ -1313,7 +1344,15 @@ function loicCallsCard(cs){
     return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${o.last?"dernier appel Loïc "+frDate(o.last):"jamais appelé"}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} <button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button></span></div>`; };
   return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:6px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients sont à jour de leur appel Loïc du mois.</div>'}</div>`;
 }
-function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)) return addMonthsISO(onb,o.months); return (c&&c.date_fin)||""; } // sinon : onboarding + mois de l'offre (ex. Viral Pro onb 05/07 -> fin 05/10)
+// Upsells à préparer : à J-10 de la fin de contrat, le closer prépare l'upsell (pas encore upsellé).
+function upsellDueCard(cs){
+  const today=todayStr();
+  const items=cs.filter(c=>!c.upsell).map(c=>({c,end:endDate(c),d:daysDiff(today,endDate(c))})).filter(o=>o.end && o.d!=null && o.d<=10).sort((a,b)=>a.d-b.d);
+  const row=o=>{ const past=o.d<0; const col=past?"#ff6b6b":"#ff7a3d";
+    return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${escapeHtml(o.c.programme||"")}</span></span><span class="v" style="color:${col};white-space:nowrap">${past?"⚠️ contrat fini":"⏳ J-"+o.d} · fin ${frDate(o.end)}</span></div>`; };
+  return `<div class="card" style="border-color:rgba(255,122,61,.4);margin-bottom:10px"><div style="font-weight:800;margin-bottom:6px">⬆️ Upsells à préparer — J-10 avant fin de contrat (${items.length})</div><div class="sub2" style="margin-bottom:6px">Process : le closer contacte le coach (rien à savoir avant l'appel ?) → book le call → upsell. Quand c'est signé, coche « Upsell signé » sur la fiche + ajoute les échéances.</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Aucun contrat à moins de 10 jours de la fin.</div>'}</div>`;
+}
+function endDate(c){ if(c&&c.date_fin&&c.date_fin_manual) return c.date_fin; /* date modifiée à la main → prioritaire */ const o=offerFor(c&&c.programme); const onb=onbDate(c); if(onb&&o&&Number(o.months)){ const m=Number(o.months)+((c&&c.upsell)?upsellMonths(c.programme):0); return addMonthsISO(onb,m); } return (c&&c.date_fin)||""; } // onboarding + mois de l'offre (+ mois d'upsell si prolongé)
 function coachLastDate(c){ let d=(c&&c.last_call)||""; const lg=(c&&c.coaching&&c.coaching.log)||[]; lg.forEach(e=>{ const x=(entryDay?entryDay(e):"")||e.date||""; if(x&&x>d) d=x; }); return d; }
 function daysDiff(a,b){ if(!a||!b) return null; const da=new Date(a+"T00:00:00"), db=new Date(b+"T00:00:00"); if(isNaN(da)||isNaN(db)) return null; return Math.round((db-da)/864e5); }
 // Statut calls = récence du dernier contact (call ou onboarding). Vert ≤7 j · orange 8–13 j · rouge ≥14 j ou aucun call depuis l'onboarding.
@@ -1528,9 +1567,9 @@ async function exportReport(){
   const totalC=cls.reduce((s,x)=>s+(Number(x.montant)||0),0);
   const encC=cls.reduce((s,x)=>s+clientEncaisse(x),0);
   const clientsHtml=clsS.map(c=>{
-    const e=clientEncaisse(c), r=(Number(c.montant)||0)-e;
+    const e=clientEncaisse(c), r=clientMontant(c)-e;
     const sched=(c.schedule||[]).slice().sort((a,b)=>String(a.month).localeCompare(String(b.month))).map(s=>`${monthShort(s.month)} ${eur(s.amount)} ${s.paid?'✅':'⏳'}`).join(" · ");
-    return `<tr><td><b>${esc(c.nom)}</b> ${esc(c.prenom)}<div class="sub">${esc(c.mail)}</div></td><td>${esc(c.programme)}</td><td>${esc(c.statut)}</td><td>${esc([c.setter,c.closer].filter(Boolean).join(" / "))}</td><td class="r">${eur(c.montant)}</td><td class="r ok">${eur(e)}</td><td class="r ${r>0?'due':''}">${eur(r)}</td><td>${coachDone(c)}/${coachTotal(c)}</td><td class="sched">${sched||'—'}</td></tr>`;
+    return `<tr><td><b>${esc(c.nom)}</b> ${esc(c.prenom)}${c.upsell?' <span style="color:#ff7a3d;font-weight:800">⬆️UP</span>':''}<div class="sub">${esc(c.mail)}</div></td><td>${esc(c.programme)}</td><td>${esc(c.statut)}</td><td>${esc([c.setter,c.closer].filter(Boolean).join(" / "))}</td><td class="r">${eur(clientMontant(c))}</td><td class="r ok">${eur(e)}</td><td class="r ${r>0?'due':''}">${eur(r)}</td><td>${coachDone(c)}/${coachTotal(c)}</td><td class="sched">${sched||'—'}</td></tr>`;
   }).join("");
   const months=[...new Set([].concat(
     cls.flatMap(c=>[startMonth(c), (encGlobal(c)>0?baseMonth(c):"")].concat((c.schedule||[]).map(s=>s.month))),
@@ -1635,7 +1674,10 @@ function initApp(){
   initFirebase();
   if(!fbReady()) $("cfgWarn").classList.remove("hide");
   onMember();
-  Promise.all([loadTeamCfg(), loadSettings()]).then(()=>rebuildMemberSelect());
+  Promise.all([loadTeamCfg(), loadSettings()]).then(()=>{ rebuildMemberSelect();
+    // pré-sélectionne la personne connectée dans l'EOD si son nom matche un membre
+    if(LOGIN_NAME){ const sel=$("member"); if(sel){ const opt=[...sel.options].find(o=>o.value===LOGIN_NAME); if(opt){ sel.value=LOGIN_NAME; onMember(); } } }
+  });
 }
 
 /* ===================== MON EOD ===================== */
@@ -2184,6 +2226,8 @@ const CLIENT_FIELDS=[
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
+  { key:"upsell",label:"⬆️ Upsell signé (prolongation)",type:"check" },
+  { key:"upsell_montant",label:"Montant de l'upsell (€) — s'ajoute au contrat + à l'encaissé (ajoute les échéances ci-dessous)",type:"number" },
   { key:"cgv",label:"CGV",type:"select" },
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
@@ -2195,12 +2239,12 @@ let CLIENTS=[], currentClientId=null;
 function renderClientForm(data){
   data=data||{}; const box=$("clientFields"); box.innerHTML="";
   CLIENT_FIELDS.forEach(f=>{
-    if((f.key==="montant"||f.key==="encaisse") && !canSeeMoney()) return; // argent = admin + Anthony
-    if(f.type==="check"){ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${f.label}</label>`); return; }
+    if((f.key==="montant"||f.key==="encaisse"||f.key==="upsell"||f.key==="upsell_montant") && !canSeeMoney()) return; // argent + upsell = admin + Anthony
+    if(f.type==="check"){ const cc=f.key==="upsell"?' onchange="updateEncTotal()"':''; box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}${cc}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
     if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
-    else { let oc=""; if(f.key==="montant"||f.key==="encaisse") oc=' oninput="updateEncTotal()"'; else if(f.key==="onboarding_date") oc=' onchange="recalcFin()"'; else if(f.key==="date_fin") oc=' onchange="markFinManual()"'; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; if(f.key==="date_fin") inp+=`<input type="hidden" id="cf_date_fin_manual" value="${data.date_fin_manual?'1':''}"><div class="hint" id="finHint"></div>`; }
+    else { let oc=""; if(f.key==="montant"||f.key==="encaisse"||f.key==="upsell_montant") oc=' oninput="updateEncTotal()"'; else if(f.key==="onboarding_date") oc=' onchange="recalcFin()"'; else if(f.key==="date_fin") oc=' onchange="markFinManual()"'; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; if(f.key==="date_fin") inp+=`<input type="hidden" id="cf_date_fin_manual" value="${data.date_fin_manual?'1':''}"><div class="hint" id="finHint"></div>`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
   });
   (SETTINGS.checks||[]).forEach(f=>{ box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}> ${escapeHtml(f.label)}</label>`); });
@@ -2235,7 +2279,8 @@ function addSchedRow(d){ d=d||{}; $("schedRows").insertAdjacentHTML("beforeend",
   </div>`); updateEncTotal(); }
 function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const rows=[...document.querySelectorAll("#schedRows .schedRow")];
-  const montant=Number(($("cf_montant")&&$("cf_montant").value)||0)||0;
+  const ups=($("cf_upsell")&&$("cf_upsell").checked)?(Number(($("cf_upsell_montant")&&$("cf_upsell_montant").value)||0)||0):0;
+  const montant=(Number(($("cf_montant")&&$("cf_montant").value)||0)||0)+ups;
   const schedPaid=rows.filter(r=>r.querySelector(".sPaid").checked).reduce((a,r)=>a+(Number(r.querySelector(".sAmt").value)||0),0);
   const glob=Number(($("cf_encaisse")&&$("cf_encaisse").value)||0)||0;
   const enc=Math.max(schedPaid, glob); // MAX : le plus grand entre l'acompte et les échéances cochées (jamais de double)
@@ -2301,9 +2346,12 @@ function clientIssues(c){
   return iss;
 }
 function clientEncaisse(c){ return schedPaidAll(c) + encGlobal(c); }
+// UPSELL : quand un client upsell, on prolonge son contrat. Le montant de l'upsell s'ajoute au contrat total → encaissé/reste/CA se mettent à jour tout seuls.
+function upsellMonths(programme){ const o=offerFor(programme); return (o&&/mentorat/i.test(o.name||"")) ? 3 : 2; } // Mentorat +3 mois, Viral Pro / Élite +2 mois
+function clientMontant(c){ return (Number(c&&c.montant)||0) + ((c&&c.upsell)?(Number(c.upsell_montant)||0):0); }
 // Reste dû sur le contrat = montant − déjà encaissé. Un client Annulé/Litige n'a plus rien à encaisser (0). Source unique du « reste à encaisser » (KPI + tableau + détail).
 // On ignore les résidus sous 1 € (arrondis) → pas de « 1 € » fantôme.
-function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; const r=(Number(c&&c.montant)||0)-clientEncaisse(c); return r>=1?Math.round(r):0; }
+function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; const r=clientMontant(c)-clientEncaisse(c); return r>=1?Math.round(r):0; }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -2313,10 +2361,10 @@ function payMonthCard(M){
   }); });
   // Clients qui doivent encore de l'argent mais SANS aucune échéance impayée planifiée (ex : échéancier incomplet)
   const orphans=act.filter(c=>{
-    const reste=(Number(c.montant)||0)-clientEncaisse(c);
+    const reste=clientMontant(c)-clientEncaisse(c);
     if(reste<=0.5) return false;
     return !(c.schedule||[]).some(s=>!s.paid);
-  }).map(c=>({c,reste:(Number(c.montant)||0)-clientEncaisse(c)}));
+  }).map(c=>({c,reste:clientMontant(c)-clientEncaisse(c)}));
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
   const due=mois.filter(r=>!r.s.paid);
@@ -2399,7 +2447,7 @@ function renderClients(){
   const tools=`<div class="cltools"><button onclick="toggleAllClients(true)">⬇️ Tout déplier</button><button onclick="toggleAllClients(false)">⬆️ Tout replier</button></div>`;
   const cardHtml = c => {
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
-    const encC=clientEncaisse(c), reste=Math.max(0,(Number(c.montant)||0)-encC);
+    const encC=clientEncaisse(c), reste=Math.max(0,clientMontant(c)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
     const money=canSeeMoney(); const clk=isAdmin();
     const sched=money?(c.schedule||[]).map((s,i)=>({s,i})).sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month)))
@@ -2409,10 +2457,10 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
-        ${money?`<span class="pill gold">${eur(encC)} / ${eur(c.montant)}</span>`:""}
+        ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
         <span class="pill ${c.verified?'ok':'warn'}">${c.verified?'✅':'⏳'}</span>
         <span class="chev">▸</span>
       </summary>
@@ -2438,7 +2486,7 @@ function renderClients(){
         ${(SETTINGS.checks||[]).map(f=>`<span class="pill ${c[f.key]?'ok':''}">${c[f.key]?'✅':'⬜'} ${escapeHtml(f.label)}</span>`).join("")}
         ${inImmersive(c.id)?`<span class="pill ok">🎟️ Journée immersive</span>`:""}
       </div>
-      ${sched?`<div class="section-title" style="margin:12px 2px 2px">💳 Échéancier — ${eur(encC)} encaissé / ${eur(c.montant)}${reste>0?` · reste ${eur(reste)}`:" · soldé ✅"}</div><div class="minimonths">${sched}</div>`:(Number(c.montant)?`<div class="kv"><span class="k">💳 Paiement</span><span class="v">${eur(encC)} encaissé / ${eur(c.montant)}${reste>0?` · <span style="color:#ffcf7a">reste ${eur(reste)}</span>`:" ✅"}</span></div>`:"")}
+      ${sched?`<div class="section-title" style="margin:12px 2px 2px">💳 Échéancier — ${eur(encC)} encaissé / ${eur(clientMontant(c))}${reste>0?` · reste ${eur(reste)}`:" · soldé ✅"}</div><div class="minimonths">${sched}</div>`:(clientMontant(c)?`<div class="kv"><span class="k">💳 Paiement</span><span class="v">${eur(encC)} encaissé / ${eur(clientMontant(c))}${reste>0?` · <span style="color:#ffcf7a">reste ${eur(reste)}</span>`:" ✅"}</span></div>`:"")}
       ${!isAdmin()&&c.verified_note?line("📝 Note de Léa",c.verified_note):""}
       ${isAdmin()?`<div class="vbox">
         ${clientIssues(c).length?`<div class="sub2" style="color:#ffcf7a;margin-bottom:8px">⚠️ Encore signalé : ${clientIssues(c).map(escapeHtml).join(" · ")}</div>`:`<div class="sub2" style="color:var(--green);margin-bottom:8px">✅ Fiche complète et vérifiée</div>`}
@@ -2577,7 +2625,7 @@ function renderFinance(){
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
   const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M);
-  const genMonth=closedThisMonth.reduce((s,c)=>s+(Number(c.montant)||0),0);
+  const genMonth=closedThisMonth.reduce((s,c)=>s+clientMontant(c),0);
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
@@ -2632,7 +2680,7 @@ function renderFinance(){
     <div class="box"><div class="n" style="color:#8fb4ff">${eur(logiTot)}</div><div class="l">💻 Logiciels</div></div>`;
   // Détail « CA signé » PAR CLIENT (cliquable) — à quel client correspond chaque euro généré ce mois.
   (function(){ const gb=$("genBreak"); if(!gb) return;
-    const rows=closedThisMonth.slice().sort((a,b)=>(Number(b.montant)||0)-(Number(a.montant)||0)).map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim())} <span class="sub2">· ${escapeHtml(c.closer||"—")}</span></span><span class="v" style="color:#7ee2a3">${eur(c.montant)}</span></div>`).join("");
+    const rows=closedThisMonth.slice().sort((a,b)=>(Number(b.montant)||0)-(Number(a.montant)||0)).map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim())} <span class="sub2">· ${escapeHtml(c.closer||"—")}</span></span><span class="v" style="color:#7ee2a3">${eur(clientMontant(c))}</span></div>`).join("");
     gb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0"><div style="font-weight:800;margin-bottom:4px">📈 CA signé ${monthLabel(M)} — ${eur(genMonth)}</div><div class="sub2" style="margin-bottom:6px">${closedThisMonth.length} client${closedThisMonth.length>1?"s":""} signé${closedThisMonth.length>1?"s":""} ce mois · montant du contrat.</div>${rows||'<div class="sub2">Aucun client signé ce mois.</div>'}</div>`;
   })();
   // Bloc MARGE (formule call : Revenus − équipe − prestas − logiciels ; puis − ta comm COO)
@@ -2672,7 +2720,7 @@ function renderFinance(){
     const moisCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
     const moisRows=moisCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#ffcf7a">${eur(dueInMonth(c,M))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Aucune échéance planifiée à encaisser ce mois.</div>';
     const resteCls=CLIENTS.filter(c=>clientReste(c)>0).sort((a,b)=>clientReste(b)-clientReste(a));
-    const resteRows=resteCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${eur(clientEncaisse(c))} / ${eur(c.montant)}</span></span><span class="v" style="color:#ffcf7a">${eur(clientReste(c))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Tous les contrats sont soldés. 🎉</div>';
+    const resteRows=resteCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)} <span class="sub2">· ${eur(clientEncaisse(c))} / ${eur(clientMontant(c))}</span></span><span class="v" style="color:#ffcf7a">${eur(clientReste(c))}</span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Tous les contrats sont soldés. 🎉</div>';
     db.innerHTML=`<div class="card" style="border-color:rgba(255,207,122,.35);margin:0">
       <div style="font-weight:800;margin-bottom:6px">⏳ À encaisser en ${monthLabel(M)} — ${eur(dueMonth)}</div>
       <div class="sub2" style="margin:-2px 0 6px">Les échéances planifiées dont le mois = ${monthShort(M)}.</div>
@@ -2975,7 +3023,7 @@ function paidInMonth(c,M){
 }
 function dueInMonth(c,M){
   // On ne réclame pas d'argent déjà encaissé : si le client est entièrement encaissé, plus rien "à encaisser"
-  if(clientEncaisse(c) >= (Number(c&&c.montant)||0)) return 0;
+  if(clientEncaisse(c) >= clientMontant(c)) return 0;
   return (c.schedule||[]).filter(s=>!s.paid&&s.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
 }
 function cooPalier(ca){ if(ca>=100000)return 0.06; if(ca>=50000)return 0.05; if(ca>=25000)return 0.04; return 0.03; }
@@ -3063,13 +3111,13 @@ function renderFinTable(){
     const bm=baseMonth(c);
     const schedDue=isLit?0:ms.reduce((s,m)=>s+dueInMonth(c,m),0);
     let unsched=Math.max(0, reste-schedDue); // reste NON couvert par une échéance planifiée → rattaché au mois de démarrage
-    if(unsched < Math.max(10,(Number(c.montant)||0)*0.03)) unsched=0; // ignore les résidus d'arrondi (ex. échéancier 3×1333=3999 ≠ 4000 → 1€)
+    if(unsched < Math.max(10,clientMontant(c)*0.03)) unsched=0; // ignore les résidus d'arrondi (ex. échéancier 3×1333=3999 ≠ 4000 → 1€)
     const tds=ms.map(m=>{ const p=paidInMonth(c,m); let d=isLit?0:dueInMonth(c,m); if(m===bm) d+=unsched;
       const parts=[];
       if(Math.round(p)>=1) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
       if(Math.round(d)>=1) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
       return `<td>${parts.length?parts.join('<br>'):'<span style="color:var(--faint)">—</span>'}</td>`; }).join("");
-    return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(c.montant)}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
+    return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
