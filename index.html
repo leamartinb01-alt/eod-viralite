@@ -2649,12 +2649,12 @@ function renderFinance(){
     const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
     const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0; // prime palier sur SON encaissé
     const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
-    cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; if(a) dn.push({l:escapeHtml(c.nom||"")+" · "+eur(e)+" encaissé", a}); });
+    cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?" · 📸 "+String(c.instagram).replace(/^https?:\/\/(www\.)?instagram\.com\//i,"@").replace(/\/$/,""):""; if(a) dn.push({l:escapeHtml(nmC)+escapeHtml(ig)+" · "+eur(e)+" encaissé", a}); });
     if(prime) dn.push({l:"🎁 Prime palier "+(pp.seuil/1000)+"k encaissés", a:prime});
     const rows=[["Rôle", ROLE_LBL[role]||role]];
     if(fixe) rows.push(["Fixe mensuel", eur(fixe)]);
     if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
-      cls.forEach(c=>rows.push(["↳ "+escapeHtml(c.nom||""), eur(paidInMonth(c,M))])); }
+      cls.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig, eur(paidInMonth(c,M))]); }); }
     if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
     if(!fixe && !pct && !prime) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
     return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
@@ -2850,6 +2850,7 @@ async function importLogiFromAccounts(M){ if(!fbReady())return; initFirebase(); 
   }catch(e){ msg("err","Erreur : "+e.message); } }
 /* ===================== PRESTATAIRES (hors équipe) ===================== */
 const PRESTA_CATS=["🎬 Montage","📣 Publicité","🛠 Outil / logiciel","✍️ Rédaction / contenu","🎨 Design","💼 Autre"];
+let _prestaOpen=false; // garde la section prestas ouverte quand on ajoute/enregistre (fini le « ça se referme »)
 function prestaList(M){ return Array.isArray(PRESTA[M])?PRESTA[M]:[]; }
 // Part d'un presta comptée dans la marge : champ margeAmount si renseigné (0 = exclu, partiel possible), sinon le montant total (défaut).
 function prestaMargePart(p){ return (p && p.margeAmount!=null && p.margeAmount!=="") ? (Number(p.margeAmount)||0) : (Number(p&&p.amount)||0); }
@@ -2888,8 +2889,9 @@ function renderPresta(M){
       <div class="box"><div class="n" style="color:#7ee2a3">${eur(paid)}</div><div class="l">Déjà payé</div></div>
       <div class="box"><div class="n" style="color:#ffcf7a">${eur(tot-paid)}</div><div class="l">Reste à payer</div></div>
     </div>
-    <details class="cdet"><summary>🧾 Détail des prestataires (${list.length}) — ${eur(tot)}</summary>
+    <details class="cdet" ${_prestaOpen?"open":""} ontoggle="_prestaOpen=this.open"><summary>🧾 Détail des prestataires (${list.length}) — ${eur(tot)}</summary>
       <div class="sub2" style="margin:6px 0">Tout ce que tu paies <b>hors équipe Écosystème</b> (monteurs, pub, outils…).</div>
+      ${(!list.length)?`<button type="button" class="btn ghost sm" style="width:auto;margin:0 0 8px" onclick="carryPrestaNames('${M}')">⤵️ Reprendre les prestas du mois dernier (noms, sans montants)</button>`:""}
       ${rows||'<div class="sub2" style="margin:6px 0">Aucun presta ce mois.</div>'}
       <button type="button" class="addrow" style="margin-top:10px" onclick="addPrestaLine('${M}')">+ Ajouter un presta</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="savePresta('${M}')">💾 Enregistrer les prestas</button>
@@ -2906,7 +2908,12 @@ function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=presta
     return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, margeAmount, fileUrl, fileName };
   });
   return keepEmpty ? arr : arr.filter(x=>x.name||x.amount||x.fileUrl); }
-function addPrestaLine(M){ const list=gatherPresta(M,true); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, margeAmount:null, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+function addPrestaLine(M){ _prestaOpen=true; const list=gatherPresta(M,true); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, margeAmount:null, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+// Reprend les NOMS des prestas du mois dernier (sans montants) → gain de temps chaque mois.
+function carryPrestaNames(M){ _prestaOpen=true; const prev=prestaList(prevMonth(M)); if(!prev.length){ const m=$("prMsg_"+M); if(m){m.className="msg err";m.style.display="block";m.textContent="Aucun presta le mois dernier.";} return; }
+  const list=gatherPresta(M,true).filter(x=>x.name||x.amount);
+  prev.forEach(p=>{ if(p.name && !list.some(x=>(x.name||"").toLowerCase()===p.name.toLowerCase())) list.push({id:"p"+Date.now()+Math.floor(Math.random()*10000), name:p.name, amount:0, cat:p.cat||PRESTA_CATS[0], note:"", paid:false, margeAmount:(p.margeAmount!=null?p.margeAmount:null), fileUrl:"", fileName:""}); });
+  PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
