@@ -2666,7 +2666,8 @@ function renderFinance(){
   const ov=n=>{ const o=statOf(n,M).override; return (o!=null&&o!=="")?Number(o):null; };
   pay.forEach(p=>{ const o=ov(p.m); p.eff=(o!=null)?o:p.amount; });
   const totalPaie=pay.reduce((s,p)=>s+p.eff,0);
-  const prestaTot=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const prestaTot=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0); // total à payer (tout le monde)
+  const prestaMarge=prestaMargeTot(M); // part comptée dans la marge (certains exclus / partiels)
   const paiePlusPresta=totalPaie+prestaTot;
   const logiTot=logiTotal(M);
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
@@ -2686,8 +2687,8 @@ function renderFinance(){
   // Bloc MARGE (formule call : Revenus − équipe − prestas − logiciels ; puis − ta comm COO)
   (function(){ const mb=$("margeBox"); if(!mb) return;
     const coo=COO[M]||{}; const nn=(v,d)=>(v!=null&&v!=="")?Number(v):d;
-    const cCA=nn(coo.ca,encTot), cTeam=nn(coo.team,teamComm), cPresta=nn(coo.presta,prestaTot), cFixe=nn(coo.fixe,2000), cSoft=nn(coo.soft,logiTot);
-    const margeHorsVar=encTot-(teamComm+prestaTot+logiTot);           // marge écosystème, hors ta rému
+    const cCA=nn(coo.ca,encTot), cTeam=nn(coo.team,teamComm), cPresta=nn(coo.presta,prestaMarge), cFixe=nn(coo.fixe,2000), cSoft=nn(coo.soft,logiTot);
+    const margeHorsVar=encTot-(teamComm+prestaMarge+logiTot);           // marge écosystème, hors ta rému (prestas hors-marge exclus)
     const cMargeVar=cCA-(cTeam+cPresta+cFixe+cSoft), cRate=cooPalier(cCA), cVar=cMargeVar>0?Math.round(cMargeVar*cRate):0;
     const cooTotal=Math.max(cFixe, (coo.force!=null&&coo.force!=="")?Number(coo.force):(cFixe+cVar)); // ta rému : jamais < fixe (2 000 € garantis)
     const margeNette=margeHorsVar-cooTotal; // résultat écosystème après t'avoir payée (peut être négatif un mois creux)
@@ -2695,7 +2696,7 @@ function renderFinance(){
       <div style="font-weight:800;margin-bottom:8px">📊 Marge de l'écosystème — ${monthLabel(M)}</div>
       <div class="kv"><span class="k">💵 Revenus encaissés</span><span class="v" style="color:#7ee2a3">${eur(encTot)}</span></div>
       <div class="kv"><span class="k" style="opacity:.85">➖ Commissions équipe</span><span class="v">-${eur(teamComm)}</span></div>
-      <div class="kv"><span class="k" style="opacity:.85">➖ Prestataires</span><span class="v">-${eur(prestaTot)}</span></div>
+      <div class="kv"><span class="k" style="opacity:.85">➖ Prestataires ${prestaTot!==prestaMarge?`<span class="sub2">(compté ${eur(prestaMarge)} / payé ${eur(prestaTot)})</span>`:""}</span><span class="v">-${eur(prestaMarge)}</span></div>
       <div class="kv"><span class="k" style="opacity:.85">➖ Logiciels</span><span class="v">-${eur(logiTot)}</span></div>
       <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k"><b>= Marge avant ta rému</b></span><span class="v"><b style="color:#7ee2a3;font-size:15px">${eur(margeHorsVar)}</b></span></div>
       <div class="kv" style="margin-top:2px"><span class="k" style="opacity:.85">➖ Ta rému COO <span class="sub2">(2 000 € min)</span></span><span class="v">-${eur(cooTotal)}</span></div>
@@ -2850,6 +2851,9 @@ async function importLogiFromAccounts(M){ if(!fbReady())return; initFirebase(); 
 /* ===================== PRESTATAIRES (hors équipe) ===================== */
 const PRESTA_CATS=["🎬 Montage","📣 Publicité","🛠 Outil / logiciel","✍️ Rédaction / contenu","🎨 Design","💼 Autre"];
 function prestaList(M){ return Array.isArray(PRESTA[M])?PRESTA[M]:[]; }
+// Part d'un presta comptée dans la marge : champ margeAmount si renseigné (0 = exclu, partiel possible), sinon le montant total (défaut).
+function prestaMargePart(p){ return (p && p.margeAmount!=null && p.margeAmount!=="") ? (Number(p.margeAmount)||0) : (Number(p&&p.amount)||0); }
+function prestaMargeTot(M){ return prestaList(M).reduce((a,p)=>a+prestaMargePart(p),0); }
 function renderPresta(M){
   const box=$("prestaCard"); if(!box) return;
   const list=prestaList(M);
@@ -2867,6 +2871,7 @@ function renderPresta(M){
         <div><select class="pCat">${catOpts}</select></div>
         <div><input class="pNote" type="text" value="${escapeHtml(p.note||"")}" placeholder="Note (optionnel)"></div>
       </div>
+      <div style="margin-top:6px"><input class="pMarge" type="number" inputmode="numeric" value="${p.margeAmount!=null&&p.margeAmount!==""?p.margeAmount:""}" placeholder="€ compté dans la marge (vide = tout · 0 = rien)" style="width:100%"></div>
       <div style="margin-top:6px">
         <input class="pLink" type="url" value="${escapeHtml(p.fileUrl||'')}" placeholder="🔗 Colle le lien de la facture (Drive…) puis Enregistre">
         ${viewLink?`<div style="margin-top:5px">${viewLink}</div>`:""}
@@ -2897,10 +2902,11 @@ function gatherPresta(M, keepEmpty){ const box=$("prestaCard"); const cur=presta
     const link=(r.querySelector(".pLink")?r.querySelector(".pLink").value:"").trim();
     const fileUrl = link || old.fileUrl || "";                       // lien collé OU URL uploadée
     const fileName = link ? (old.fileName||"Facture (lien)") : (old.fileName||"");
-    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, fileUrl, fileName };
+    const mrg=r.querySelector(".pMarge"); const margeAmount=(mrg&&mrg.value!=="")?(Number(mrg.value)||0):null;
+    return { id, name:(r.querySelector(".pName").value||"").trim(), amount:Number(r.querySelector(".pAmt").value)||0, cat:r.querySelector(".pCat").value, note:(r.querySelector(".pNote").value||"").trim(), paid:r.querySelector(".pPaid").checked, margeAmount, fileUrl, fileName };
   });
   return keepEmpty ? arr : arr.filter(x=>x.name||x.amount||x.fileUrl); }
-function addPrestaLine(M){ const list=gatherPresta(M,true); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
+function addPrestaLine(M){ const list=gatherPresta(M,true); list.push({id:"p"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0, cat:PRESTA_CATS[0], note:"", paid:false, margeAmount:null, fileUrl:"", fileName:""}); PRESTA[M]=list; renderPresta(M); }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
@@ -3038,7 +3044,7 @@ function renderCoo(M, caAuto, teamComm){
   const box=$("cooCard"); if(!box) return;
   if(!isAdmin()){ box.innerHTML=""; return; }
   _cooAuto=caAuto; _cooTeam=teamComm;
-  const prestaAuto=prestaList(M).reduce((a,p)=>a+(Number(p.amount)||0),0); _cooPresta=prestaAuto;
+  const prestaAuto=prestaMargeTot(M); _cooPresta=prestaAuto; // marge COO : seulement la part des prestas comptée dans la marge
   const logiAuto=logiTotal(M); _cooLogi=logiAuto;
   const coo=COO[M]||{};
   const vOr=v=>(v!=null&&v!=="")?v:'';
