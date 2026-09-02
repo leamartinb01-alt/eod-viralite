@@ -543,10 +543,16 @@
     </div>
     <div class="card">
       <h2>💾 Sauvegarde & export</h2>
-      <p class="sub2">Garde tes données en sécurité — à faire idéalement chaque mois. Si tu perds l'app, tu gardes tout.</p>
+      <p class="sub2">Garde tes données en sécurité — à faire idéalement chaque mois. La sauvegarde .json prend <b>absolument tout</b> (clients, EOD, comptes bancaires, finance, prestas, logiciels, réglages, identifiants…).</p>
       <button class="btn ghost" onclick="exportReport()">📄 Rapport complet — clients + commissions + EOD (.html → PDF)</button>
       <button class="btn ghost" onclick="exportJSON()">💾 Sauvegarde complète des données (.json)</button>
       <div id="exportMsg" class="msg"></div>
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+        <p class="sub2" style="margin:0 0 8px">♻️ <b>Restaurer</b> — en cas de perte de données, recharge une sauvegarde .json (ça réécrit tout).</p>
+        <input id="restoreFile" type="file" accept=".json,application/json" style="font-size:13px">
+        <button class="btn ghost" style="margin-top:8px" onclick="restoreBackup()">♻️ Restaurer depuis un fichier .json</button>
+        <div id="restoreMsg" class="msg"></div>
+      </div>
     </div>
   </div>
 
@@ -616,43 +622,6 @@
     </div></details>
   </div>
 
-  <!-- LINKEDIN -->
-  <div id="view-linkedin" class="wrap hide">
-    <div class="card">
-      <h2 style="margin:0 0 4px">💼 LinkedIn — Clément</h2>
-      <p class="sub2" style="margin:0">Chaque semaine : saisis les chiffres de tes captures et garde les captures pour pouvoir revérifier plus tard.</p>
-    </div>
-    <div id="liKpis" class="stat"></div>
-    <div class="section-title">📈 Évolution</div>
-    <div id="liChart"></div>
-    <div class="card">
-      <h2 style="margin:0 0 4px">➕ Ajouter / mettre à jour une semaine</h2>
-      <div class="hint" style="margin:0 0 8px">Remplis uniquement les chiffres présents sur tes captures — chaque champ a sa fenêtre (7 j / 28 j / 90 j), rien ne se mélange. Le <b>Total abonnés</b> est la référence d'évolution (toujours comparable).</div>
-      <div class="payin">
-        <div><label>Date (fin de semaine)</label><input type="date" id="li_date"></div>
-        <div><label>⭐ Total abonnés</label><input type="number" inputmode="numeric" id="li_abo" placeholder="ex : 7707"></div>
-      </div>
-      <div class="payin">
-        <div><label>Impressions (7 j)</label><input type="number" inputmode="numeric" id="li_impr7" placeholder="ex : 14383"></div>
-        <div><label>Impressions (28 j)</label><input type="number" inputmode="numeric" id="li_impr28" placeholder="ex : 145632"></div>
-      </div>
-      <div class="payin">
-        <div><label>Engagement (7 j)</label><input type="number" inputmode="numeric" id="li_eng7" placeholder="ex : 416"></div>
-        <div><label>Engagement (28 j)</label><input type="number" inputmode="numeric" id="li_eng28" placeholder="ex : 1914"></div>
-      </div>
-      <div class="payin">
-        <div><label>Vues du profil (90 j)</label><input type="number" inputmode="numeric" id="li_vues" placeholder="ex : 2506"></div>
-        <div><label>Apparitions recherches</label><input type="number" inputmode="numeric" id="li_rech" placeholder="ex : 126"></div>
-      </div>
-      <label style="margin-top:8px;display:block">Note (optionnel)</label>
-      <input type="text" id="li_note" placeholder="ex : gros post viral" style="width:100%">
-      <button class="btn" style="margin-top:12px" onclick="saveLinkedin()">💾 Enregistrer la semaine</button>
-      <button class="btn ghost sm" id="liSeedBtn" style="margin-top:8px;width:auto;padding:6px 12px" onclick="seedLinkedin()">⚡ Importer les 3 semaines (30/07 · 07/08 · 14/08)</button>
-      <div id="liMsg" class="msg"></div>
-    </div>
-    <div class="section-title">🗂 Historique des semaines</div>
-    <div id="liList"></div>
-  </div>
 </div>
 
 <!-- NAV -->
@@ -664,7 +633,6 @@
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
   <button id="nav-accounts" class="hide" onclick="show('accounts')"><span class="ic">💰</span>Comptes</button>
-  <button id="nav-linkedin" class="hide" onclick="show('linkedin')"><span class="ic">💼</span>LinkedIn</button>
   <button id="nav-settings" class="hide" onclick="show('settings')"><span class="ic">⚙️</span>Réglages</button>
 </div>
 
@@ -935,7 +903,6 @@ function applyNavAccess(){
   $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
   $("nav-finance").classList.toggle("hide", !isAdmin());
   $("nav-accounts").classList.toggle("hide", !isAdmin());
-  $("nav-linkedin").classList.toggle("hide", !isAdmin());
   $("nav-settings").classList.toggle("hide", !isAdmin());
   initApp();
 }
@@ -1530,6 +1497,25 @@ async function exportJSON(){
     m.className="msg ok"; m.textContent=`Sauvegarde téléchargée ✓ (${out.clients.length} clients, ${out.eod_reports.length} EOD).`;
   }catch(err){ m.className="msg err"; m.textContent="Erreur : "+err.message; }
 }
+// Restaure une sauvegarde .json complète → réécrit clients + EOD + setter_stats (comptes, finance, réglages…).
+function _restoreFixTs(o){ if(o&&typeof o==="object"){ for(const k in o){ const v=o[k]; if(v&&typeof v==="object"&&typeof v.seconds==="number"){ try{ o[k]=new firebase.firestore.Timestamp(v.seconds, v.nanoseconds||v._nanoseconds||0); }catch(e){} } } } return o; }
+async function restoreBackup(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const inp=$("restoreFile"); const f=inp&&inp.files&&inp.files[0]; const m=$("restoreMsg");
+  if(!f){ m.className="msg err"; m.style.display="block"; m.textContent="Choisis d'abord un fichier .json."; return; }
+  let data; try{ data=JSON.parse(await f.text()); }catch(e){ m.className="msg err"; m.style.display="block"; m.textContent="Fichier JSON invalide."; return; }
+  const cl=Array.isArray(data.clients)?data.clients:[], eo=Array.isArray(data.eod_reports)?data.eod_reports:[], ss=Array.isArray(data.setter_stats)?data.setter_stats:[];
+  if(!cl.length&&!eo.length&&!ss.length){ m.className="msg err"; m.style.display="block"; m.textContent="Sauvegarde vide ou non reconnue."; return; }
+  if(!confirm(`Restaurer cette sauvegarde ?\n\n${cl.length} clients · ${eo.length} EOD · ${ss.length} docs finance/comptes/réglages.\n\nÇa réécrit les données portant les mêmes identifiants. Continuer ?`)) return;
+  if(!fbReady()) return; initFirebase();
+  m.className="msg"; m.style.display="block"; m.textContent="Restauration en cours…";
+  try{
+    let n=0;
+    const put=async(coll,arr)=>{ for(const it of arr){ const id=it.id; if(!id) continue; const rest={...it}; delete rest.id; _restoreFixTs(rest); await db.collection(coll).doc(id).set(rest); n++; if(n%25===0) m.textContent="Restauration… "+n+" éléments"; } };
+    await put("clients",cl); await put("eod_reports",eo); await put("setter_stats",ss);
+    m.className="msg ok"; m.textContent="Restauration terminée ✓ ("+n+" éléments). Recharge la page (Cmd+Shift+R).";
+  }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
+}
 // MÊME logique que l'onglet Finance (role/pct/fixe) pour que le rapport exporté concorde au centime.
 function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
@@ -1875,7 +1861,7 @@ function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) retur
 }
 function show(v){
   // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
-  if((v==="finance"||v==="settings"||v==="accounts"||v==="linkedin") && !isAdmin()) v="form";
+  if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
   ["form","team","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
@@ -1888,7 +1874,6 @@ function show(v){
   if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
   if(v==="immersive") loadImmersive();
-  if(v==="linkedin") loadLinkedin();
 }
 async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
