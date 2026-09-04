@@ -1291,24 +1291,18 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
   const edito_note=(box.querySelector(".edNote")&&box.querySelector(".edNote").value.trim())||"";
   const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({edito,edito_until,edito_note}); c.edito=edito; c.edito_until=edito_until; c.edito_note=edito_note; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-/* Questionnaires de satisfaction : 1 par mois d'accès + 1 questionnaire de fin. Stocké dans c.satis = {"1":{sent,date},…,"N":{…},"fin":{…}} */
-function satisTotal(c){ return editoMonthsCount(c)+1; } // 1 par mois + questionnaire de fin
+/* Questionnaires de satisfaction : 1 par mois d'accès (3 mois → 3, 4 → 4, 6 → 6). Le dernier = questionnaire de fin. Stocké dans c.satis = {"1":{sent,date},…,"N":{…}} */
+function satisTotal(c){ return editoMonthsCount(c); } // 1 par mois d'accès
 function satisDone(c){ const sm=(c&&c.satis)||{}; return Object.keys(sm).filter(k=>sm[k]&&sm[k].sent).length; }
 function satisMonths(c){ const months=editoMonthsCount(c), sm=c.satis||{}; let rows="";
-  for(let m=1;m<=months;m++){ const e=sm[m]||{};
-    rows+=`<div class="edrow${e.sent?' on':''}" data-k="${m}">
-      <span class="edm">Mois ${m}</span>
+  for(let m=1;m<=months;m++){ const e=sm[m]||{}; const fin=(m===months);
+    rows+=`<div class="edrow${e.sent?' on':''}" data-k="${m}"${fin?' style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px"':''}>
+      <span class="edm">${fin?'🏁 Mois '+m+' (fin)':'Mois '+m}</span>
       <label class="ck edtoggle"><input type="checkbox" class="stSent" ${e.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
       <input type="date" class="stDate" value="${escapeHtml(e.date||'')}" title="Date d'envoi du questionnaire">
     </div>`; }
-  const ef=sm['fin']||{};
-  rows+=`<div class="edrow${ef.sent?' on':''}" data-k="fin" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">
-    <span class="edm">🏁 Fin</span>
-    <label class="ck edtoggle"><input type="checkbox" class="stSent" ${ef.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
-    <input type="date" class="stDate" value="${escapeHtml(ef.date||'')}" title="Date d'envoi du questionnaire de fin">
-  </div>`;
-  const total=months+1, done=satisDone(c);
-  return `<details class="cdet" style="margin-top:10px"><summary>📝 Questionnaires de satisfaction — ${done}/${total} envoyés <span class="sub2">(1/mois + fin)</span></summary>
+  const total=months, done=satisDone(c);
+  return `<details class="cdet" style="margin-top:10px"><summary>📝 Questionnaires de satisfaction — ${done}/${total} envoyés <span class="sub2">(1 par mois)</span></summary>
     <div class="satbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveSatis('${c.id}')">💾 Enregistrer</button>
       <div class="satMsg msg"></div></div></details>`; }
