@@ -299,6 +299,10 @@
   .arch-tools{display:flex; gap:8px; margin:8px 0 2px; flex-wrap:wrap}
   .arch-tools input{flex:1 1 120px; padding:9px 10px; font-size:13px}
   /* détail commission */
+  details.foldcard>summary{list-style:none; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-size:16px; font-weight:800; color:var(--txt)}
+  details.foldcard>summary::-webkit-details-marker{display:none}
+  details.foldcard>summary .chev{color:var(--faint); font-size:13px; transition:transform .2s}
+  details.foldcard[open]>summary .chev{transform:rotate(90deg)}
   details.cdet{margin-top:10px}
   details.cdet>summary{list-style:none; cursor:pointer; font-size:12.5px; color:#ffb27a; font-weight:700; padding:4px 0}
   details.cdet>summary::-webkit-details-marker{display:none}
@@ -430,9 +434,9 @@
         <p class="sub2" id="teamToday" style="margin-top:8px">—</p>
         <div class="stat" id="teamStats"></div>
       </div>
-      <div id="convCard" class="card"><h2 style="margin:0 0 8px">📊 Conversions (temps réel)</h2><div id="convList"></div></div>
-      <div id="sourcesCard" class="card"><h2 style="margin:0 0 8px">🌐 Sources des leads</h2><div id="sourcesList"></div></div>
-      <div id="closedCard" class="card"><h2 style="margin:0 0 8px">🎯 Closés du mois</h2><div id="closedList"></div></div>
+      <details id="convCard" class="card foldcard" open><summary><span>📊 Conversions (temps réel)</span><span class="chev">▸</span></summary><div id="convList" style="margin-top:8px"></div></details>
+      <details id="sourcesCard" class="card foldcard" open><summary><span>🌐 Sources des leads</span><span class="chev">▸</span></summary><div id="sourcesList" style="margin-top:8px"></div></details>
+      <details id="closedCard" class="card foldcard" open><summary><span>🎯 Closés du mois</span><span class="chev">▸</span></summary><div id="closedList" style="margin-top:8px"></div></details>
       <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
       <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
       <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
@@ -1207,9 +1211,11 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
         ${callsB}${editoB}
+        <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>
       </div>
       ${editoMonths(c)}
+      ${satisMonths(c)}
       <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       <div class="cgadd">
@@ -1285,6 +1291,31 @@ async function saveEditoM(id){ if(!fbReady()) return; initFirebase(); const c=CL
   const edito_note=(box.querySelector(".edNote")&&box.querySelector(".edNote").value.trim())||"";
   const m=box.querySelector(".edMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({edito,edito_until,edito_note}); c.edito=edito; c.edito_until=edito_until; c.edito_note=edito_note; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+/* Questionnaires de satisfaction : 1 par mois d'accès + 1 questionnaire de fin. Stocké dans c.satis = {"1":{sent,date},…,"N":{…},"fin":{…}} */
+function satisTotal(c){ return editoMonthsCount(c)+1; } // 1 par mois + questionnaire de fin
+function satisDone(c){ const sm=(c&&c.satis)||{}; return Object.keys(sm).filter(k=>sm[k]&&sm[k].sent).length; }
+function satisMonths(c){ const months=editoMonthsCount(c), sm=c.satis||{}; let rows="";
+  for(let m=1;m<=months;m++){ const e=sm[m]||{};
+    rows+=`<div class="edrow${e.sent?' on':''}" data-k="${m}">
+      <span class="edm">Mois ${m}</span>
+      <label class="ck edtoggle"><input type="checkbox" class="stSent" ${e.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
+      <input type="date" class="stDate" value="${escapeHtml(e.date||'')}" title="Date d'envoi du questionnaire">
+    </div>`; }
+  const ef=sm['fin']||{};
+  rows+=`<div class="edrow${ef.sent?' on':''}" data-k="fin" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px">
+    <span class="edm">🏁 Fin</span>
+    <label class="ck edtoggle"><input type="checkbox" class="stSent" ${ef.sent?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> envoyé</label>
+    <input type="date" class="stDate" value="${escapeHtml(ef.date||'')}" title="Date d'envoi du questionnaire de fin">
+  </div>`;
+  const total=months+1, done=satisDone(c);
+  return `<details class="cdet" style="margin-top:10px"><summary>📝 Questionnaires de satisfaction — ${done}/${total} envoyés <span class="sub2">(1/mois + fin)</span></summary>
+    <div class="satbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
+      <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveSatis('${c.id}')">💾 Enregistrer</button>
+      <div class="satMsg msg"></div></div></details>`; }
+async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.satbox[data-id="'+CSS.escape(id)+'"]'); if(!c||!box) return;
+  const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
+  const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function firstCoachDate(c){ // 1er coaching pointé = call d'onboarding
   const log=(c&&c.coaching&&c.coaching.log)||[];
