@@ -492,6 +492,10 @@
       </div>
       <button class="btn" onclick="saveClient()">Enregistrer ✓</button>
       <button class="btn ghost" onclick="closeClientForm()">Annuler</button>
+      <div id="clientDeleteWrap" class="hide" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <button class="btn" style="background:rgba(255,90,90,.14);border:1px solid rgba(255,90,90,.5);color:#ff9a9a" onclick="deleteClient()">🗑 Supprimer ce client (erreur)</button>
+        <p class="hint" style="margin:6px 0 0">À utiliser seulement en cas d'erreur de saisie. La suppression est définitive (pense à l'export/sauvegarde si tu as un doute).</p>
+      </div>
       <div id="clientMsg" class="msg"></div>
     </div>
     <div id="clientAlert"></div>
@@ -704,10 +708,10 @@ const FORMS = {
     { key:"feeling",         label:"Un mot sur ta journée ? (optionnel)",   type:"textarea" },
   ],
   setter:[
-    { key:"contacted",        label:"Personnes contactées",                 type:"number" },
+    { key:"contacts_src",     label:"👥 Personnes contactées aujourd'hui — par source", type:"srccount" },
     { key:"in_contact",       label:"Personnes en contact (conversations)", type:"number" },
     { key:"calls_booked",     label:"Calls pris (RDV calés)",               type:"number" },
-    { key:"booked",           label:"📋 RDV pris aujourd'hui (nom + vérifié)", type:"booked" },
+    { key:"booked",           label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
     { key:"need_help",        label:"Un blocage / besoin d'aide ?",         type:"textarea" },
     { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
@@ -814,14 +818,33 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensur
     <button type="button" class="xrow" onclick="this.closest('.callRow').remove()">✕</button>
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
-function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL(); box.insertAdjacentHTML("beforeend",
+function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL();
+  const srcOpts=leadSourceList(); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
+  box.insertAdjacentHTML("beforeend",
   `<div class="drow bookRow">
-    <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1">
+    <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1.3">
+    <select class="bkS" style="flex:1.1">${optHtml}</select>
     <label class="ck"><input class="bkV" type="checkbox" ${d.verified?'checked':''}>vérifié</label>
     <button type="button" class="xrow" onclick="this.closest('.bookRow').remove()">✕</button>
   </div>`); }
-function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
+function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), src:(r.querySelector('.bkS')?r.querySelector('.bkS').value:""), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
 function bookedArr(x){ const b=x&&x.payload&&x.payload.booked; return Array.isArray(b)?b:[]; }
+// Sources de leads Insta (éditables en Réglages) — ventilation quotidienne des contacts + source de chaque RDV pris.
+function leadSourceList(){ const a=(SETTINGS.leadSources&&SETTINGS.leadSources.length)?SETTINGS.leadSources.slice():["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"]; return a; }
+function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
+  let opts=leadSourceList().slice(); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
+  const optHtml=opts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`).join("");
+  box.insertAdjacentHTML("beforeend",
+  `<div class="drow srcRow">
+    <select class="scS" style="flex:1.3">${optHtml}</select>
+    <input class="scN" type="number" inputmode="numeric" min="0" placeholder="0" value="${d.n!=null&&d.n!==''?Number(d.n):''}" style="flex:.8">
+    <button type="button" class="xrow" onclick="this.closest('.srcRow').remove()">✕</button>
+  </div>`); }
+function gatherSrcCount(){ return [...document.querySelectorAll("#srcRows .srcRow")].map(r=>({ src:r.querySelector('.scS').value, n:Number(r.querySelector('.scN').value)||0 })).filter(x=>x.n>0); }
+function srcArr(x){ const a=x&&x.payload&&x.payload.contacts_src; return Array.isArray(a)?a:[]; }
+function seedSrcRows(arr){ const box=$("srcRows"); if(!box) return; box.innerHTML="";
+  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList().forEach(s=>addSrcRow({src:s,n:''})); }
+  if(!box.children.length) addSrcRow(); }
 function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
 function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
 function callsArr(x){ return (x&&x.payload&&Array.isArray(x.payload.calls))?x.payload.calls:[]; }
@@ -940,6 +963,7 @@ const SETTINGS_DEFAULT={
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
+  leadSources:["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"],
   logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
@@ -970,8 +994,8 @@ function normPay(it){
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","callSources","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","callSources","leadSources","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSources:"Sources des leads Insta (setters : mini-chats, ADS, commentaires…)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
@@ -1192,7 +1216,7 @@ async function loadCoaching(){
   const box=$("coachingList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
   initFirebase();
-  try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ box.innerHTML='<div class="empty">Erreur de chargement.</div>'; return; }
+  try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){ box.innerHTML='<div class="empty">Erreur de chargement.</div>'; return; }
   renderCoachingTab();
 }
 function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
@@ -1568,7 +1592,7 @@ async function exportReport(){
   let cls=[], eods=[], statMap={};
   try{
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
-    cls=cs.docs.map(d=>({id:d.id,...d.data()}));
+    cls=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
     ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
@@ -1598,7 +1622,8 @@ async function exportReport(){
     const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
     flds.forEach(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
-      if(f.type==="booked"){ const b=bookedArr(x); if(b.length) parts.push("RDV pris: "+b.map(z=>esc(z.name||'?')+(z.verified?" ✓":"")).join(", ")); return; }
+      if(f.type==="srccount"){ const a=srcArr(x); if(a.length){ const tot=a.reduce((s,z)=>s+(Number(z.n)||0),0); parts.push("Contactés ("+tot+"): "+a.map(z=>esc(z.src||'?')+" "+(z.n||0)).join(", ")); } return; }
+      if(f.type==="booked"){ const b=bookedArr(x); if(b.length) parts.push("RDV pris: "+b.map(z=>esc(z.name||'?')+(z.src?" ["+esc(z.src)+"]":"")+(z.verified?" ✓":"")).join(", ")); return; }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("Coaching: "+p2.join(" · ")); } return; }
       if(f.type==="clientlog"){ const cl=x.payload&&x.payload.clientlog; if(Array.isArray(cl)&&cl.length){ const p2=cl.map(a=>{ const bits=[]; if(a.mood)bits.push(a.mood); if(a.ras)bits.push("RAS"); if(a.warning)bits.push("⚠️ "+(a.warnReason||"warning")); return esc(a.name||"?")+(bits.length?" ("+esc(bits.join(", "))+")":""); }); if(p2.length) parts.push("Suivi clients: "+p2.join(" · ")); } return; }
       if(f.type==="check"){ if(x.payload&&x.payload[f.key]) parts.push("<b>"+esc(f.label)+"</b> ✓"); return; }
@@ -1706,6 +1731,8 @@ function onMember(){
       inp=`<div id="callRows"></div><button type="button" class="addrow" onclick="addCallRow()">+ Ajouter un call</button>`;
     } else if(f.type==="booked"){
       inp=`<div id="bookRows"></div><button type="button" class="addrow" onclick="addBookRow()">+ Ajouter un RDV pris</button>`;
+    } else if(f.type==="srccount"){
+      inp=`<div id="srcRows"></div><button type="button" class="addrow" onclick="addSrcRow()">+ Ajouter une source</button><div class="hint">Mets combien de personnes tu as contactées via chaque source aujourd'hui (mini-chats, ADS, commentaires…). Laisse à 0 si rien.</div>`;
     } else if(f.type==="clientlog"){
       const who=$("member").value; const cs=coachClientsFor(who);
       inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`}</div>`;
@@ -1715,12 +1742,13 @@ function onMember(){
   });
   if($("callRows") && !$("callRows").children.length) addCallRow();
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
+  if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
   if(role==="setter" && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
-    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); const box=$("clientLog"); if(box){ const cs=coachClientsFor(who); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; } }).catch(()=>{}); }
+    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); const box=$("clientLog"); if(box){ const cs=coachClientsFor(who); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; } }).catch(()=>{}); }
 }
 function fillEodForm(x){
   const role=member(x.member).role;
@@ -1728,6 +1756,7 @@ function fillEodForm(x){
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
+    else if(f.type==="srccount"){ seedSrcRows(srcArr(x)); }
     else if(f.type==="clientlog"){ const box=$("clientLog"); if(box){ const arr=(x.payload&&x.payload.clientlog)||[]; const map={}; arr.forEach(a=>{map[a.id]=a;}); box.querySelectorAll(".cllog").forEach(r=>{ const v=map[r.getAttribute("data-id")]; if(v){ const h=r.querySelector(".clMood"); if(h)h.value=v.mood||""; r.querySelectorAll(".cmood").forEach(b=>b.classList.toggle("sel",b.getAttribute("data-v")===(v.mood||""))); const ra=r.querySelector(".clRas"); if(ra)ra.checked=!!v.ras; const w=r.querySelector(".clWarn"); if(w)w.checked=!!v.warning; const wr=r.querySelector(".clWarnR"); if(wr)wr.value=v.warnReason||""; const ww=r.querySelector(".clWarnWrap"); if(ww)ww.style.display=v.warning?"block":"none"; } }); } }
     else if(f.type==="check"){ const el=$("f_"+f.key); if(el) el.checked=!!v; }
     else if(f.type==="mood"){ const h=$("f_"+f.key); if(h) h.value=v||""; document.querySelectorAll(`#fields .mood[data-for="f_${f.key}"]`).forEach(b=>b.classList.toggle("sel", b.getAttribute("data-v")===v)); }
@@ -1745,7 +1774,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -1772,6 +1801,7 @@ async function submitEod(){
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
+    if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
     if(role==="setter" && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
@@ -1904,7 +1934,7 @@ async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
   initFirebase();
-  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} // recharge TOUJOURS (comme les autres onglets) → jamais de client périmé
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){} // recharge TOUJOURS (comme les autres onglets) → jamais de client périmé
   if(!Array.isArray(SETTINGS.immersives)){ // migration de l'ancien format (1 seule journée + cases fiche)
     const old=SETTINGS.immersive; const seed=CLIENTS.filter(c=>c.immersive_participe).map(c=>c.id);
     SETTINGS.immersives = ((old&&(old.date||old.lieu))||seed.length) ? [{id:immUid(), date:(old&&old.date)||"", lieu:(old&&old.lieu)||"", clients:seed}] : [];
@@ -1955,7 +1985,7 @@ async function loadTeam(){
   initFirebase();
   try{ const snap=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=snap.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ EODS=[]; }
   try{ const ss=await db.collection("setter_stats").get(); FUPS={}; WARNS={}; ACKS={}; ss.docs.forEach(d=>{ const x=d.data(); if(x.isFollowups&&x.member) FUPS[x.member]=Array.isArray(x.list)?x.list:[]; if(x.isWarnCfg&&x.map) WARNS=x.map; if(x.isAckCfg&&x.map) ACKS=x.map; }); }catch(e){}
-  try{ const cs=await db.collection("clients").get(); CLIENTS=cs.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
+  try{ const cs=await db.collection("clients").get(); CLIENTS=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
   renderTeam();
 }
 function renderTeam(){
@@ -2048,6 +2078,17 @@ function closerConv(name,M){
 function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
   const booked=Math.max(bookedNum, bookedList); // RDV pris : que le setter les saisisse en nombre OU en liste
   return {contacted,inContact,booked,verified}; }
+// Ventilation par source (mini-chats, ADS, commentaires…) sur le mois : contacts saisis par source + RDV pris rattachés à cette source. Sert à voir ce qui convertit le mieux sur Insta.
+function setterSrcStats(name,M){ const map={};
+  const get=s=>{ const k=s||"(sans source)"; return map[k]||(map[k]={src:k,contacts:0,rdv:0,verif:0}); };
+  EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{
+    srcArr(x).forEach(z=>{ get(z.src).contacts+=Number(z.n)||0; });
+    bookedArr(x).forEach(b=>{ const g=get(b.src); g.rdv++; if(b.verified) g.verif++; });
+  });
+  return Object.values(map).sort((a,b)=>(b.contacts+b.rdv)-(a.contacts+a.rdv)); }
+function setterSrcHtml(name,M){ const rows=setterSrcStats(name,M); if(!rows.length) return "";
+  const body=rows.map(r=>`<div class="kv" style="padding:3px 0"><span class="k">${escapeHtml(r.src)}</span><span class="v">${r.contacts} contactés · ${r.rdv} RDV${r.contacts?` <span style="opacity:.6">(${pctTxt(r.rdv,r.contacts)})</span>`:""}${r.verif?` · ${r.verif} ✓`:""}</span></div>`).join("");
+  return `<details class="cdet" style="margin-top:6px"><summary class="sub2">📈 Détail par source (ce qui convertit le mieux)</summary><div style="margin-top:4px">${body}</div></details>`; }
 function renderConversions(M){
   const box=$("convList"); if(!box) return; const pm=prevMonth(M);
   const closers=CONFIG.TEAM.filter(m=>m.role==="closer"), setters=CONFIG.TEAM.filter(m=>m.role==="setter");
@@ -2057,7 +2098,7 @@ function renderConversions(M){
   const sRows=setters.map(m=>{ const s=setterConv(m.name,M), p=setterConv(m.name,pm);
     const cvC=pctTxt(s.booked,s.contacted), cvV=pctTxt(s.booked,s.inContact), pvC=pctTxt(p.booked,p.contacted);
     return `<div class="convrow"><div class="convh"><span class="convn">🎯 ${escapeHtml(m.name)}</span><span class="convbig">${cvC} <span class="sub2" style="font-weight:600">contact→RDV · ${cvV} conv→RDV</span></span></div>
-      <div class="sub2">${s.contacted} contactés → ${s.booked} RDV pris <span style="opacity:.6">(${s.booked}/${s.contacted})</span> · ${s.inContact} conversations → ${s.booked} RDV <span style="opacity:.6">(${s.booked}/${s.inContact})</span> · ${s.verified} vérifiés${p.contacted?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvC} contact→RDV — ${p.booked}/${p.contacted}</span>`:""}</div></div>`; }).join("");
+      <div class="sub2">${s.contacted} contactés → ${s.booked} RDV pris <span style="opacity:.6">(${s.booked}/${s.contacted})</span> · ${s.inContact} conversations → ${s.booked} RDV <span style="opacity:.6">(${s.booked}/${s.inContact})</span> · ${s.verified} vérifiés${p.contacted?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvC} contact→RDV — ${p.booked}/${p.contacted}</span>`:""}</div>${setterSrcHtml(m.name,M)}</div>`; }).join("");
   box.innerHTML=`<div class="sub2" style="margin-bottom:6px"><b>${monthLabel(M)}</b> vs ${monthLabel(pm)} · closer = closés/appels · setter = RDV pris/contactés · maj à chaque EOD.</div>${cRows||""}${sRows||""}${(!cRows&&!sRows)?'<div class="sub2">Aucun closer/setter dans l\'équipe.</div>':""}`;
 }
 // Sources des leads : par source (Instagram, Typeform, LinkedIn…), prospects uniques + closés + taux, sur le mois
@@ -2187,7 +2228,8 @@ function openMember(name){
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
     const kvs=fields.map(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(!cl.length) return ""; return `<div class="kv"><span class="k">Calls (${cl.length})</span><span class="v">${aggCalls([x]).close} closé(s)</span></div>`+cl.map(c=>`<div class="kv"><span class="k">${escapeHtml(c.p||'—')} · ${escapeHtml(c.src||'')}</span><span class="v">${escapeHtml(c.res||'')}</span></div>`).join(""); }
-      if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
+      if(f.type==="srccount"){ const a=srcArr(x); if(!a.length) return ""; const tot=a.reduce((s,z)=>s+(Number(z.n)||0),0); return `<div class="kv"><span class="k">Contactés par source</span><span class="v">${tot} au total</span></div>`+a.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.src||'—')}</span><span class="v">${Number(z.n)||0}</span></div>`).join(""); }
+      if(f.type==="booked"){ const b=bookedArr(x); if(!b.length) return ""; return `<div class="kv"><span class="k">RDV pris (${b.length})</span><span class="v">${b.filter(z=>z.verified).length} vérifié(s)</span></div>`+b.map(z=>`<div class="kv"><span class="k">${escapeHtml(z.name||'—')}${z.src?' · '+escapeHtml(z.src):''}</span><span class="v">${z.verified?'✓ vérifié':'—'}</span></div>`).join(""); }
       if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(!Array.isArray(co)||!co.length) return ""; return co.map(o=>{ const detail=(o.sess&&o.sess.length)?o.sess.map(s=>escapeHtml(s.coach||'?')+" ×"+(s.n||1)).join(", "):(o.done!=null?(o.done+" / "+o.total):""); return detail?`<div class="kv"><span class="k">${escapeHtml(o.name||'')}</span><span class="v">${detail}</span></div>`:""; }).join(""); }
       if(f.type==="clientlog"){ const cl=(x.payload&&x.payload.clientlog)||[]; if(!cl.length) return ""; const me=m=>({"Bien":"😄","Moyen":"😐","Pas bien":"😟"}[m]||""); return `<div class="kv"><span class="k">Suivi clients (${cl.length})</span><span class="v"></span></div>`+cl.map(a=>{ const bits=[]; if(a.mood)bits.push(me(a.mood)+" "+escapeHtml(a.mood)); if(a.ras)bits.push("✅ RAS"); if(a.warning)bits.push('<span style="color:var(--red)">⚠️ '+escapeHtml(a.warnReason||"warning")+'</span>'); return `<div class="kv"><span class="k">${escapeHtml(a.name||'')}</span><span class="v">${bits.join(" · ")||"—"}</span></div>`; }).join(""); }
       if(f.type==="check"){ return (x.payload&&x.payload[f.key])?`<div class="kv"><span class="k">${f.label}</span><span class="v">✅</span></div>`:""; }
@@ -2297,8 +2339,21 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
-function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
-function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isAdmin())); }
+function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); toggleClientDelete(false); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+async function deleteClient(){ if(!isAdmin()){ alert("Seul ton accès admin peut supprimer un client."); return; }
+  const id=currentClientId; if(!id){ alert("Aucun client sélectionné."); return; }
+  const c=CLIENTS.find(x=>x.id===id); const nom=c?((c.nom||"")+" "+(c.prenom||"")).trim():"ce client";
+  if(!confirm("Supprimer « "+nom+" » ?\n\nLe client disparaît de partout dans l'app. À n'utiliser qu'en cas d'erreur de saisie.")) return;
+  const m=$("clientMsg"); m.className="msg"; m.style.display="block"; m.textContent="Suppression…";
+  if(!fbReady()){ m.className="msg err"; m.textContent="Backend non connecté."; return; }
+  initFirebase();
+  // Suppression logique (marqueur deleted) via update — pas besoin de toucher aux règles Firebase. Filtré partout à l'affichage.
+  try{ await db.collection("clients").doc(id).update({deleted:true, deleted_at:new Date().toISOString(), deleted_by:(LOGIN_NAME||"admin")});
+    CLIENTS=CLIENTS.filter(x=>x.id!==id); currentClientId=null;
+    m.className="msg ok"; m.textContent="Client supprimé ✓"; closeClientForm(); renderClients();
+  }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 function closeClientForm(){ $("clientFormCard").classList.add("hide"); }
 function gatherSchedule(){ const defM=(($("cf_date_debut")&&$("cf_date_debut").value)||todayStr()).slice(0,7);
   return [...document.querySelectorAll("#schedRows .schedRow")].map(r=>{ const amount=Number(r.querySelector(".sAmt").value)||0; let month=normMonth(r.querySelector(".sMonth").value); if(!month && amount) month=defM; // pas de mois saisi + un montant → on rattache au mois de démarrage pour ne pas perdre l'argent
@@ -2330,7 +2385,7 @@ async function loadClients(){
   const fsSel=$("cfStatut"), fs0=fsSel.value; fsSel.innerHTML='<option value="">Tous les statuts</option>'; SETTINGS.statuts.forEach(p=>fsSel.insertAdjacentHTML("beforeend",`<option ${p===fs0?"selected":""}>${escapeHtml(p)}</option>`));
   const fcSel=$("cfCoachF"); if(fcSel){ const fc0=fcSel.value; fcSel.innerHTML='<option value="">👤 Tous les coachs</option>'; (SETTINGS.coachs||[]).forEach(p=>fcSel.insertAdjacentHTML("beforeend",`<option ${p===fc0?"selected":""}>${escapeHtml(p)}</option>`)); }
   wrap.innerHTML=`<div class="empty">Chargement…</div>`;
-  try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()}));
+  try{ const snap=await db.collection("clients").get(); CLIENTS=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);
     CLIENTS.sort((a,b)=>String(b.date_debut||"").localeCompare(String(a.date_debut||""))); fillClientMonths(); renderClients();
     if($("finMonth")) renderFinance(); // toute modif client (montant, encaissé, échéancier) se répercute direct dans la Finance
     if($("coachingList")) try{ renderCoachingTab(); }catch(e){} // le coach assigné se met à jour direct dans Coaching
@@ -2585,7 +2640,7 @@ async function loadFinance(){
   if(!fbReady()){ $("finPay").innerHTML=`<div class="empty">Backend non connecté.</div>`; return; }
   initFirebase();
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
-  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
   try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isLinkedin) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   // Récupère les anciens logiciels saisis dans la carte COO (coo.lines) → section Logiciels, si pas encore de section pour ce mois
