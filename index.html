@@ -351,6 +351,23 @@
     .txrow .amt{font-size:12.5px}
     .pill{font-size:10px;padding:3px 7px}
   }
+  /* --- objectifs jour par jour --- */
+  .dggrid{display:flex; flex-wrap:wrap; gap:12px}
+  .dgcard{flex:1 1 240px; min-width:210px; border:1px solid var(--line); border-radius:14px; padding:12px}
+  .dgname{font-weight:700; font-size:14.5px; margin-bottom:6px}
+  .dgstreak{font-size:11.5px; color:#ffb45c; font-weight:600}
+  .dgtop{display:flex; justify-content:space-between; gap:8px; font-size:13px}
+  .dgok{color:var(--green)} .dgmid{color:#ffb45c} .dgbad{color:var(--red)}
+  .dgscroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  table.dgtab{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px}
+  table.dgtab th,table.dgtab td{padding:6px 8px; text-align:center; border-bottom:1px solid var(--line2); white-space:nowrap}
+  table.dgtab th{color:var(--muted); font-weight:600; font-size:11.5px}
+  table.dgtab td.dgday{text-align:left; color:var(--muted)}
+  table.dgtab tr.dgoff{opacity:.35}
+  table.dgtab tr.dgtot td{border-top:1px solid var(--line); font-weight:700; padding-top:9px}
+  .dgt{font-size:10px; color:var(--faint); font-weight:400}
+  details.dgp>summary{cursor:pointer; list-style:none; font-size:15px; padding:2px 0}
+  details.dgp>summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
@@ -467,6 +484,16 @@
       <div id="immCfgMsg" class="msg"></div>
     </div>
     <div id="immersiveList"></div>
+  </div>
+
+  <!-- OBJECTIFS HEBDO PAR PÔLE -->
+  <div id="view-goals" class="wrap hide">
+    <div class="card">
+      <h2>🎯 Objectifs de la semaine — par pôle</h2>
+      <p class="sub2">Chaque vendredi, après ton call équipe, tu regardes le réalisé de la semaine et tu fixes les objectifs de la semaine suivante. Les pôles Setting & Vente se remplissent tout seuls depuis les EOD ; Ads & Contenu, tu saisis les chiffres.</p>
+      <div class="filters"><select id="wkSelect" onchange="renderGoals()"></select></div>
+    </div>
+    <div id="goalsBody"></div>
   </div>
 
   <!-- CLIENTS -->
@@ -636,6 +663,7 @@
 <div id="nav" class="nav hide">
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
+  <button id="nav-goals" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
   <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
@@ -784,12 +812,12 @@ function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom
 function sameCoachName(a,b){ a=noAcc(a||"").trim(); b=noAcc(b||"").trim(); if(!a||!b) return false; if(a===b) return true; return a.split(/\s+/)[0]===b.split(/\s+/)[0]; }
 // Clients assignés à CE coach uniquement (pour que John ne voie que ses clients dans son EOD).
 function coachClientsFor(name){ return coachClients().filter(c=>coachesOf(c).some(x=>sameCoachName(x,name))); }
-function setterGoalsBlock(name){ const goals=(SETTINGS.setterGoals||[]).filter(g=>!g.who || g.who===name); if(!goals.length) return "";
+function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; const goals=(SETTINGS.setterGoals||[]).filter(g=>!g.who || g.who===name); if(!goals.length) return "";
   const M=monthStr(); const mine=EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M);
   const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
     return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
   return `<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs — ${monthLabel(M)}</h2>${rows}<div class="hint">Se met à jour tout seul quand tu envoies tes EOD du mois.</div></div>`; }
-function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=setterGoalsBlock(name); }
+function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dgMineBlock(name)+setterGoalsBlock(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
@@ -970,6 +998,7 @@ const SETTINGS_DEFAULT={
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
   leadSources:["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"],
+  weekGoals:{}, weekActuals:{},
   logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
 };
@@ -1012,6 +1041,10 @@ async function loadSettings(){
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
       if(Array.isArray(x.setterGoals)) SETTINGS.setterGoals=x.setterGoals;
+      if(Array.isArray(x.dayGoals)) SETTINGS.dayGoals=x.dayGoals;
+      if(Array.isArray(x.goalDays)) SETTINGS.goalDays=x.goalDays;
+      if(x.weekGoals&&typeof x.weekGoals==="object") SETTINGS.weekGoals=x.weekGoals;
+      if(x.weekActuals&&typeof x.weekActuals==="object") SETTINGS.weekActuals=x.weekActuals;
       if(Array.isArray(x.logins)) SETTINGS.logins=x.logins;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
@@ -1733,7 +1766,7 @@ function initApp(){
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
-  if(role==="setter") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
+  if(role==="setter"||role==="closer") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
@@ -1757,7 +1790,7 @@ function onMember(){
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
-  if(role==="setter" && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
+  if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
@@ -1816,9 +1849,213 @@ async function submitEod(){
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    if(role==="setter" && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
+    if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
+
+/* ===================== OBJECTIFS JOUR PAR JOUR ===================== */
+/* Cibles quotidiennes par personne. Les chiffres viennent des EOD (aucune ressaisie). */
+const DG_METRICS=[
+  {key:"contacted",    label:"Personnes contactées",       short:"Contactées"},
+  {key:"in_contact",   label:"En contact (conversations)", short:"En contact"},
+  {key:"calls_booked", label:"RDV calés",                  short:"RDV"},
+  {key:"calls_done",   label:"Appels passés",              short:"Appels"},
+  {key:"closed",       label:"Closés",                     short:"Closés"},
+  {key:"cash_day",     label:"Cash collecté (€)",          short:"Cash"},
+];
+function dgMeta(k){ return DG_METRICS.find(x=>x.key===k)||{key:k,label:k,short:k}; }
+function dgVal(e,key){ if(!e) return 0;
+  if(key==="calls_done") return callsArr(e).length;
+  if(key==="closed") return callsArr(e).filter(c=>c.res==="Closé").length;
+  return Number(e.payload&&e.payload[key])||0; }
+
+/* ===================== OBJECTIFS HEBDO PAR PÔLE ===================== */
+// 4 pôles. Setting & Vente = auto (sommés depuis les EOD de la semaine). Ads & Contenu = manuel (Léa saisit le réalisé chaque vendredi).
+const POLES=[
+  {key:"setting", label:"📞 Pôle Setting", src:"auto", role:"setter", metrics:[
+    {key:"contacted",label:"Contactées"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
+  ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
+  {key:"vente", label:"💼 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
+    {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
+  ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
+  {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
+    {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
+  ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
+  {key:"contenu", label:"📸 Pôle Contenu / Insta", src:"manual", metrics:[
+    {key:"stories",label:"Stories postées"},{key:"posts",label:"Posts / Reels"},{key:"vues",label:"Vues / reach"},{key:"abo",label:"Abonnés gagnés"}
+  ]},
+];
+function poleOf(role){ return role==="setter"?"setting":(role==="closer"?"vente":null); }
+// Semaines calées sur le lundi (clé = date du lundi, ex "2026-08-31").
+function mondayOf(ds){ const d=new Date((ds||todayStr())+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
+function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T00:00:00").getTime(); for(let i=0;i<7;i++) out.push(new Date(base+i*86400000).toISOString().slice(0,10)); return out; }
+function weekLabelOf(wk){ const d=weekDaysOf(wk); const f=x=>new Date(x+"T00:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du "+f(d[0])+" au "+f(d[6]); }
+function prevWeek(wk){ return new Date(new Date(wk+"T00:00:00").getTime()-7*86400000).toISOString().slice(0,10); }
+function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ out.push(new Date(new Date(cur+"T00:00:00").getTime()+i*7*86400000).toISOString().slice(0,10)); } return out; }
+function wkGoals(){ return SETTINGS.weekGoals||(SETTINGS.weekGoals={}); }
+function wkActuals(){ return SETTINGS.weekActuals||(SETTINGS.weekActuals={}); }
+function wkTarget(wk,pole,mk){ const w=wkGoals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
+function wkManual(wk,pole,mk){ const w=wkActuals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
+function wkHasGoals(wk){ const w=wkGoals()[wk]; return !!(w&&Object.keys(w).some(k=>w[k]!=null&&w[k]!=="")); }
+// Réalisé auto d'un pôle/métrique sur la semaine = somme des EOD des membres du rôle.
+function wkAuto(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=="auto") return 0;
+  const days=weekDaysOf(wk); const ppl=teamActive().filter(m=>m.role===p.role).map(m=>m.name);
+  let s=0; EODS.forEach(e=>{ if(days.indexOf(e.report_date)<0) return; if(ppl.indexOf(e.member)<0) return; s+=dgVal(e,mk); }); return s; }
+function wkPerPerson(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=="auto") return [];
+  const days=weekDaysOf(wk); return teamActive().filter(m=>m.role===p.role).map(m=>{ let s=0; EODS.forEach(e=>{ if(e.member===m.name&&days.indexOf(e.report_date)>=0) s+=dgVal(e,mk); }); return {name:m.name,v:s}; }).filter(x=>x.v>0); }
+function wkReal(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(p&&p.src==="auto") return wkAuto(pole,mk,wk); const v=wkManual(wk,pole,mk); return v==null?0:v; }
+function wkStatus(real,target){ if(target==null||target<=0) return ""; const r=real/target; return r>=1?"dgok":(r>=0.5?"dgmid":"dgbad"); }
+function selWeek(){ const s=$("wkSelect"); return (s&&s.value)||mondayOf(todayStr()); }
+/* Propositions de départ tant que rien n'est enregistré — s'adapte à l'équipe du moment */
+function dgDefaults(){ const out=[];
+  teamActive().forEach(m=>{ const t=noAcc(m.title||"");
+    if(m.role==="setter"){ const ph=/appel|phone|tel/.test(t);
+      out.push({who:m.name,key:"contacted",target:ph?60:30});
+      out.push({who:m.name,key:"in_contact",target:ph?15:10});
+      out.push({who:m.name,key:"calls_booked",target:2}); }
+    else if(m.role==="closer"){ out.push({who:m.name,key:"calls_done",target:4}); out.push({who:m.name,key:"closed",target:1}); } });
+  return out; }
+function dgGoals(){ const g=SETTINGS.dayGoals; return (Array.isArray(g)&&g.length)?g:dgDefaults(); }
+function dgSaved(){ return Array.isArray(SETTINGS.dayGoals)&&SETTINGS.dayGoals.length>0; }
+function dgFor(n){ return dgGoals().filter(g=>g.who===n && Number(g.target)>0); }
+function dgPeople(){ const out=[]; dgGoals().forEach(g=>{ if(g.who&&Number(g.target)>0&&out.indexOf(g.who)<0) out.push(g.who); }); return out; }
+function dgWorkDays(){ const d=SETTINGS.goalDays; return (Array.isArray(d)&&d.length)?d.map(Number):[1,2,3,4,5]; }
+function dgIsWork(ds){ return dgWorkDays().indexOf(new Date(ds+"T00:00:00").getDay())>=0; }
+function dgDays(M){ const out=[]; const p=String(M||"").split("-"); const y=+p[0], mo=+p[1]; if(!y||!mo) return out;
+  const last=new Date(y,mo,0).getDate(); const today=todayStr();
+  for(let i=1;i<=last;i++){ const ds=M+"-"+String(i).padStart(2,"0"); if(ds>today) break; out.push(ds); } return out; }
+function dgEod(n,ds){ return EODS.find(x=>x.member===n && x.report_date===ds)||null; }
+function dgPct(d,t){ t=Number(t)||0; return t?Math.min(100,Math.round(d/t*100)):0; }
+function dgCls(d,t){ t=Number(t)||0; if(!t) return ""; const p=d/t; return p>=1?"dgok":(p>=0.5?"dgmid":"dgbad"); }
+function dgAllOk(n,ds){ const gs=dgFor(n); if(!gs.length) return false; const e=dgEod(n,ds); if(!e) return false; return gs.every(g=>dgVal(e,g.key)>=Number(g.target)); }
+/* Série = jours ouvrés consécutifs où TOUS les objectifs sont atteints (la journée en cours non remplie ne casse rien) */
+function dgStreak(n){ let s=0; const now=Date.now(), td=todayStr();
+  for(let i=0;i<120;i++){ const ds=new Date(now-i*86400000).toISOString().slice(0,10);
+    if(!dgIsWork(ds)) continue;
+    if(ds===td && !dgEod(n,ds)) continue;
+    if(dgAllOk(n,ds)) s++; else break; }
+  return s; }
+function dgMonth(){ const s=$("dgMonth"); return (s&&s.value)||monthStr(); }
+function fillWeekSelect(){ const s=$("wkSelect"); if(!s) return; const cur=selWeek()||mondayOf(todayStr()); s.innerHTML=weekOptions().map(wk=>{ const isNext=wk>mondayOf(todayStr()); const isCur=wk===mondayOf(todayStr()); return `<option value="${wk}" ${wk===cur?'selected':''}>${weekLabelOf(wk)}${isCur?' · cette semaine':(isNext?' · à venir':'')}</option>`; }).join(""); if(!s.value) s.value=mondayOf(todayStr()); }
+async function loadGoals(){
+  const box=$("goalsBody"); if(!box) return;
+  if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase();
+  box.innerHTML='<div class="empty">Chargement…</div>';
+  try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
+  try{ await loadTeamCfg(); await loadSettings(); }catch(e){}
+  fillWeekSelect();
+  renderGoals();
+}
+function dgTodayHtml(){
+  const ds=todayStr();
+  const cards=dgPeople().map(n=>{
+    const gs=dgFor(n), e=dgEod(n,ds);
+    const rows=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
+      return '<div style="margin:7px 0"><div class="dgtop"><span>'+escapeHtml(dgMeta(g.key).label)+'</span><span class="'+dgCls(v,t)+'"><b>'+v+'</b> / '+t+'</span></div><div class="cwk-bar"><span style="width:'+dgPct(v,t)+'%"></span></div></div>'; }).join("");
+    const st=dgStreak(n);
+    return '<div class="dgcard"><div class="dgname">'+(dgAllOk(n,ds)?"🏆 ":"")+escapeHtml(n)+(st>1?' <span class="dgstreak">🔥 '+st+' j</span>':"")+'</div>'+rows+
+      '<div class="hint" style="margin-top:6px">'+(e?"EOD envoyé ✓":"⏳ EOD du jour pas encore envoyé")+'</div></div>'; }).join("");
+  return '<div class="card"><h2>📅 Aujourd\'hui — '+dayLabel(ds)+'</h2><div class="dggrid">'+cards+'</div></div>';
+}
+function dgPersonHtml(n,M){
+  const gs=dgFor(n); if(!gs.length) return "";
+  const days=dgDays(M).reverse();
+  const work=days.filter(dgIsWork);
+  const hit=work.filter(ds=>dgAllOk(n,ds)).length;
+  const head=gs.map(g=>'<th>'+escapeHtml(dgMeta(g.key).short)+'<div class="dgt">cible '+(Number(g.target)||0)+'</div></th>').join("");
+  const rows=days.map(ds=>{ const e=dgEod(n,ds), w=dgIsWork(ds);
+    const cells=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
+      return '<td class="'+(w&&e?dgCls(v,t):"")+'">'+(e?v:"—")+'</td>'; }).join("");
+    const mark=!w?"·":(dgAllOk(n,ds)?"🏆":(e?"":"⚠️"));
+    return '<tr class="'+(w?"":"dgoff")+'"><td class="dgday">'+dayLabel(ds)+'</td>'+cells+'<td>'+mark+'</td></tr>'; }).join("");
+  const tot=gs.map(g=>{ const s=days.reduce((a,ds)=>a+dgVal(dgEod(n,ds),g.key),0); const t=(Number(g.target)||0)*work.length;
+    return '<td><b>'+s+'</b><div class="dgt">/ '+t+'</div></td>'; }).join("");
+  const st=dgStreak(n);
+  return '<details class="card dgp" open><summary><b>'+escapeHtml(n)+'</b> <span class="sub2">· '+hit+'/'+work.length+' jours objectifs atteints'+(st>1?' · 🔥 '+st+' j de série':"")+'</span></summary>'+
+    '<div class="dgscroll"><table class="dgtab"><thead><tr><th>Jour</th>'+head+'<th>✓</th></tr></thead><tbody>'+rows+
+    '<tr class="dgtot"><td>Total '+monthLabel(M)+'</td>'+tot+'<td>'+hit+'/'+work.length+'</td></tr></tbody></table></div>'+
+    '<div class="hint">🏆 tous les objectifs du jour atteints · ⚠️ jour ouvré sans EOD · les jours non travaillés sont grisés.</div></details>';
+}
+function dgRowHtml(g){ g=g||{};
+  const inTeam=teamActive().some(m=>m.name===g.who);
+  const extra=(g.who&&!inTeam)?'<option value="'+escapeHtml(g.who)+'" selected>'+escapeHtml(g.who)+' (hors équipe)</option>':"";
+  const opts=teamActive().map(m=>'<option value="'+escapeHtml(m.name)+'"'+(m.name===g.who?" selected":"")+'>'+escapeHtml(m.name)+'</option>').join("");
+  const mets=DG_METRICS.map(m=>'<option value="'+m.key+'"'+(m.key===g.key?" selected":"")+'>'+escapeHtml(m.label)+'</option>').join("");
+  return '<div class="drow dgrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">'+
+    '<select class="dgWho" style="min-width:120px">'+extra+opts+'</select>'+
+    '<select class="dgKey" style="min-width:180px">'+mets+'</select>'+
+    '<input class="dgTarget" type="number" min="0" value="'+(Number(g.target)||0)+'" style="width:86px" placeholder="cible/jour">'+
+    '<button type="button" class="xrow" onclick="this.closest(\'.dgrow\').remove()">✕</button></div>'; }
+function dgAddRow(){ const b=$("dgBox"); if(b) b.insertAdjacentHTML("beforeend",dgRowHtml({who:(teamActive()[0]||{}).name||"",key:"contacted",target:0})); }
+function dgEditorHtml(){ if(!isAdmin()) return "";
+  const rows=dgGoals().map(dgRowHtml).join("");
+  const dn=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"], wd=dgWorkDays();
+  const cks=[1,2,3,4,5,6,0].map(d=>'<label class="ck" style="margin-right:10px"><input type="checkbox" class="dgWd" value="'+d+'"'+(wd.indexOf(d)>=0?" checked":"")+'> '+dn[d]+'</label>').join("");
+  return '<div class="card"><h2>⚙️ Cibles quotidiennes</h2>'+
+    (dgSaved()?'':'<div class="hint" style="margin-bottom:9px">💡 Rien n\'est encore enregistré : ci-dessous des <b>propositions</b> de départ. Ajuste les chiffres puis clique « Enregistrer ».</div>')+
+    '<div id="dgBox">'+rows+'</div>'+
+    '<button type="button" class="addrow" onclick="dgAddRow()">+ Ajouter un objectif</button>'+
+    '<div style="margin:13px 0 6px;font-size:13px"><b>Jours travaillés</b> — les autres ne comptent ni dans la série ni dans les totaux :</div><div>'+cks+'</div>'+
+    '<button class="btn" style="margin-top:12px" onclick="dgSave()">💾 Enregistrer les objectifs</button>'+
+    '<div id="dgMsg" class="msg"></div></div>'; }
+function poleCardHtml(p, wk, admin){
+  const rows=p.metrics.map(mt=>{ const real=wkReal(p.key,mt.key,wk), target=wkTarget(wk,p.key,mt.key);
+    const st=wkStatus(real, target);
+    const realCell = (p.src==="manual" && admin)
+      ? `<input type="number" inputmode="numeric" min="0" class="wkR" data-p="${p.key}" data-m="${mt.key}" value="${wkManual(wk,p.key,mt.key)!=null?wkManual(wk,p.key,mt.key):''}" placeholder="0" style="width:80px">`
+      : `<b class="${st}">${real}</b>`;
+    const tgtCell = admin
+      ? `<input type="number" inputmode="numeric" min="0" class="wkT" data-p="${p.key}" data-m="${mt.key}" value="${target!=null?target:''}" placeholder="—" style="width:80px">`
+      : (target!=null?target:'—');
+    const per = (p.src==="auto") ? wkPerPerson(p.key,mt.key,wk) : [];
+    const perTxt = per.length?`<div class="sub2" style="margin-top:2px;opacity:.7">${per.map(x=>escapeHtml(x.name)+" "+x.v).join(" · ")}</div>`:"";
+    return `<tr><td>${escapeHtml(mt.label)}${perTxt}</td><td class="r">${realCell}</td><td class="r">${tgtCell}</td><td class="r">${target?`<span class="${st}">${target?Math.round(real/target*100):0}%</span>`:'<span class="sub2">—</span>'}</td></tr>`;
+  }).join("");
+  let derived="";
+  if(p.derived){ const num=wkReal(p.key,p.derived.num,wk), den=wkReal(p.key,p.derived.den,wk);
+    let val = den? (p.derived.euro? (num/den) : (num/den*100)) : 0;
+    const disp = den ? (p.derived.euro? eur(val) : (Math.round(val)+" %")) : "—";
+    derived=`<div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="k">${p.derived.label}</span><span class="v"><b>${disp}</b></span></div>`; }
+  return `<div class="card" style="margin-top:12px"><div style="font-weight:800;margin-bottom:6px">${p.label} <span class="sub2" style="font-weight:500">· ${p.src==="auto"?"auto (EOD)":"à saisir"}</span></div>
+    <div class="dgscroll"><table class="dgtab"><thead><tr><th>Métrique</th><th class="r">Réalisé</th><th class="r">Objectif</th><th class="r">%</th></tr></thead><tbody>${rows}</tbody></table></div>${derived}</div>`;
+}
+function renderGoals(){
+  const box=$("goalsBody"); if(!box) return;
+  const admin=isAdmin(); const wk=selWeek(); const curWk=mondayOf(todayStr());
+  let warn="";
+  if(admin && !wkHasGoals(curWk)){ warn=`<div class="card" style="margin-bottom:12px;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)"><b style="color:#ff9a9a">⚠️ Objectifs de cette semaine pas encore définis.</b><div class="sub2" style="margin-top:3px">Après ton call équipe du vendredi, fixe les objectifs de la semaine (choisis « ${weekLabelOf(curWk)} · cette semaine » ou la semaine à venir ci-dessus).</div></div>`; }
+  const cards=POLES.map(p=>poleCardHtml(p,wk,admin)).join("");
+  const actions=admin?`<div class="card" style="margin-top:12px">
+      <button class="btn" onclick="wkSaveGoals()">💾 Enregistrer les objectifs & chiffres — ${escapeHtml(weekLabelOf(wk))}</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="wkReport()">↩︎ Reprendre les objectifs de la semaine dernière</button>
+      <div id="wkMsg" class="msg"></div>
+      <div class="hint" style="margin-top:6px">Tape les objectifs (colonne Objectif) pour chaque métrique. Pour Ads & Contenu, saisis aussi le réalisé de la semaine. Setting & Vente se calculent tout seuls depuis les EOD.</div>
+    </div>`:"";
+  box.innerHTML = warn + `<div class="card"><div class="sub2">📅 <b>${escapeHtml(weekLabelOf(wk))}</b></div></div>` + cards + actions;
+}
+async function wkSaveGoals(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const wk=selWeek(); const g=wkGoals(); const a=wkActuals();
+  g[wk]=g[wk]||{}; a[wk]=a[wk]||{};
+  [...document.querySelectorAll('.wkT')].forEach(i=>{ const k=i.getAttribute('data-p')+"|"+i.getAttribute('data-m'); if(i.value==="") delete g[wk][k]; else g[wk][k]=Number(i.value)||0; });
+  [...document.querySelectorAll('.wkR')].forEach(i=>{ const k=i.getAttribute('data-p')+"|"+i.getAttribute('data-m'); if(i.value==="") delete a[wk][k]; else a[wk][k]=Number(i.value)||0; });
+  const m=$("wkMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, weekGoals:SETTINGS.weekGoals, weekActuals:SETTINGS.weekActuals},{merge:true});
+    renderGoals(); const m2=$("wkMsg"); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent="Enregistré ✓ — visible par toute l'équipe."; } }
+  catch(e){ const m3=$("wkMsg"); if(m3){ m3.className="msg err"; m3.style.display="block"; m3.textContent="Erreur : "+e.message; } } }
+function wkReport(){ const wk=selWeek(), pw=prevWeek(wk); const src=wkGoals()[pw];
+  if(!src||!Object.keys(src).length){ alert("Aucun objectif enregistré la semaine dernière ("+weekLabelOf(pw)+")."); return; }
+  [...document.querySelectorAll('.wkT')].forEach(i=>{ const k=i.getAttribute('data-p')+"|"+i.getAttribute('data-m'); if(src[k]!=null&&src[k]!=="") i.value=src[k]; });
+  const m=$("wkMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Objectifs de la semaine dernière repris — ajuste puis Enregistre."; } }
+/* Bloc « ma semaine » affiché en haut de l'EOD (setters + closers) */
+function dgMineBlock(name){ const m=member(name); const pk=poleOf(m.role); if(!pk) return "";
+  const p=POLES.find(x=>x.key===pk); if(!p) return ""; const wk=mondayOf(todayStr()), days=weekDaysOf(wk);
+  const rows=p.metrics.map(mt=>{ let v=0; EODS.forEach(e=>{ if(e.member===name&&days.indexOf(e.report_date)>=0) v+=dgVal(e,mt.key); });
+    const tg=wkTarget(wk,pk,mt.key);
+    return '<div class="dgtop" style="margin:5px 0"><span>'+escapeHtml(mt.label)+'</span><span><b>'+v+'</b>'+(tg?' <span class="sub2">/ obj équipe '+tg+'</span>':'')+'</span></div>'; }).join("");
+  return '<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Ma semaine</h2>'+rows+
+    '<div class="hint">Ton cumul de la semaine (depuis tes EOD).</div></div>'; }
 
 /* ===================== NAV (animée) ===================== */
 /* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
@@ -1932,10 +2169,11 @@ function show(v){
   if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
-  ["form","team","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
-  ["form","team","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
+  if(v==="goals") loadGoals();
   if(v==="coaching") loadCoaching();
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
