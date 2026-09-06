@@ -755,6 +755,7 @@ const eur = n => (Math.round(Number(n)||0)).toLocaleString("fr-FR")+" €";
 const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
+function teamActive(){ return (CONFIG.TEAM||[]).filter(m=>!m.archived); } // membres actifs (les archivés restent en base, juste masqués des vues actives)
 function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
 // Accepte tous les formats tapés à la main : "09/2026", "09.2026", "9-2026", "2026/09", "202609"… → "2026-09"
 function normMonth(s){ s=String(s||"").trim(); if(!s) return "";
@@ -884,7 +885,7 @@ async function saveTeamCfg(){
 }
 function rebuildMemberSelect(){
   const sel=$("member"); if(!sel) return; const cur=sel.value; sel.innerHTML="";
-  CONFIG.TEAM.forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
+  teamActive().forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
   if(cur && CONFIG.TEAM.some(m=>m.name===cur)) sel.value=cur; onMember();
 }
 async function addMember(){
@@ -892,25 +893,30 @@ async function addMember(){
   const n=($("nmName").value||"").trim(); const role=$("nmRole").value;
   let t=($("nmTitle").value||"").trim();
   if(!n){ alert("Mets un prénom."); return; }
-  if(CONFIG.TEAM.some(m=>m.name.toLowerCase()===n.toLowerCase())){ alert("Ce prénom existe déjà."); return; }
+  const existing=CONFIG.TEAM.find(m=>m.name.toLowerCase()===n.toLowerCase());
+  if(existing){ if(existing.archived){ existing.archived=false; await saveTeamCfg(); rebuildMemberSelect(); renderTeam(); return; } alert("Ce prénom existe déjà."); return; }
   if(!t) t=ROLE_LABEL[role]||"Membre";
   CONFIG.TEAM.push({name:n,title:t,role});
   await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
 }
-async function removeMember(name){
+async function archiveMember(name, on){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
-  if(!confirm("Retirer "+name+" de l'équipe ? (ses EOD déjà envoyés restent enregistrés)")) return;
-  CONFIG.TEAM=CONFIG.TEAM.filter(m=>m.name!==name);
+  const m=CONFIG.TEAM.find(x=>x.name===name); if(!m) return;
+  if(on && !confirm("Archiver "+name+" ?\n\nDisparaît des vues actives (EOD, Équipe, Finance) mais ses données restent gardées — tu peux le réactiver quand tu veux.")) return;
+  m.archived=!!on;
   await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
 }
 function renderTeamManage(){
   const box=$("teamManage"); if(!box) return;
   if(!isAdmin()){ box.innerHTML=""; return; }
-  const list=CONFIG.TEAM.map(m=>`<div class="kv"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn danger sm" onclick="removeMember('${m.name.replace(/'/g,"\\'")}')">Retirer</button></span></div>`).join("");
+  const esc=s=>s.replace(/'/g,"\\'");
+  const actives=CONFIG.TEAM.filter(m=>!m.archived), archived=CONFIG.TEAM.filter(m=>m.archived);
+  const list=actives.map(m=>`<div class="kv"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn ghost sm" onclick="archiveMember('${esc(m.name)}',true)">📦 Archiver</button></span></div>`).join("");
+  const archList=archived.length?`<details class="cdet" style="margin-top:10px"><summary style="font-weight:700">📦 Archivés (${archived.length}) — données gardées</summary>${archived.map(m=>`<div class="kv" style="opacity:.75"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn ghost sm" onclick="archiveMember('${esc(m.name)}',false)">↺ Réactiver</button></span></div>`).join("")}</details>`:"";
   box.innerHTML=`<div class="card" style="margin-top:14px">
     <h2 style="margin:0 0 4px">⚙️ Gérer l'équipe <span style="font-size:11px;color:var(--muted);font-weight:500">(admin)</span></h2>
-    <p class="sub2" style="margin:0 0 10px">Ajoute ou retire des membres toi-même. C'est partagé en temps réel.</p>
-    ${list}
+    <p class="sub2" style="margin:0 0 10px">Ajoute ou archive des membres toi-même. L'archivage garde les données (rien n'est supprimé). C'est partagé en temps réel.</p>
+    ${list}${archList}
     <div class="payin" style="margin-top:12px">
       <div><label>Prénom</label><input id="nmName" placeholder="Ex : Sarah"></div>
       <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':'Setter'">
@@ -979,7 +985,9 @@ const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
 // Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
 function normPay(it){
   if(!it) return null;
-  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0};
+  // prime = touche les primes paliers (comme Ilyas). Par défaut ON pour closer/setter (comportement historique), sinon OFF. archived = mis de côté (exclu de la paie mais gardé).
+  const primeDefault=(r)=>(r==="closer"||r==="setter");
+  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived};
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1028,7 +1036,7 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
 function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]];
-  const setters=CONFIG.TEAM.filter(m=>m.role==="setter").map(m=>m.name);
+  const setters=teamActive().filter(m=>m.role==="setter").map(m=>m.name);
   const whoOpts=['<option value="">Tous les setters</option>'].concat(setters.map(s=>`<option value="${escapeHtml(s)}"${s===(g.who||'')?' selected':''}>${escapeHtml(s)}</option>`)).join("");
   return `<div class="drow goalrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
     <select class="glWho" title="Pour qui ?" style="flex:1.1;min-width:110px">${whoOpts}</select>
@@ -1039,15 +1047,16 @@ function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
-function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0}; return `<div class="drow pyrow" style="flex-wrap:wrap">
+function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0,prime:false,archived:false}; return `<div class="drow pyrow" style="flex-wrap:wrap${it.archived?';opacity:.55':''}">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
     <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
     <input class="pyPct" type="number" inputmode="decimal" step="0.5" placeholder="%" title="% de l'encaissé de ses clients" value="${it.pct?it.pct:''}" style="width:62px">
     <input class="pyFixe" type="number" inputmode="numeric" placeholder="fixe €" title="Montant fixe mensuel" value="${it.fixe?it.fixe:''}" style="width:76px">
+    <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
+    <label class="ck" title="Archivé = mis de côté, exclu de la paie mais gardé (tu peux le réactiver)" style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="this.closest('.pyrow').style.opacity=this.checked?'.55':'1'">📦 archivé</label>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
-    <button type="button" class="xrow" onclick="this.closest('.pyrow').remove()">✕</button>
   </div>`; }
 function movePy(btn,dir){ const row=btn.closest('.pyrow'), box=row.parentNode; if(dir<0 && row.previousElementSibling) box.insertBefore(row,row.previousElementSibling); else if(dir>0 && row.nextElementSibling) box.insertBefore(row.nextElementSibling,row); }
 function addPy(){ const box=$("payListBox"); if(box){ box.insertAdjacentHTML("afterbegin", payRow({name:"",type:"manual"})); const i=box.firstElementChild.querySelector(".pyName"); if(i) i.focus(); } }
@@ -1090,6 +1099,8 @@ function renderSettings(){
     <div class="hint">Pour chacun : son <b>rôle</b>, puis son <b>%</b> et/ou son <b>fixe €</b>.<br>
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
+      <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
+      <b>📦 archivé</b> = la personne est mise de côté : elle disparaît de la Finance mais reste ici (décoche pour la réactiver et revoir sa data). Rien n'est supprimé.<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
@@ -1114,7 +1125,9 @@ async function saveSettings(){
     label:(r.querySelector('.pyLabel').value||"").trim(),
     role:r.querySelector('.pyRole').value,
     pct: Number(r.querySelector('.pyPct').value)||0,
-    fixe:Number(r.querySelector('.pyFixe').value)||0
+    fixe:Number(r.querySelector('.pyFixe').value)||0,
+    prime:!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked),
+    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked)
   })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -1705,7 +1718,7 @@ function initApp(){
   $("todayLabel").textContent = new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
   $("rdate").value = todayStr();
   const sel=$("member"); sel.innerHTML="";
-  CONFIG.TEAM.forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
+  teamActive().forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
   fillMonthSelect($("teamMonth")); fillMonthSelect($("finMonth"));
   initFirebase();
   if(!fbReady()) $("cfgWarn").classList.remove("hide");
@@ -1991,7 +2004,7 @@ async function loadTeam(){
 function renderTeam(){
   const selM=$("teamMonth").value||monthStr(), today=todayStr();
   const doneSet=new Set(EODS.filter(x=>x.report_date===today).map(x=>x.member));
-  $("teamToday").textContent = `${doneSet.size}/${CONFIG.TEAM.length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
+  $("teamToday").textContent = `${doneSet.size}/${teamActive().length} EOD aujourd'hui · vue : ${monthLabel(selM)}`;
   const closed=monthCloses(selM).length; // même source que « Closés du mois » et Conversions
   const monthE=EODS.filter(x=>(x.report_date||"").slice(0,7)===selM);
   const callSet=new Set(); monthE.filter(x=>x.role==="closer").forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=noAcc(c.p).split(/\s+/).filter(Boolean).sort().join(" "); if(k) callSet.add(k); }); }); const calls=callSet.size; // prospects uniques (un client en R1+R2+R3 = 1)
@@ -2005,7 +2018,7 @@ function renderTeam(){
   renderSources(selM);
   renderClosed(selM);
   renderTeamDigest();
-  $("teamGrid").innerHTML=CONFIG.TEAM.map(m=>{
+  $("teamGrid").innerHTML=teamActive().map(m=>{
     const on=doneSet.has(m.name); const list=EODS.filter(x=>x.member===m.name);
     const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
     return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
@@ -2091,7 +2104,7 @@ function setterSrcHtml(name,M){ const rows=setterSrcStats(name,M); if(!rows.leng
   return `<details class="cdet" style="margin-top:6px"><summary class="sub2">📈 Détail par source (ce qui convertit le mieux)</summary><div style="margin-top:4px">${body}</div></details>`; }
 function renderConversions(M){
   const box=$("convList"); if(!box) return; const pm=prevMonth(M);
-  const closers=CONFIG.TEAM.filter(m=>m.role==="closer"), setters=CONFIG.TEAM.filter(m=>m.role==="setter");
+  const closers=teamActive().filter(m=>m.role==="closer"), setters=teamActive().filter(m=>m.role==="setter");
   const cRows=closers.map(m=>{ const c=closerConv(m.name,M), p=closerConv(m.name,pm); const cv=pctTxt(c.closed,c.calls), pv=pctTxt(p.closed,p.calls);
     return `<div class="convrow"><div class="convh"><span class="convn">💼 ${escapeHtml(m.name)}</span><span class="convbig">${cv}</span></div>
       <div class="sub2">${c.calls} appels → ${c.closed} closés <span style="opacity:.6">(soit ${c.closed}/${c.calls})</span> · ${c.show} show-up · ${c.no} no-show${p.calls?`<br><span style="opacity:.55">${monthShort(pm)} : ${pv} — ${p.closed}/${p.calls} appels</span>`:""}</div></div>`; }).join("");
@@ -2159,8 +2172,8 @@ function renderTeamDigest(){
   dl.innerHTML=days.map(d=>{
     const dayE=EODS.filter(x=>x.report_date===d); const isToday=d===todayStr();
     const posted=[...new Set(dayE.map(x=>x.member))];
-    const missing=CONFIG.TEAM.filter(m=>!posted.includes(m.name)).map(m=>m.name);
-    if(!dayE.length){ const miss=(!isToday)?` · <span style="color:var(--red)">aucun EOD${missing.length<CONFIG.TEAM.length?"":""}</span>`:""; return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}</div><div class="sub2" style="margin-top:2px">Aucun EOD${!isToday?" — manquant : "+escapeHtml(CONFIG.TEAM.map(m=>m.name).join(", ")):""}</div></div>`; }
+    const missing=teamActive().filter(m=>!posted.includes(m.name)).map(m=>m.name);
+    if(!dayE.length){ const miss=(!isToday)?` · <span style="color:var(--red)">aucun EOD${missing.length<teamActive().length?"":""}</span>`:""; return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}</div><div class="sub2" style="margin-top:2px">Aucun EOD${!isToday?" — manquant : "+escapeHtml(teamActive().map(m=>m.name).join(", ")):""}</div></div>`; }
     const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
     const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0),0);
     const booked=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
@@ -2168,12 +2181,12 @@ function renderTeamDigest(){
     const bits=[`🎯 ${closes} closé(s)`,`👥 ${contacted} contactées`,`📅 ${booked} RDV pris`];
     if(nwarn) bits.push(`<span style="color:var(--red)">⚠️ ${nwarn} warning(s)</span>`);
     let miss="";
-    if(!isToday && missing.length && missing.length<CONFIG.TEAM.length){
+    if(!isToday && missing.length && missing.length<teamActive().length){
       const notAck=missing.filter(nm=>!ACKS["eod|"+nm+"|"+d]), done=missing.filter(nm=>ACKS["eod|"+nm+"|"+d]);
       if(notAck.length) miss+=`<div class="sub2" style="margin-top:5px"><span style="color:var(--red);font-weight:700">EOD manquant :</span> ${notAck.map(nm=>`<span class="ackchip">${escapeHtml(nm)}<button type="button" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',true,'team')">✓ vu / géré</button></span>`).join("")}</div>`;
       if(done.length) miss+=`<div class="sub2" style="margin-top:4px;opacity:.65">🗂 Géré : ${done.map(nm=>`<span class="ackchip ok">${escapeHtml(nm)}<button type="button" title="Remettre en alerte" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',false,'team')">↩︎</button></span>`).join("")}</div>`;
     }
-    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""} <span class="sub2" style="font-weight:400">· ${posted.length}/${CONFIG.TEAM.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
+    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""} <span class="sub2" style="font-weight:400">· ${posted.length}/${teamActive().length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
   }).join("");
 }
 async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFirebase();
@@ -2181,16 +2194,16 @@ async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFireba
   try{ await db.collection("setter_stats").doc("cfg_warns").set({isWarnCfg:true,map:WARNS},{merge:true}); renderTeamDigest(); }catch(e){ alert("Erreur : "+e.message); } }
 function renderInsights(selM, doneSet){
   const ins=[];
-  const missing=CONFIG.TEAM.filter(m=>!doneSet.has(m.name)).map(m=>m.name);
-  if(missing.length && missing.length<CONFIG.TEAM.length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
+  const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
+  if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
-  CONFIG.TEAM.filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>x.member===m.name && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
+  teamActive().filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>x.member===m.name && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
   const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
   if(top && top[1]>0 && canSeeMoney()) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
-  let best=null; CONFIG.TEAM.forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
+  let best=null; teamActive().forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
   if(best) ins.push(["🔥",`Plus longue série : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
   const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
-  CONFIG.TEAM.filter(m=>m.role==="setter").forEach(m=>{
+  teamActive().filter(m=>m.role==="setter").forEach(m=>{
     const recent=EODS.filter(x=>x.member===m.name && (x.report_date||"")>=weekAgo);
     const booked=recent.reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
     if(recent.length>=2 && booked===0) ins.push(["📉",`<b>${escapeHtml(m.name)}</b> : 0 call pris sur 7 jours`]);
@@ -2704,7 +2717,7 @@ function renderFinance(){
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   /* CALCUL UNIQUE : rôle → quels clients sont "les siens" ; puis  fixe + % de l'encaissé de ces clients. */
-  const pay=payList.map(normPay).filter(it=>it&&it.name).map(it=>{
+  const pay=payList.map(normPay).filter(it=>it&&it.name&&!it.archived).map(it=>{
     const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
     let cls=[];
     if(role==="closer")      cls=CLIENTS.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0);   // ses closings
@@ -2712,7 +2725,7 @@ function renderFinance(){
     else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];                     // tous les clients encaissés (si %)
     else if(pct)             cls=CLIENTS.filter(c=>(isPerson(c.closer,n)||isPerson(c.setter,n)) && paidInMonth(c,M)>0); // rôle "autre" avec % → ses clients closés OU settés (ex. Célia)
     const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
-    const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0; // prime palier sur SON encaissé
+    const pp=primePalier(ca); const prime=it.prime?((role==="closer")?pp.closer:pp.setter):0; // prime palier sur SON encaissé (si l'option 🎁 paliers est cochée ; closer→grille closer, sinon grille setter comme Ilyas)
     const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
     cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?" · 📸 "+String(c.instagram).replace(/^https?:\/\/(www\.)?instagram\.com\//i,"@").replace(/\/$/,""):""; if(a) dn.push({l:escapeHtml(nmC)+escapeHtml(ig)+" · "+eur(e)+" encaissé", a}); });
     if(prime) dn.push({l:"🎁 Prime palier "+(pp.seuil/1000)+"k encaissés", a:prime});
@@ -2722,7 +2735,7 @@ function renderFinance(){
       cls.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig, eur(paidInMonth(c,M))]); }); }
     if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
     if(!fixe && !pct && !prime) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
-    return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
+    return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, primeOn:!!it.prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
   pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
@@ -2853,7 +2866,7 @@ function renderFinance(){
         <span class="chev">▸</span>
       </summary>
       <div class="clbody">
-      ${ovBlock}${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${primeNote(p.role, p.caEnc||0)}${editor}
+      ${ovBlock}${kvs}${detHtml}${noteVal?`<div class="kv"><span class="k">📝 Note</span><span class="v">${escapeHtml(noteVal)}</span></div>`:""}${p.primeOn?primeNote(p.role, p.caEnc||0):""}${editor}
       </div>
     </details>`;
   }).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total commissions ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totalPaie)}</div></div>`;
@@ -2987,7 +3000,7 @@ async function delPrestaLine(M,id){ if(!fbReady())return; initFirebase(); const 
 function ctRow(c){
   const cur=c.closed?"closed":(c.show===true?"show":(c.show===false?"no":""));
   const showSel=`<select class="ctShow"><option value=""${cur===""?" selected":""}>— statut</option><option value="show"${cur==="show"?" selected":""}>✅ Show-up</option><option value="closed"${cur==="closed"?" selected":""}>🎯 Closé</option><option value="no"${cur==="no"?" selected":""}>❌ No-show</option></select>`;
-  const setters=CONFIG.TEAM.filter(m=>m.role==="setter").map(m=>m.name); if(c.setter&&!setters.includes(c.setter))setters.unshift(c.setter);
+  const setters=teamActive().filter(m=>m.role==="setter").map(m=>m.name); if(c.setter&&!setters.includes(c.setter))setters.unshift(c.setter);
   const setSel=`<select class="ctSet" title="Setter (source)">${setters.map(s=>`<option ${s===c.setter?"selected":""}>${escapeHtml(s)}</option>`).join("")}</select>`;
   return `<div class="ctrow${(c.show===true&&c.verified)?' lead':''}" data-clo="${escapeHtml(c.closer||'')}">
     <input class="ctP" type="text" placeholder="Prospect" value="${escapeHtml(c.prospect||'')}" style="width:100%">
