@@ -1871,21 +1871,40 @@ function dgVal(e,key){ if(!e) return 0;
 
 /* ===================== OBJECTIFS HEBDO PAR PÔLE ===================== */
 // 4 pôles. Setting & Vente = auto (sommés depuis les EOD de la semaine). Ads & Contenu = manuel (Léa saisit le réalisé chaque vendredi).
+// Pôles. Setting éclaté en 3 canaux (Insta / LinkedIn / Appel), chacun ne prend que les setters dont le TITRE contient le mot-clé. Vente = auto (closers). Ads & Contenu = manuel.
 const POLES=[
-  {key:"setting", label:"📞 Pôle Setting", src:"auto", role:"setter", metrics:[
+  {key:"set_insta", label:"📸 Setting Insta", src:"auto", role:"setter", ch:"insta", metrics:[
     {key:"contacted",label:"Contactées"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
   ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
-  {key:"vente", label:"💼 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
+  {key:"set_linkedin", label:"💼 Setting LinkedIn", src:"auto", role:"setter", ch:"linkedin", metrics:[
+    {key:"contacted",label:"Contactées"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
+  ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
+  {key:"set_appel", label:"📞 Setting Appel / Rappel", src:"auto", role:"setter", ch:"appel", metrics:[
+    {key:"contacted",label:"Appelés / contactés"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
+  ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
+  {key:"vente", label:"💰 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
   {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
     {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
-  {key:"contenu", label:"📸 Pôle Contenu / Insta", src:"manual", metrics:[
+  {key:"contenu", label:"📸 Pôle Contenu / Insta (Loïc)", src:"manual", metrics:[
     {key:"stories",label:"Stories postées"},{key:"posts",label:"Posts / Reels"},{key:"vues",label:"Vues / reach"},{key:"abo",label:"Abonnés gagnés"}
   ]},
 ];
-function poleOf(role){ return role==="setter"?"setting":(role==="closer"?"vente":null); }
+// Repères marché par semaine (base quand il n'y a pas encore d'historique). Servent au calcul auto des objectifs.
+const BENCH={
+  set_insta:{contacted:150,in_contact:45,calls_booked:8},
+  set_linkedin:{contacted:150,in_contact:40,calls_booked:8},
+  set_appel:{contacted:300,in_contact:75,calls_booked:10},
+  vente:{calls_done:20,closed:5},
+  ads:{budget:0,leads:20,rdv_ads:8},
+  contenu:{stories:15,posts:5,vues:0,abo:0},
+};
+function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
+function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
+function memberChannel(m){ if(chMatch(m.title,"insta")) return "insta"; if(chMatch(m.title,"linkedin")) return "linkedin"; if(chMatch(m.title,"appel")) return "appel"; return "insta"; }
+function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
 // Semaines calées sur le lundi (clé = date du lundi, ex "2026-08-31").
 function mondayOf(ds){ const d=new Date((ds||todayStr())+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
 function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T00:00:00").getTime(); for(let i=0;i<7;i++) out.push(new Date(base+i*86400000).toISOString().slice(0,10)); return out; }
@@ -1897,14 +1916,25 @@ function wkActuals(){ return SETTINGS.weekActuals||(SETTINGS.weekActuals={}); }
 function wkTarget(wk,pole,mk){ const w=wkGoals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
 function wkManual(wk,pole,mk){ const w=wkActuals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
 function wkHasGoals(wk){ const w=wkGoals()[wk]; return !!(w&&Object.keys(w).some(k=>w[k]!=null&&w[k]!=="")); }
-// Réalisé auto d'un pôle/métrique sur la semaine = somme des EOD des membres du rôle.
+// Réalisé auto d'un pôle/métrique sur la semaine = somme des EOD des membres du canal.
 function wkAuto(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=="auto") return 0;
-  const days=weekDaysOf(wk); const ppl=teamActive().filter(m=>m.role===p.role).map(m=>m.name);
+  const days=weekDaysOf(wk); const ppl=poleMembers(p).map(m=>m.name);
   let s=0; EODS.forEach(e=>{ if(days.indexOf(e.report_date)<0) return; if(ppl.indexOf(e.member)<0) return; s+=dgVal(e,mk); }); return s; }
 function wkPerPerson(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=="auto") return [];
-  const days=weekDaysOf(wk); return teamActive().filter(m=>m.role===p.role).map(m=>{ let s=0; EODS.forEach(e=>{ if(e.member===m.name&&days.indexOf(e.report_date)>=0) s+=dgVal(e,mk); }); return {name:m.name,v:s}; }).filter(x=>x.v>0); }
+  const days=weekDaysOf(wk); return poleMembers(p).map(m=>{ let s=0; EODS.forEach(e=>{ if(e.member===m.name&&days.indexOf(e.report_date)>=0) s+=dgVal(e,mk); }); return {name:m.name,v:s}; }).filter(x=>x.v>0); }
 function wkReal(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(p&&p.src==="auto") return wkAuto(pole,mk,wk); const v=wkManual(wk,pole,mk); return v==null?0:v; }
 function wkStatus(real,target){ if(target==null||target<=0) return ""; const r=real/target; return r>=1?"dgok":(r>=0.5?"dgmid":"dgbad"); }
+function roundNice(v){ v=Math.round(v); if(v>=100) return Math.round(v/10)*10; if(v>=20) return Math.round(v/5)*5; return v; }
+/* RÈGLE objectif AUTO : moyenne des 4 dernières semaines réalisées × 1,10 (progression +10 %), jamais sous le repère marché.
+   Pas d'historique → repère marché. Résultat arrondi proprement. Léa peut toujours écrire un chiffre à la main (il prime). */
+function wkAutoTarget(pole,mk,wk){ const vals=[]; let w=prevWeek(wk);
+  for(let i=0;i<4;i++){ const r=wkReal(pole,mk,w); if(r>0) vals.push(r); w=prevWeek(w); }
+  const bench=(BENCH[pole]&&BENCH[pole][mk])||0;
+  if(!vals.length) return bench;
+  const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  return roundNice(Math.max(bench, avg*1.10));
+}
+function wkEffTarget(wk,pole,mk){ const t=wkTarget(wk,pole,mk); return t!=null?t:wkAutoTarget(pole,mk,wk); }
 function selWeek(){ const s=$("wkSelect"); return (s&&s.value)||mondayOf(todayStr()); }
 /* Propositions de départ tant que rien n'est enregistré — s'adapte à l'équipe du moment */
 function dgDefaults(){ const out=[];
@@ -2000,17 +2030,17 @@ function dgEditorHtml(){ if(!isAdmin()) return "";
     '<button class="btn" style="margin-top:12px" onclick="dgSave()">💾 Enregistrer les objectifs</button>'+
     '<div id="dgMsg" class="msg"></div></div>'; }
 function poleCardHtml(p, wk, admin){
-  const rows=p.metrics.map(mt=>{ const real=wkReal(p.key,mt.key,wk), target=wkTarget(wk,p.key,mt.key);
-    const st=wkStatus(real, target);
+  const rows=p.metrics.map(mt=>{ const real=wkReal(p.key,mt.key,wk), saved=wkTarget(wk,p.key,mt.key), auto=wkAutoTarget(p.key,mt.key,wk), eff=(saved!=null?saved:auto);
+    const st=wkStatus(real, eff);
     const realCell = (p.src==="manual" && admin)
-      ? `<input type="number" inputmode="numeric" min="0" class="wkR" data-p="${p.key}" data-m="${mt.key}" value="${wkManual(wk,p.key,mt.key)!=null?wkManual(wk,p.key,mt.key):''}" placeholder="0" style="width:80px">`
+      ? `<input type="number" inputmode="numeric" min="0" class="wkR" data-p="${p.key}" data-m="${mt.key}" value="${wkManual(wk,p.key,mt.key)!=null?wkManual(wk,p.key,mt.key):''}" placeholder="0" style="width:78px">`
       : `<b class="${st}">${real}</b>`;
     const tgtCell = admin
-      ? `<input type="number" inputmode="numeric" min="0" class="wkT" data-p="${p.key}" data-m="${mt.key}" value="${target!=null?target:''}" placeholder="—" style="width:80px">`
-      : (target!=null?target:'—');
+      ? `<input type="number" inputmode="numeric" min="0" class="wkT" data-p="${p.key}" data-m="${mt.key}" value="${saved!=null?saved:''}" placeholder="${auto}" style="width:78px">${saved==null?`<div class="sub2" style="opacity:.6">auto ${auto}</div>`:''}`
+      : `${eff}${saved==null?' <span class="sub2">(auto)</span>':''}`;
     const per = (p.src==="auto") ? wkPerPerson(p.key,mt.key,wk) : [];
     const perTxt = per.length?`<div class="sub2" style="margin-top:2px;opacity:.7">${per.map(x=>escapeHtml(x.name)+" "+x.v).join(" · ")}</div>`:"";
-    return `<tr><td>${escapeHtml(mt.label)}${perTxt}</td><td class="r">${realCell}</td><td class="r">${tgtCell}</td><td class="r">${target?`<span class="${st}">${target?Math.round(real/target*100):0}%</span>`:'<span class="sub2">—</span>'}</td></tr>`;
+    return `<tr><td>${escapeHtml(mt.label)}${perTxt}</td><td class="r">${realCell}</td><td class="r">${tgtCell}</td><td class="r">${eff?`<span class="${st}">${Math.round(real/eff*100)}%</span>`:'<span class="sub2">—</span>'}</td></tr>`;
   }).join("");
   let derived="";
   if(p.derived){ const num=wkReal(p.key,p.derived.num,wk), den=wkReal(p.key,p.derived.den,wk);
@@ -2024,13 +2054,14 @@ function renderGoals(){
   const box=$("goalsBody"); if(!box) return;
   const admin=isAdmin(); const wk=selWeek(); const curWk=mondayOf(todayStr());
   let warn="";
-  if(admin && !wkHasGoals(curWk)){ warn=`<div class="card" style="margin-bottom:12px;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)"><b style="color:#ff9a9a">⚠️ Objectifs de cette semaine pas encore définis.</b><div class="sub2" style="margin-top:3px">Après ton call équipe du vendredi, fixe les objectifs de la semaine (choisis « ${weekLabelOf(curWk)} · cette semaine » ou la semaine à venir ci-dessus).</div></div>`; }
+  if(admin && !wkHasGoals(curWk)){ warn=`<div class="card" style="margin-bottom:12px;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)"><b style="color:#ff9a9a">⚠️ Objectifs de cette semaine pas encore validés.</b><div class="sub2" style="margin-top:3px">Les objectifs sont déjà calculés automatiquement (colonne « auto »). Après ton call du vendredi, vérifie-les et clique « Valider » — c'est juste pour confirmer.</div></div>`; }
   const cards=POLES.map(p=>poleCardHtml(p,wk,admin)).join("");
   const actions=admin?`<div class="card" style="margin-top:12px">
-      <button class="btn" onclick="wkSaveGoals()">💾 Enregistrer les objectifs & chiffres — ${escapeHtml(weekLabelOf(wk))}</button>
+      <button class="btn" onclick="wkSaveGoals()">💾 Valider les objectifs & chiffres — ${escapeHtml(weekLabelOf(wk))}</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="wkAcceptAuto()">✨ Accepter les objectifs auto-calculés</button>
       <button class="btn ghost" style="margin-top:8px" onclick="wkReport()">↩︎ Reprendre les objectifs de la semaine dernière</button>
       <div id="wkMsg" class="msg"></div>
-      <div class="hint" style="margin-top:6px">Tape les objectifs (colonne Objectif) pour chaque métrique. Pour Ads & Contenu, saisis aussi le réalisé de la semaine. Setting & Vente se calculent tout seuls depuis les EOD.</div>
+      <div class="hint" style="margin-top:6px">💡 Les objectifs se calculent <b>tout seuls</b> : moyenne de tes 4 dernières semaines +10 %, jamais sous le repère marché. Tu peux écrire un chiffre à la main (il remplace l'auto). Pour Ads & Contenu, saisis le réalisé de la semaine. Les semaines passées restent consultables dans le menu ci-dessus (archivées).</div>
     </div>`:"";
   box.innerHTML = warn + `<div class="card"><div class="sub2">📅 <b>${escapeHtml(weekLabelOf(wk))}</b></div></div>` + cards + actions;
 }
@@ -2047,9 +2078,11 @@ async function wkSaveGoals(){
 function wkReport(){ const wk=selWeek(), pw=prevWeek(wk); const src=wkGoals()[pw];
   if(!src||!Object.keys(src).length){ alert("Aucun objectif enregistré la semaine dernière ("+weekLabelOf(pw)+")."); return; }
   [...document.querySelectorAll('.wkT')].forEach(i=>{ const k=i.getAttribute('data-p')+"|"+i.getAttribute('data-m'); if(src[k]!=null&&src[k]!=="") i.value=src[k]; });
-  const m=$("wkMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Objectifs de la semaine dernière repris — ajuste puis Enregistre."; } }
+  const m=$("wkMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Objectifs de la semaine dernière repris — ajuste puis Valide."; } }
+// Fige les objectifs auto dans les champs (chaque case vide prend sa valeur auto) puis enregistre.
+async function wkAcceptAuto(){ [...document.querySelectorAll('.wkT')].forEach(i=>{ if(i.value==="" && i.placeholder && i.placeholder!=="—") i.value=i.placeholder; }); await wkSaveGoals(); }
 /* Bloc « ma semaine » affiché en haut de l'EOD (setters + closers) */
-function dgMineBlock(name){ const m=member(name); const pk=poleOf(m.role); if(!pk) return "";
+function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(!pk) return "";
   const p=POLES.find(x=>x.key===pk); if(!p) return ""; const wk=mondayOf(todayStr()), days=weekDaysOf(wk);
   const rows=p.metrics.map(mt=>{ let v=0; EODS.forEach(e=>{ if(e.member===name&&days.indexOf(e.report_date)>=0) v+=dgVal(e,mt.key); });
     const tg=wkTarget(wk,pk,mt.key);
