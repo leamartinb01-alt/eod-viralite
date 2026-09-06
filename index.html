@@ -962,6 +962,7 @@ function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
   $("nav-clients").classList.toggle("hide", !canClients());
   $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
+  $("nav-goals").classList.toggle("hide", !isAdmin()); // seule Léa voit la vue globale des objectifs (chacun voit les siens sur son EOD)
   $("nav-finance").classList.toggle("hide", !isAdmin());
   $("nav-accounts").classList.toggle("hide", !isAdmin());
   $("nav-settings").classList.toggle("hide", !isAdmin());
@@ -2085,10 +2086,10 @@ async function wkAcceptAuto(){ [...document.querySelectorAll('.wkT')].forEach(i=
 function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(!pk) return "";
   const p=POLES.find(x=>x.key===pk); if(!p) return ""; const wk=mondayOf(todayStr()), days=weekDaysOf(wk);
   const rows=p.metrics.map(mt=>{ let v=0; EODS.forEach(e=>{ if(e.member===name&&days.indexOf(e.report_date)>=0) v+=dgVal(e,mt.key); });
-    const tg=wkTarget(wk,pk,mt.key);
-    return '<div class="dgtop" style="margin:5px 0"><span>'+escapeHtml(mt.label)+'</span><span><b>'+v+'</b>'+(tg?' <span class="sub2">/ obj équipe '+tg+'</span>':'')+'</span></div>'; }).join("");
-  return '<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Ma semaine</h2>'+rows+
-    '<div class="hint">Ton cumul de la semaine (depuis tes EOD).</div></div>'; }
+    const tg=wkEffTarget(wk,pk,mt.key), st=wkStatus(v,tg);
+    return '<div style="margin:7px 0"><div class="dgtop"><span>'+escapeHtml(mt.label)+'</span><span class="'+st+'"><b>'+v+'</b>'+(tg?' / '+tg:'')+'</span></div>'+(tg?'<div class="cwk-bar"><span style="width:'+Math.min(100,Math.round(v/tg*100))+'%"></span></div>':'')+'</div>'; }).join("");
+  return '<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs de la semaine</h2>'+rows+
+    '<div class="hint">Ton objectif de la semaine et ton avancement (calculé depuis tes EOD). Tu ne vois que les tiens.</div></div>'; }
 
 /* ===================== NAV (animée) ===================== */
 /* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
