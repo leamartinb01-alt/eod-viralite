@@ -1887,12 +1887,9 @@ const POLES=[
   {key:"vente", label:"💰 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
-  {key:"ads", label:"📢 Pôle Ads", src:"auto", role:"ads", metrics:[
+  {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
     {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
-  {key:"contenu", label:"📸 Pôle Contenu / Insta (Loïc)", src:"manual", metrics:[
-    {key:"stories",label:"Stories postées"},{key:"posts",label:"Posts / Reels"},{key:"vues",label:"Vues / reach"},{key:"abo",label:"Abonnés gagnés"}
-  ]},
 ];
 // Repères marché par semaine (base quand il n'y a pas encore d'historique). Servent au calcul auto des objectifs.
 const BENCH={
@@ -1901,7 +1898,6 @@ const BENCH={
   set_appel:{contacted:300,in_contact:75,calls_booked:10},
   vente:{calls_done:20,closed:5},
   ads:{budget:0,leads:20,rdv_ads:8},
-  contenu:{stories:15,posts:5,vues:0,abo:0},
 };
 function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
 function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
@@ -1912,7 +1908,7 @@ function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="ad
 function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), j=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+j; }
 function mondayOf(ds){ const d=new Date((ds||todayStr())+"T12:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return ymdLocal(d); }
 function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T12:00:00"); for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(d.getDate()+i); out.push(ymdLocal(d)); } return out; }
-function weekLabelOf(wk){ const d=weekDaysOf(wk); const f=x=>new Date(x+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du "+f(d[0])+" au "+f(d[6]); }
+function weekLabelOf(wk){ const start=new Date(wk+"T12:00:00"); const end=new Date(start); end.setDate(end.getDate()+7); const f=x=>x.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du lundi "+f(start)+" au lundi "+f(end); }
 function prevWeek(wk){ const d=new Date(wk+"T12:00:00"); d.setDate(d.getDate()-7); return ymdLocal(d); }
 function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ const d=new Date(cur+"T12:00:00"); d.setDate(d.getDate()+i*7); out.push(ymdLocal(d)); } return out; }
 function wkGoals(){ return SETTINGS.weekGoals||(SETTINGS.weekGoals={}); }
