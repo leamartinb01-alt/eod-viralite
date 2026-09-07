@@ -92,6 +92,7 @@
   .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
   .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
   .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
+  .av-ads{background:linear-gradient(135deg,#f7b733,#fc4a1a)}
   .avatar.sm{width:38px;height:38px;flex:0 0 38px;font-size:14px}
   .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
@@ -752,6 +753,14 @@ const FORMS = {
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
   ],
+  ads:[
+    { key:"budget",   label:"💸 Budget dépensé aujourd'hui (€)",       type:"number" },
+    { key:"leads",    label:"🎯 Leads captés aujourd'hui",            type:"number" },
+    { key:"rdv_ads",  label:"📅 RDV issus des ads aujourd'hui",       type:"number" },
+    { key:"ads_note", label:"Note du jour (créas testées, ajustements…)", type:"textarea" },
+    { key:"mood",     label:"Ton énergie du jour ⚡️",                type:"mood" },
+    { key:"feeling",  label:"Un mot sur ta journée ? (optionnel)",    type:"textarea" },
+  ],
 };
 const MOOD_CLIENT=[{v:"Bien",e:"😄"},{v:"Moyen",e:"😐"},{v:"Pas bien",e:"😟"}];
 function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.warning, wr=val.warnReason||"", ras=!!val.ras;
@@ -767,11 +776,12 @@ function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.w
   </div>`; }
 function pickCMood(btn){ const box=btn.parentNode; box.querySelectorAll(".cmood").forEach(b=>b.classList.remove("sel")); btn.classList.add("sel"); const h=box.parentNode.querySelector(".clMood"); if(h) h.value=btn.getAttribute("data-v"); }
 function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),mood:(r.querySelector(".clMood").value||""),ras:r.querySelector(".clRas").checked,warning:r.querySelector(".clWarn").checked,warnReason:(r.querySelector(".clWarnR").value||"").trim()})).filter(x=>x.mood||x.ras||x.warning||x.warnReason); }
-const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
+const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach", ads:"Ads" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
+  ads:  [ {key:"budget",label:"Budget"}, {key:"leads",label:"Leads"}, {key:"rdv_ads",label:"RDV ads"} ],
 };
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
 
@@ -784,7 +794,7 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function teamActive(){ return (CONFIG.TEAM||[]).filter(m=>!m.archived); } // membres actifs (les archivés restent en base, juste masqués des vues actives)
-function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
+function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":role==="ads"?"av-ads":"av-setter"; }
 // Accepte tous les formats tapés à la main : "09/2026", "09.2026", "9-2026", "2026/09", "202609"… → "2026-09"
 function normMonth(s){ s=String(s||"").trim(); if(!s) return "";
   let m;
@@ -947,8 +957,8 @@ function renderTeamManage(){
     ${list}${archList}
     <div class="payin" style="margin-top:12px">
       <div><label>Prénom</label><input id="nmName" placeholder="Ex : Sarah"></div>
-      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':'Setter'">
-        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option></select></div>
+      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':this.value==='ads'?'Responsable Ads':'Setter'">
+        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option><option value="ads">Ads</option></select></div>
     </div>
     <div style="margin-top:8px"><label style="font-size:12px;color:var(--muted)">Intitulé (optionnel)</label>
       <input id="nmTitle" placeholder="Setter" style="width:100%"></div>
@@ -1010,8 +1020,8 @@ const PAYLIST_DEFAULT=[
   {name:"Lucas",   label:"Setter LinkedIn",           role:"setter", pct:5,  fixe:700},
   {name:"Romain",  label:"Coach Conversion & Viralité", role:"coach", pct:0, fixe:2000},
 ];
-const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"autre",l:"Autre"}];
-const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
+const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"ads",l:"Ads"},{v:"autre",l:"Autre"}];
+const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",ads:"Ads",autre:"Autre"};
 // Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
 function normPay(it){
   if(!it) return null;
@@ -1767,7 +1777,7 @@ function initApp(){
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
-  if(role==="setter"||role==="closer") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
+  if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
@@ -1791,7 +1801,7 @@ function onMember(){
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
-  if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
+  if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
@@ -1850,7 +1860,7 @@ async function submitEod(){
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
+    if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
@@ -1877,7 +1887,7 @@ const POLES=[
   {key:"vente", label:"💰 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
-  {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
+  {key:"ads", label:"📢 Pôle Ads", src:"auto", role:"ads", metrics:[
     {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
   {key:"contenu", label:"📸 Pôle Contenu / Insta (Loïc)", src:"manual", metrics:[
@@ -1896,7 +1906,7 @@ const BENCH={
 function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
 function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
 function memberChannel(m){ if(chMatch(m.title,"insta")) return "insta"; if(chMatch(m.title,"linkedin")) return "linkedin"; if(chMatch(m.title,"appel")) return "appel"; return "insta"; }
-function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
+function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="ads") return "ads"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
 // Semaines calées sur le lundi (clé = date du lundi, ex "2026-08-31").
 // IMPORTANT : on formate la date en LOCAL (pas toISOString qui décale d'un jour dans les fuseaux à l'est de Londres, ex. Paris) et on parse à midi pour éviter les bascules d'heure d'été.
 function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), j=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+j; }
@@ -2827,7 +2837,7 @@ function renderFinance(){
   const paiePlusPresta=totalPaie+prestaTot;
   const logiTot=logiTotal(M);
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
-  const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
+  const teamComm=pay.filter(p=>["closer","setter","coach","ads"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
     <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
