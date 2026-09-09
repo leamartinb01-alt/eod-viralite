@@ -476,6 +476,16 @@
     <div id="coachingList"></div>
   </div>
 
+  <!-- IMPAYÉS -->
+  <div id="view-unpaid" class="wrap hide">
+    <div class="card">
+      <h2>⚠️ Clients impayés — suivi recouvrement</h2>
+      <p class="sub2">Les clients qui n'ont pas payé. Statut, note et prochaine action visibles par toute l'équipe. Quand c'est réglé, on retire l'étiquette.</p>
+      <div class="hint">Pour ajouter un client ici : ouvre sa fiche (onglet Clients) et coche « ⚠️ Impayé ». Tout le monde peut mettre à jour le statut / la note / la date ci-dessous.</div>
+    </div>
+    <div id="unpaidList"></div>
+  </div>
+
   <!-- JOURNÉE IMMERSIVE -->
   <div id="view-immersive" class="wrap hide">
     <div class="card">
@@ -666,6 +676,7 @@
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
   <button id="nav-goals" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
+  <button id="nav-unpaid" onclick="show('unpaid')"><span class="ic">⚠️</span>Impayés</button>
   <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
@@ -858,7 +869,7 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensur
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
 function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL();
-  const srcOpts=leadSourceList(); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
+  let srcOpts=leadSourceList(currentSetterChannel()); if(d.src&&!srcOpts.includes(d.src)) srcOpts=[d.src].concat(srcOpts); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow bookRow">
     <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1.3">
@@ -868,10 +879,16 @@ function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensur
   </div>`); }
 function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), src:(r.querySelector('.bkS')?r.querySelector('.bkS').value:""), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
 function bookedArr(x){ const b=x&&x.payload&&x.payload.booked; return Array.isArray(b)?b:[]; }
-// Sources de leads Insta (éditables en Réglages) — ventilation quotidienne des contacts + source de chaque RDV pris.
-function leadSourceList(){ const a=(SETTINGS.leadSources&&SETTINGS.leadSources.length)?SETTINGS.leadSources.slice():["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"]; return a; }
+// Sources de leads par CANAL (Insta / LinkedIn / Appel), éditables en Réglages. Chaque setter voit les sources de son canal.
+function channelSourceKey(ch){ return ch==="linkedin"?"leadSrcLinkedin":(ch==="appel"?"leadSrcAppel":"leadSrcInsta"); }
+function leadSourceList(ch){ const key=channelSourceKey(ch); let a=SETTINGS[key];
+  if(!(Array.isArray(a)&&a.length)) a=SETTINGS.leadSources; // repli sur l'ancienne liste unique si le canal n'est pas encore rempli
+  if(!(Array.isArray(a)&&a.length)) a=["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"];
+  return a.slice(); }
+// Canal du setter en train de faire son EOD (d'après le titre du membre sélectionné).
+function currentSetterChannel(){ const nm=($("member")&&$("member").value)||""; return memberChannel(member(nm)||{}); }
 function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
-  let opts=leadSourceList().slice(); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
+  let opts=leadSourceList(currentSetterChannel()); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
   const optHtml=opts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow srcRow">
@@ -882,7 +899,7 @@ function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
 function gatherSrcCount(){ return [...document.querySelectorAll("#srcRows .srcRow")].map(r=>({ src:r.querySelector('.scS').value, n:Number(r.querySelector('.scN').value)||0 })).filter(x=>x.n>0); }
 function srcArr(x){ const a=x&&x.payload&&x.payload.contacts_src; return Array.isArray(a)?a:[]; }
 function seedSrcRows(arr){ const box=$("srcRows"); if(!box) return; box.innerHTML="";
-  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList().forEach(s=>addSrcRow({src:s,n:''})); }
+  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList(currentSetterChannel()).forEach(s=>addSrcRow({src:s,n:''})); }
   if(!box.children.length) addSrcRow(); }
 function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
 function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
@@ -1008,7 +1025,10 @@ const SETTINGS_DEFAULT={
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
-  leadSources:["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSources:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSrcInsta:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSrcLinkedin:["DM LinkedIn","Invitations","Commentaires / Posts","InMail","Prospection"],
+  leadSrcAppel:["Rappel","Base à rappeler","No-show relancé","Prospection tél"],
   weekGoals:{}, weekActuals:{},
   logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
@@ -1044,12 +1064,14 @@ function payActiveMonth(it, M){ if(!it) return false; if(!it.archived) return tr
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","callSources","leadSources","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSources:"Sources des leads Insta (setters : mini-chats, ADS, commentaires…)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","callSources","leadSrcInsta","leadSrcLinkedin","leadSrcAppel","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSrcInsta:"Sources leads — Setter Insta (Manychat, ADS, commentaires…)",leadSrcLinkedin:"Sources leads — Setter LinkedIn",leadSrcAppel:"Sources leads — Setter Appel",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
+      // Migration : ancienne liste unique "leadSources" → seed les 3 canaux s'ils ne sont pas encore enregistrés (garde tes sources déjà saisies).
+      if(Array.isArray(x.leadSources)&&x.leadSources.length){ SETTINGS.leadSources=x.leadSources; ["leadSrcInsta","leadSrcLinkedin","leadSrcAppel"].forEach(k=>{ if(!Array.isArray(x[k])) SETTINGS[k]=x.leadSources.slice(); }); }
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
@@ -2020,8 +2042,8 @@ function show(v){
   if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
-  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
-  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="goals") loadGoals();
@@ -2031,7 +2053,76 @@ function show(v){
   if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
   if(v==="immersive") loadImmersive();
+  if(v==="unpaid") loadUnpaid();
 }
+/* ===================== IMPAYÉS (suivi recouvrement, visible par toute l'équipe) ===================== */
+const UNPAID_STATUS=[
+  {v:"relance",  l:"🔴 Relance en cours"},
+  {v:"a_retirer",l:"🟠 Accès à retirer"},
+  {v:"retire",   l:"⛔ Accès retiré"},
+  {v:"recouv",   l:"⚖️ Recouvrement"},
+  {v:"resolu",   l:"✅ Réglé / payé"},
+];
+function unpaidLabel(v){ const o=UNPAID_STATUS.find(x=>x.v===v); return o?o.l:"🔴 Relance en cours"; }
+async function loadUnpaid(){
+  const box=$("unpaidList"); if(!box) return;
+  if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase(); box.innerHTML='<div class="empty">Chargement…</div>';
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
+  renderUnpaid();
+}
+function unpaidCount(){ return (CLIENTS||[]).filter(c=>c.impaye).length; }
+function updUnpaidNav(){ const b=$("nav-unpaid"); if(!b) return; const n=unpaidCount(); b.innerHTML='<span class="ic">⚠️</span>Impayés'+(n?` <span style="background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;font-weight:800">${n}</span>`:""); }
+function unpaidOverdue(){ const t=todayStr(); return (CLIENTS||[]).filter(c=>c.impaye && c.impaye_status!=="resolu" && c.impaye_date && c.impaye_date<t); }
+function renderUnpaid(){
+  const box=$("unpaidList"); if(!box) return; updUnpaidNav();
+  const money=canSeeMoney();
+  const list=CLIENTS.filter(c=>c.impaye).sort((a,b)=>String(a.impaye_date||"9999").localeCompare(String(b.impaye_date||"9999")));
+  if(!list.length){ box.innerHTML='<div class="card"><div class="empty">Aucun client impayé 🎉 — tout est réglé. (Pour en ajouter : coche « ⚠️ Impayé » sur une fiche client.)</div></div>'; return; }
+  const today=todayStr();
+  box.innerHTML=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${list.length}</b> client${list.length>1?"s":""} en impayé</div></div>`+list.map(c=>{
+    const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
+    const reste=clientReste(c); const overdue=c.impaye_date && c.impaye_date<today;
+    const opts=UNPAID_STATUS.map(o=>`<option value="${o.v}" ${o.v===(c.impaye_status||"relance")?"selected":""}>${o.l}</option>`).join("");
+    return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+        <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
+        <span class="gbadge" style="border-color:var(--red);color:#ff9a9a">${unpaidLabel(c.impaye_status)}</span>
+      </div>
+      ${money?`<div class="kv" style="margin-top:4px"><span class="k">💸 Reste à encaisser</span><span class="v" style="color:#ffcf7a">${eur(reste)}</span></div>`:""}
+      ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
+      <div class="payin" style="margin-top:8px">
+        <div><label>Statut</label><select class="upStatus">${opts}</select></div>
+        <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''}></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn ghost sm" style="width:auto" onclick="saveUnpaid('${c.id}')">💾 Enregistrer statut & date</button>
+        <button class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✅ Réglé — retirer de la liste</button>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📝 Historique des relances</div>
+        ${unpaidLogHtml(c)}
+        <div class="payin" style="margin-top:6px"><div style="flex:2"><input class="upNewNote" type="text" placeholder="Nouvelle note (datée automatiquement)…"></div><div style="flex:0"><button class="btn ghost sm" style="width:auto;white-space:nowrap" onclick="addUnpaidNote('${c.id}')">+ Ajouter</button></div></div>
+      </div>
+      <div class="upMsg msg"></div>
+    </div>`;
+  }).join("");
+}
+function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
+function unpaidLogHtml(c){ const l=unpaidLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
+  return l.map(e=>`<div class="kv" style="align-items:flex-start"><span class="k" style="white-space:nowrap">🗓 ${frDate(e.date)}</span><span class="v" style="text-align:left">${escapeHtml(e.text||"")}</span></div>`).join(""); }
+async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+  const status=card.querySelector('.upStatus').value, date=card.querySelector('.upDate').value||"";
+  const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({impaye_status:status, impaye_date:date}); c.impaye_status=status; c.impaye_date=date; m.className="msg ok"; m.textContent="Enregistré ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+  const inp=card.querySelector('.upNewNote'); const txt=(inp&&inp.value||"").trim(); if(!txt){ return; }
+  const log=unpaidLog(c); log.push({date:todayStr(), text:txt, by:(LOGIN_NAME||"")});
+  const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Ajout…";
+  try{ await db.collection("clients").doc(id).update({impaye_log:log}); c.impaye_log=log; m.className="msg ok"; m.textContent="Note ajoutée ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+async function resolveUnpaid(id){ if(!fbReady())return; if(!confirm("Retirer ce client de la liste des impayés ? (l'étiquette Impayé sera enlevée)")) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  try{ await db.collection("clients").doc(id).update({impaye:false, impaye_status:"resolu"}); c.impaye=false; c.impaye_status="resolu"; renderUnpaid(); }catch(e){ alert("Erreur : "+e.message); } }
 async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -2285,6 +2376,9 @@ async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFireba
   try{ await db.collection("setter_stats").doc("cfg_warns").set({isWarnCfg:true,map:WARNS},{merge:true}); renderTeamDigest(); }catch(e){ alert("Erreur : "+e.message); } }
 function renderInsights(selM, doneSet){
   const ins=[];
+  updUnpaidNav();
+  // Impayés dont la relance est dépassée → on remonte l'alerte pour que quelqu'un agisse.
+  unpaidOverdue().forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚠️",`Impayé <b>${escapeHtml(nm)}</b> — relance prévue le ${frDate(c.impaye_date)} (dépassée) · <span class="sub2">${escapeHtml(unpaidLabel(c.impaye_status))}</span>`]); });
   const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
@@ -2388,6 +2482,7 @@ const CLIENT_FIELDS=[
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
   { key:"statut",label:"Statut",type:"select" },
+  { key:"impaye",label:"⚠️ Impayé — suivi recouvrement (apparaît dans l'onglet Impayés, visible par l'équipe)",type:"check" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
 ];
@@ -2572,6 +2667,7 @@ async function toggleSched(id,i){
 }
 function sameProg(cp, fp){ if(!fp) return true; if(cp===fp) return true; const oc=offerFor(cp), of=offerFor(fp); if(oc&&of&&oc.name===of.name) return true; return normOffer(cp)===normOffer(fp); }
 function renderClients(){
+  updUnpaidNav();
   // Le filtre programmes liste TOUS les programmes présents (réglages + fiches réelles), pour ne perdre aucun client
   const cfp=$("cfProg"); if(cfp){ const cur=cfp.value; const opts=[...new Set([...(SETTINGS.programmes||[]), ...CLIENTS.map(c=>c.programme).filter(Boolean)])];
     cfp.innerHTML='<option value="">Tous les programmes</option>'+opts.map(p=>`<option ${p===cur?'selected':''}>${escapeHtml(p)}</option>`).join(""); }
@@ -2626,7 +2722,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${c.impaye?' <span title="Impayé" style="color:#ff6b6b;font-weight:800">⚠️</span>':''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
