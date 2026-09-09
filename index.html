@@ -1414,7 +1414,7 @@ function satisMonths(c){ const months=editoMonthsCount(c), sm=c.satis||{}; let r
     <div class="satbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveSatis('${c.id}')">💾 Enregistrer</button>
       <div class="satMsg msg"></div></div></details>`; }
-async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.satbox[data-id="'+CSS.escape(id)+'"]'); if(!c||!box) return;
+async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=[...document.querySelectorAll('.satbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; if(!c||!box) return;
   const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
   const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
@@ -2112,11 +2112,12 @@ function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.sli
 function unpaidLogHtml(c){ const l=unpaidLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
   return l.map(e=>`<div class="kv" style="align-items:flex-start"><span class="k" style="white-space:nowrap">🗓 ${frDate(e.date)}</span><span class="v" style="text-align:left">${escapeHtml(e.text||"")}</span></div>`).join(""); }
-async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+function unpaidCard(id){ return [...document.querySelectorAll('.card[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
+async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const status=card.querySelector('.upStatus').value, date=card.querySelector('.upDate').value||"";
   const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({impaye_status:status, impaye_date:date}); c.impaye_status=status; c.impaye_date=date; m.className="msg ok"; m.textContent="Enregistré ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const inp=card.querySelector('.upNewNote'); const txt=(inp&&inp.value||"").trim(); if(!txt){ return; }
   const log=unpaidLog(c); log.push({date:todayStr(), text:txt, by:(LOGIN_NAME||"")});
   const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Ajout…";
