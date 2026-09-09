@@ -455,9 +455,9 @@
       <details id="convCard" class="card foldcard" open><summary><span>📊 Conversions (temps réel)</span><span class="chev">▸</span></summary><div id="convList" style="margin-top:8px"></div></details>
       <details id="sourcesCard" class="card foldcard" open><summary><span>🌐 Sources des leads</span><span class="chev">▸</span></summary><div id="sourcesList" style="margin-top:8px"></div></details>
       <details id="closedCard" class="card foldcard" open><summary><span>🎯 Closés du mois</span><span class="chev">▸</span></summary><div id="closedList" style="margin-top:8px"></div></details>
-      <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
-      <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
-      <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
+      <details id="warnCard" class="card foldcard hide" open style="border-color:var(--red)"><summary><span style="color:var(--red)">⚠️ Warnings clients</span><span class="chev">▸</span></summary><div id="warnList" style="margin-top:8px"></div></details>
+      <details id="digestCard" class="card foldcard" open><summary><span>📆 Résumé des EOD par jour</span><span class="chev">▸</span></summary><div id="digestList" style="margin-top:8px"></div></details>
+      <details id="insightCard" class="card foldcard hide" open><summary><span>À noter 👀</span><span class="chev">▸</span></summary><div id="teamInsights" style="margin-top:8px"></div></details>
       <div class="section-title">Membres · clique pour le suivi</div>
       <div class="grid" id="teamGrid"></div>
       <div id="teamManage"></div>
@@ -1329,11 +1329,11 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Loïc (1/mois) + upsells à préparer (J-10)
-  // Filtre sur un coach précis → liste plate
+  // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+upC+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
+  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Fondateur (1/mois) + upsells à préparer (J-10) — sur tous les clients
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
   let html=seedBtn+upC+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
@@ -2123,6 +2123,8 @@ function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
 // SOURCE UNIQUE des closés du mois = tags EOD « Closé » + clients signés ce mois (dédup insensible ordre/accents). Utilisée par Conversions ET « Closés du mois » pour être cohérent.
 // Mois du CLOSING d'un client = le plus tôt entre la création de sa fiche (≈ signature) et sa date de début de contrat.
 // → un client signé en juillet mais dont le contrat démarre en août/septembre compte bien en JUILLET, pas au démarrage.
+// Vrai closé du mois = fiche avec un closer OU un montant. Les fiches créées par le coach pour un client existant/upsell (ni closer ni montant) ne comptent pas comme un close. Elles pèsent 0€ donc le CA signé ne change pas — seul le décompte se corrige.
+function isRealClose(c){ return (String((c&&c.closer)||"").trim()!=="") || (clientMontant(c)>0); }
 function closeMonth(c){
   const dd=(c&&c.date_debut||"").slice(0,7);
   let cr=""; const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ cr=ca.toDate().toISOString().slice(0,7); }catch(e){} }
@@ -2149,7 +2151,7 @@ function sameProspect(a,b){
 // Plus AUCune devinette de nom dans le compte → doublon impossible (fini "Betty H" vs "Haury Betty").
 function monthCloses(M){
   const list=[];
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return;
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return; if(!isRealClose(c)) return;
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return;
     list.push({prospect:nm, closer:(c.closer||"").trim()||"—", src:c.programme||"", date:c.date_debut||"", from:"client", id:c.id}); });
   return list;
@@ -2801,7 +2803,7 @@ function renderFinance(){
   CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
-  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M);
+  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c));
   const genMonth=closedThisMonth.reduce((s,c)=>s+clientMontant(c),0);
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
