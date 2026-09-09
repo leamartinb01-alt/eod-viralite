@@ -92,6 +92,7 @@
   .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
   .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
   .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
+  .av-ads{background:linear-gradient(135deg,#f7b733,#fc4a1a)}
   .avatar.sm{width:38px;height:38px;flex:0 0 38px;font-size:14px}
   .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
@@ -454,9 +455,9 @@
       <details id="convCard" class="card foldcard" open><summary><span>📊 Conversions (temps réel)</span><span class="chev">▸</span></summary><div id="convList" style="margin-top:8px"></div></details>
       <details id="sourcesCard" class="card foldcard" open><summary><span>🌐 Sources des leads</span><span class="chev">▸</span></summary><div id="sourcesList" style="margin-top:8px"></div></details>
       <details id="closedCard" class="card foldcard" open><summary><span>🎯 Closés du mois</span><span class="chev">▸</span></summary><div id="closedList" style="margin-top:8px"></div></details>
-      <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
-      <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
-      <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
+      <details id="warnCard" class="card foldcard hide" open style="border-color:var(--red)"><summary><span style="color:var(--red)">⚠️ Warnings clients</span><span class="chev">▸</span></summary><div id="warnList" style="margin-top:8px"></div></details>
+      <details id="digestCard" class="card foldcard" open><summary><span>📆 Résumé des EOD par jour</span><span class="chev">▸</span></summary><div id="digestList" style="margin-top:8px"></div></details>
+      <details id="insightCard" class="card foldcard hide" open><summary><span>À noter 👀</span><span class="chev">▸</span></summary><div id="teamInsights" style="margin-top:8px"></div></details>
       <div class="section-title">Membres · clique pour le suivi</div>
       <div class="grid" id="teamGrid"></div>
       <div id="teamManage"></div>
@@ -473,6 +474,16 @@
       <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select></div>
     </div>
     <div id="coachingList"></div>
+  </div>
+
+  <!-- IMPAYÉS -->
+  <div id="view-unpaid" class="wrap hide">
+    <div class="card">
+      <h2>⚠️ Clients impayés — suivi recouvrement</h2>
+      <p class="sub2">Les clients qui n'ont pas payé. Statut, note et prochaine action visibles par toute l'équipe. Quand c'est réglé, on retire l'étiquette.</p>
+      <div class="hint">Pour ajouter un client ici : ouvre sa fiche (onglet Clients) et coche « ⚠️ Impayé ». Tout le monde peut mettre à jour le statut / la note / la date ci-dessous.</div>
+    </div>
+    <div id="unpaidList"></div>
   </div>
 
   <!-- JOURNÉE IMMERSIVE -->
@@ -665,6 +676,7 @@
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
   <button id="nav-goals" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
+  <button id="nav-unpaid" onclick="show('unpaid')"><span class="ic">⚠️</span>Impayés</button>
   <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
@@ -752,6 +764,14 @@ const FORMS = {
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
   ],
+  ads:[
+    { key:"budget",   label:"💸 Budget dépensé aujourd'hui (€)",       type:"number" },
+    { key:"leads",    label:"🎯 Leads captés aujourd'hui",            type:"number" },
+    { key:"rdv_ads",  label:"📅 RDV issus des ads aujourd'hui",       type:"number" },
+    { key:"ads_note", label:"Note du jour (créas testées, ajustements…)", type:"textarea" },
+    { key:"mood",     label:"Ton énergie du jour ⚡️",                type:"mood" },
+    { key:"feeling",  label:"Un mot sur ta journée ? (optionnel)",    type:"textarea" },
+  ],
 };
 const MOOD_CLIENT=[{v:"Bien",e:"😄"},{v:"Moyen",e:"😐"},{v:"Pas bien",e:"😟"}];
 function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.warning, wr=val.warnReason||"", ras=!!val.ras;
@@ -767,11 +787,12 @@ function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.w
   </div>`; }
 function pickCMood(btn){ const box=btn.parentNode; box.querySelectorAll(".cmood").forEach(b=>b.classList.remove("sel")); btn.classList.add("sel"); const h=box.parentNode.querySelector(".clMood"); if(h) h.value=btn.getAttribute("data-v"); }
 function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),mood:(r.querySelector(".clMood").value||""),ras:r.querySelector(".clRas").checked,warning:r.querySelector(".clWarn").checked,warnReason:(r.querySelector(".clWarnR").value||"").trim()})).filter(x=>x.mood||x.ras||x.warning||x.warnReason); }
-const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
+const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach", ads:"Ads" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
+  ads:  [ {key:"budget",label:"Budget"}, {key:"leads",label:"Leads"}, {key:"rdv_ads",label:"RDV ads"} ],
 };
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
 
@@ -784,7 +805,7 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function teamActive(){ return (CONFIG.TEAM||[]).filter(m=>!m.archived); } // membres actifs (les archivés restent en base, juste masqués des vues actives)
-function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
+function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":role==="ads"?"av-ads":"av-setter"; }
 // Accepte tous les formats tapés à la main : "09/2026", "09.2026", "9-2026", "2026/09", "202609"… → "2026-09"
 function normMonth(s){ s=String(s||"").trim(); if(!s) return "";
   let m;
@@ -848,7 +869,7 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensur
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
 function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL();
-  const srcOpts=leadSourceList(); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
+  let srcOpts=leadSourceList(currentSetterChannel()); if(d.src&&!srcOpts.includes(d.src)) srcOpts=[d.src].concat(srcOpts); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow bookRow">
     <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1.3">
@@ -858,10 +879,16 @@ function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensur
   </div>`); }
 function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), src:(r.querySelector('.bkS')?r.querySelector('.bkS').value:""), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
 function bookedArr(x){ const b=x&&x.payload&&x.payload.booked; return Array.isArray(b)?b:[]; }
-// Sources de leads Insta (éditables en Réglages) — ventilation quotidienne des contacts + source de chaque RDV pris.
-function leadSourceList(){ const a=(SETTINGS.leadSources&&SETTINGS.leadSources.length)?SETTINGS.leadSources.slice():["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"]; return a; }
+// Sources de leads par CANAL (Insta / LinkedIn / Appel), éditables en Réglages. Chaque setter voit les sources de son canal.
+function channelSourceKey(ch){ return ch==="linkedin"?"leadSrcLinkedin":(ch==="appel"?"leadSrcAppel":"leadSrcInsta"); }
+function leadSourceList(ch){ const key=channelSourceKey(ch); let a=SETTINGS[key];
+  if(!(Array.isArray(a)&&a.length)) a=SETTINGS.leadSources; // repli sur l'ancienne liste unique si le canal n'est pas encore rempli
+  if(!(Array.isArray(a)&&a.length)) a=["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"];
+  return a.slice(); }
+// Canal du setter en train de faire son EOD (d'après le titre du membre sélectionné).
+function currentSetterChannel(){ const nm=($("member")&&$("member").value)||""; return memberChannel(member(nm)||{}); }
 function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
-  let opts=leadSourceList().slice(); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
+  let opts=leadSourceList(currentSetterChannel()); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
   const optHtml=opts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow srcRow">
@@ -872,7 +899,7 @@ function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
 function gatherSrcCount(){ return [...document.querySelectorAll("#srcRows .srcRow")].map(r=>({ src:r.querySelector('.scS').value, n:Number(r.querySelector('.scN').value)||0 })).filter(x=>x.n>0); }
 function srcArr(x){ const a=x&&x.payload&&x.payload.contacts_src; return Array.isArray(a)?a:[]; }
 function seedSrcRows(arr){ const box=$("srcRows"); if(!box) return; box.innerHTML="";
-  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList().forEach(s=>addSrcRow({src:s,n:''})); }
+  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList(currentSetterChannel()).forEach(s=>addSrcRow({src:s,n:''})); }
   if(!box.children.length) addSrcRow(); }
 function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
 function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
@@ -947,8 +974,8 @@ function renderTeamManage(){
     ${list}${archList}
     <div class="payin" style="margin-top:12px">
       <div><label>Prénom</label><input id="nmName" placeholder="Ex : Sarah"></div>
-      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':'Setter'">
-        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option></select></div>
+      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':this.value==='ads'?'Responsable Ads':'Setter'">
+        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option><option value="ads">Ads</option></select></div>
     </div>
     <div style="margin-top:8px"><label style="font-size:12px;color:var(--muted)">Intitulé (optionnel)</label>
       <input id="nmTitle" placeholder="Setter" style="width:100%"></div>
@@ -998,7 +1025,10 @@ const SETTINGS_DEFAULT={
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
-  leadSources:["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSources:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSrcInsta:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
+  leadSrcLinkedin:["DM LinkedIn","Invitations","Commentaires / Posts","InMail","Prospection"],
+  leadSrcAppel:["Rappel","Base à rappeler","No-show relancé","Prospection tél"],
   weekGoals:{}, weekActuals:{},
   logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
@@ -1010,14 +1040,14 @@ const PAYLIST_DEFAULT=[
   {name:"Lucas",   label:"Setter LinkedIn",           role:"setter", pct:5,  fixe:700},
   {name:"Romain",  label:"Coach Conversion & Viralité", role:"coach", pct:0, fixe:2000},
 ];
-const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"autre",l:"Autre"}];
-const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
+const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"ads",l:"Ads"},{v:"autre",l:"Autre"}];
+const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",ads:"Ads",autre:"Autre"};
 // Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
 function normPay(it){
   if(!it) return null;
   // prime = touche les primes paliers (comme Ilyas). Par défaut ON pour closer/setter (comportement historique), sinon OFF. archived = mis de côté (exclu de la paie mais gardé).
   const primeDefault=(r)=>(r==="closer"||r==="setter");
-  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived};
+  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||""};
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1029,15 +1059,19 @@ function normPay(it){
   if(t==="fixe")       return {name:it.name, role:"autre",  pct:0, fixe:base};
   return {name:it.name, role:"autre", pct:0, fixe:0};
 }
+// Une personne archivée reste comptée pour les mois AVANT son archivage (historique/commissions préservés) ; elle disparaît seulement à partir du mois « archivé dès ». Sans mois précis → repli sur le mois en cours (figé à la prochaine sauvegarde).
+function payActiveMonth(it, M){ if(!it) return false; if(!it.archived) return true; const from=it.archivedFrom||monthStr(); return String(M) < String(from); }
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","callSources","leadSources","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSources:"Sources des leads Insta (setters : mini-chats, ADS, commentaires…)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","callSources","leadSrcInsta","leadSrcLinkedin","leadSrcAppel","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSrcInsta:"Sources leads — Setter Insta (Manychat, ADS, commentaires…)",leadSrcLinkedin:"Sources leads — Setter LinkedIn",leadSrcAppel:"Sources leads — Setter Appel",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
+      // Migration : ancienne liste unique "leadSources" → seed les 3 canaux s'ils ne sont pas encore enregistrés (garde tes sources déjà saisies).
+      if(Array.isArray(x.leadSources)&&x.leadSources.length){ SETTINGS.leadSources=x.leadSources; ["leadSrcInsta","leadSrcLinkedin","leadSrcAppel"].forEach(k=>{ if(!Array.isArray(x[k])) SETTINGS[k]=x.leadSources.slice(); }); }
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
@@ -1088,7 +1122,9 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <input class="pyPct" type="number" inputmode="decimal" step="0.5" placeholder="%" title="% de l'encaissé de ses clients" value="${it.pct?it.pct:''}" style="width:62px">
     <input class="pyFixe" type="number" inputmode="numeric" placeholder="fixe €" title="Montant fixe mensuel" value="${it.fixe?it.fixe:''}" style="width:76px">
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
-    <label class="ck" title="Archivé = mis de côté, exclu de la paie mais gardé (tu peux le réactiver)" style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="this.closest('.pyrow').style.opacity=this.checked?'.55':'1'">📦 archivé</label>
+    <label class="ck" title="Archivé = plus payé À PARTIR du mois choisi. Les mois d'avant gardent son historique/ses commissions." style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 archivé dès</label>
+    <input class="pyArchFrom" type="month" title="Archivé à partir de ce mois (les mois précédents restent payés)" value="${escapeHtml(it.archivedFrom||'')}" style="width:130px">
+
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
   </div>`; }
@@ -1134,7 +1170,7 @@ function renderSettings(){
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
       <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
-      <b>📦 archivé</b> = la personne est mise de côté : elle disparaît de la Finance mais reste ici (décoche pour la réactiver et revoir sa data). Rien n'est supprimé.<br>
+      <b>📦 archivé dès</b> = la personne n'est plus payée <b>à partir du mois choisi</b>. Les mois <b>avant</b> ce mois gardent son historique et ses commissions intactes (ta marge des mois passés ne bouge pas). Décoche pour la réactiver. Rien n'est supprimé.<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
@@ -1161,7 +1197,8 @@ async function saveSettings(){
     pct: Number(r.querySelector('.pyPct').value)||0,
     fixe:Number(r.querySelector('.pyFixe').value)||0,
     prime:!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked),
-    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked)
+    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked),
+    archivedFrom:(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })()
   })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -1314,11 +1351,11 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Loïc (1/mois) + upsells à préparer (J-10)
-  // Filtre sur un coach précis → liste plate
+  // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+upC+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
+  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Fondateur (1/mois) + upsells à préparer (J-10) — sur tous les clients
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
   let html=seedBtn+upC+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
@@ -1767,7 +1804,7 @@ function initApp(){
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
-  if(role==="setter"||role==="closer") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
+  if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
@@ -1791,7 +1828,7 @@ function onMember(){
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
-  if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
+  if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
@@ -1850,21 +1887,12 @@ async function submitEod(){
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
+    if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
-/* ===================== OBJECTIFS JOUR PAR JOUR ===================== */
-/* Cibles quotidiennes par personne. Les chiffres viennent des EOD (aucune ressaisie). */
-const DG_METRICS=[
-  {key:"contacted",    label:"Personnes contactées",       short:"Contactées"},
-  {key:"in_contact",   label:"En contact (conversations)", short:"En contact"},
-  {key:"calls_booked", label:"RDV calés",                  short:"RDV"},
-  {key:"calls_done",   label:"Appels passés",              short:"Appels"},
-  {key:"closed",       label:"Closés",                     short:"Closés"},
-  {key:"cash_day",     label:"Cash collecté (€)",          short:"Cash"},
-];
-function dgMeta(k){ return DG_METRICS.find(x=>x.key===k)||{key:k,label:k,short:k}; }
+/* ===================== OBJECTIFS ===================== */
+/* dgVal : lit une métrique dans un EOD (sert au réalisé auto des objectifs hebdo). */
 function dgVal(e,key){ if(!e) return 0;
   if(key==="calls_done") return callsArr(e).length;
   if(key==="closed") return callsArr(e).filter(c=>c.res==="Closé").length;
@@ -1889,9 +1917,6 @@ const POLES=[
   {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
     {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
-  {key:"contenu", label:"📸 Pôle Contenu / Insta (Loïc)", src:"manual", metrics:[
-    {key:"stories",label:"Stories postées"},{key:"posts",label:"Posts / Reels"},{key:"vues",label:"Vues / reach"},{key:"abo",label:"Abonnés gagnés"}
-  ]},
 ];
 // Repères marché par semaine (base quand il n'y a pas encore d'historique). Servent au calcul auto des objectifs.
 const BENCH={
@@ -1900,18 +1925,19 @@ const BENCH={
   set_appel:{contacted:300,in_contact:75,calls_booked:10},
   vente:{calls_done:20,closed:5},
   ads:{budget:0,leads:20,rdv_ads:8},
-  contenu:{stories:15,posts:5,vues:0,abo:0},
 };
 function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
 function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
 function memberChannel(m){ if(chMatch(m.title,"insta")) return "insta"; if(chMatch(m.title,"linkedin")) return "linkedin"; if(chMatch(m.title,"appel")) return "appel"; return "insta"; }
-function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
+function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="ads") return "ads"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
 // Semaines calées sur le lundi (clé = date du lundi, ex "2026-08-31").
-function mondayOf(ds){ const d=new Date((ds||todayStr())+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
-function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T00:00:00").getTime(); for(let i=0;i<7;i++) out.push(new Date(base+i*86400000).toISOString().slice(0,10)); return out; }
-function weekLabelOf(wk){ const d=weekDaysOf(wk); const f=x=>new Date(x+"T00:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du "+f(d[0])+" au "+f(d[6]); }
-function prevWeek(wk){ return new Date(new Date(wk+"T00:00:00").getTime()-7*86400000).toISOString().slice(0,10); }
-function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ out.push(new Date(new Date(cur+"T00:00:00").getTime()+i*7*86400000).toISOString().slice(0,10)); } return out; }
+// IMPORTANT : on formate la date en LOCAL (pas toISOString qui décale d'un jour dans les fuseaux à l'est de Londres, ex. Paris) et on parse à midi pour éviter les bascules d'heure d'été.
+function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), j=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+j; }
+function mondayOf(ds){ const d=new Date((ds||todayStr())+"T12:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return ymdLocal(d); }
+function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T12:00:00"); for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(d.getDate()+i); out.push(ymdLocal(d)); } return out; }
+function weekLabelOf(wk){ const start=new Date(wk+"T12:00:00"); const end=new Date(start); end.setDate(end.getDate()+7); const f=x=>x.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du lundi "+f(start)+" au lundi "+f(end); }
+function prevWeek(wk){ const d=new Date(wk+"T12:00:00"); d.setDate(d.getDate()-7); return ymdLocal(d); }
+function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ const d=new Date(cur+"T12:00:00"); d.setDate(d.getDate()+i*7); out.push(ymdLocal(d)); } return out; }
 function wkGoals(){ return SETTINGS.weekGoals||(SETTINGS.weekGoals={}); }
 function wkActuals(){ return SETTINGS.weekActuals||(SETTINGS.weekActuals={}); }
 function wkTarget(wk,pole,mk){ const w=wkGoals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
@@ -1938,35 +1964,6 @@ function wkAutoTarget(pole,mk,wk){ const vals=[]; let w=prevWeek(wk);
 function wkEffTarget(wk,pole,mk){ const t=wkTarget(wk,pole,mk); return t!=null?t:wkAutoTarget(pole,mk,wk); }
 function selWeek(){ const s=$("wkSelect"); return (s&&s.value)||mondayOf(todayStr()); }
 /* Propositions de départ tant que rien n'est enregistré — s'adapte à l'équipe du moment */
-function dgDefaults(){ const out=[];
-  teamActive().forEach(m=>{ const t=noAcc(m.title||"");
-    if(m.role==="setter"){ const ph=/appel|phone|tel/.test(t);
-      out.push({who:m.name,key:"contacted",target:ph?60:30});
-      out.push({who:m.name,key:"in_contact",target:ph?15:10});
-      out.push({who:m.name,key:"calls_booked",target:2}); }
-    else if(m.role==="closer"){ out.push({who:m.name,key:"calls_done",target:4}); out.push({who:m.name,key:"closed",target:1}); } });
-  return out; }
-function dgGoals(){ const g=SETTINGS.dayGoals; return (Array.isArray(g)&&g.length)?g:dgDefaults(); }
-function dgSaved(){ return Array.isArray(SETTINGS.dayGoals)&&SETTINGS.dayGoals.length>0; }
-function dgFor(n){ return dgGoals().filter(g=>g.who===n && Number(g.target)>0); }
-function dgPeople(){ const out=[]; dgGoals().forEach(g=>{ if(g.who&&Number(g.target)>0&&out.indexOf(g.who)<0) out.push(g.who); }); return out; }
-function dgWorkDays(){ const d=SETTINGS.goalDays; return (Array.isArray(d)&&d.length)?d.map(Number):[1,2,3,4,5]; }
-function dgIsWork(ds){ return dgWorkDays().indexOf(new Date(ds+"T00:00:00").getDay())>=0; }
-function dgDays(M){ const out=[]; const p=String(M||"").split("-"); const y=+p[0], mo=+p[1]; if(!y||!mo) return out;
-  const last=new Date(y,mo,0).getDate(); const today=todayStr();
-  for(let i=1;i<=last;i++){ const ds=M+"-"+String(i).padStart(2,"0"); if(ds>today) break; out.push(ds); } return out; }
-function dgEod(n,ds){ return EODS.find(x=>x.member===n && x.report_date===ds)||null; }
-function dgPct(d,t){ t=Number(t)||0; return t?Math.min(100,Math.round(d/t*100)):0; }
-function dgCls(d,t){ t=Number(t)||0; if(!t) return ""; const p=d/t; return p>=1?"dgok":(p>=0.5?"dgmid":"dgbad"); }
-function dgAllOk(n,ds){ const gs=dgFor(n); if(!gs.length) return false; const e=dgEod(n,ds); if(!e) return false; return gs.every(g=>dgVal(e,g.key)>=Number(g.target)); }
-/* Série = jours ouvrés consécutifs où TOUS les objectifs sont atteints (la journée en cours non remplie ne casse rien) */
-function dgStreak(n){ let s=0; const now=Date.now(), td=todayStr();
-  for(let i=0;i<120;i++){ const ds=new Date(now-i*86400000).toISOString().slice(0,10);
-    if(!dgIsWork(ds)) continue;
-    if(ds===td && !dgEod(n,ds)) continue;
-    if(dgAllOk(n,ds)) s++; else break; }
-  return s; }
-function dgMonth(){ const s=$("dgMonth"); return (s&&s.value)||monthStr(); }
 function fillWeekSelect(){ const s=$("wkSelect"); if(!s) return; const cur=selWeek()||mondayOf(todayStr()); s.innerHTML=weekOptions().map(wk=>{ const isNext=wk>mondayOf(todayStr()); const isCur=wk===mondayOf(todayStr()); return `<option value="${wk}" ${wk===cur?'selected':''}>${weekLabelOf(wk)}${isCur?' · cette semaine':(isNext?' · à venir':'')}</option>`; }).join(""); if(!s.value) s.value=mondayOf(todayStr()); }
 async function loadGoals(){
   const box=$("goalsBody"); if(!box) return;
@@ -1978,58 +1975,6 @@ async function loadGoals(){
   fillWeekSelect();
   renderGoals();
 }
-function dgTodayHtml(){
-  const ds=todayStr();
-  const cards=dgPeople().map(n=>{
-    const gs=dgFor(n), e=dgEod(n,ds);
-    const rows=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
-      return '<div style="margin:7px 0"><div class="dgtop"><span>'+escapeHtml(dgMeta(g.key).label)+'</span><span class="'+dgCls(v,t)+'"><b>'+v+'</b> / '+t+'</span></div><div class="cwk-bar"><span style="width:'+dgPct(v,t)+'%"></span></div></div>'; }).join("");
-    const st=dgStreak(n);
-    return '<div class="dgcard"><div class="dgname">'+(dgAllOk(n,ds)?"🏆 ":"")+escapeHtml(n)+(st>1?' <span class="dgstreak">🔥 '+st+' j</span>':"")+'</div>'+rows+
-      '<div class="hint" style="margin-top:6px">'+(e?"EOD envoyé ✓":"⏳ EOD du jour pas encore envoyé")+'</div></div>'; }).join("");
-  return '<div class="card"><h2>📅 Aujourd\'hui — '+dayLabel(ds)+'</h2><div class="dggrid">'+cards+'</div></div>';
-}
-function dgPersonHtml(n,M){
-  const gs=dgFor(n); if(!gs.length) return "";
-  const days=dgDays(M).reverse();
-  const work=days.filter(dgIsWork);
-  const hit=work.filter(ds=>dgAllOk(n,ds)).length;
-  const head=gs.map(g=>'<th>'+escapeHtml(dgMeta(g.key).short)+'<div class="dgt">cible '+(Number(g.target)||0)+'</div></th>').join("");
-  const rows=days.map(ds=>{ const e=dgEod(n,ds), w=dgIsWork(ds);
-    const cells=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
-      return '<td class="'+(w&&e?dgCls(v,t):"")+'">'+(e?v:"—")+'</td>'; }).join("");
-    const mark=!w?"·":(dgAllOk(n,ds)?"🏆":(e?"":"⚠️"));
-    return '<tr class="'+(w?"":"dgoff")+'"><td class="dgday">'+dayLabel(ds)+'</td>'+cells+'<td>'+mark+'</td></tr>'; }).join("");
-  const tot=gs.map(g=>{ const s=days.reduce((a,ds)=>a+dgVal(dgEod(n,ds),g.key),0); const t=(Number(g.target)||0)*work.length;
-    return '<td><b>'+s+'</b><div class="dgt">/ '+t+'</div></td>'; }).join("");
-  const st=dgStreak(n);
-  return '<details class="card dgp" open><summary><b>'+escapeHtml(n)+'</b> <span class="sub2">· '+hit+'/'+work.length+' jours objectifs atteints'+(st>1?' · 🔥 '+st+' j de série':"")+'</span></summary>'+
-    '<div class="dgscroll"><table class="dgtab"><thead><tr><th>Jour</th>'+head+'<th>✓</th></tr></thead><tbody>'+rows+
-    '<tr class="dgtot"><td>Total '+monthLabel(M)+'</td>'+tot+'<td>'+hit+'/'+work.length+'</td></tr></tbody></table></div>'+
-    '<div class="hint">🏆 tous les objectifs du jour atteints · ⚠️ jour ouvré sans EOD · les jours non travaillés sont grisés.</div></details>';
-}
-function dgRowHtml(g){ g=g||{};
-  const inTeam=teamActive().some(m=>m.name===g.who);
-  const extra=(g.who&&!inTeam)?'<option value="'+escapeHtml(g.who)+'" selected>'+escapeHtml(g.who)+' (hors équipe)</option>':"";
-  const opts=teamActive().map(m=>'<option value="'+escapeHtml(m.name)+'"'+(m.name===g.who?" selected":"")+'>'+escapeHtml(m.name)+'</option>').join("");
-  const mets=DG_METRICS.map(m=>'<option value="'+m.key+'"'+(m.key===g.key?" selected":"")+'>'+escapeHtml(m.label)+'</option>').join("");
-  return '<div class="drow dgrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">'+
-    '<select class="dgWho" style="min-width:120px">'+extra+opts+'</select>'+
-    '<select class="dgKey" style="min-width:180px">'+mets+'</select>'+
-    '<input class="dgTarget" type="number" min="0" value="'+(Number(g.target)||0)+'" style="width:86px" placeholder="cible/jour">'+
-    '<button type="button" class="xrow" onclick="this.closest(\'.dgrow\').remove()">✕</button></div>'; }
-function dgAddRow(){ const b=$("dgBox"); if(b) b.insertAdjacentHTML("beforeend",dgRowHtml({who:(teamActive()[0]||{}).name||"",key:"contacted",target:0})); }
-function dgEditorHtml(){ if(!isAdmin()) return "";
-  const rows=dgGoals().map(dgRowHtml).join("");
-  const dn=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"], wd=dgWorkDays();
-  const cks=[1,2,3,4,5,6,0].map(d=>'<label class="ck" style="margin-right:10px"><input type="checkbox" class="dgWd" value="'+d+'"'+(wd.indexOf(d)>=0?" checked":"")+'> '+dn[d]+'</label>').join("");
-  return '<div class="card"><h2>⚙️ Cibles quotidiennes</h2>'+
-    (dgSaved()?'':'<div class="hint" style="margin-bottom:9px">💡 Rien n\'est encore enregistré : ci-dessous des <b>propositions</b> de départ. Ajuste les chiffres puis clique « Enregistrer ».</div>')+
-    '<div id="dgBox">'+rows+'</div>'+
-    '<button type="button" class="addrow" onclick="dgAddRow()">+ Ajouter un objectif</button>'+
-    '<div style="margin:13px 0 6px;font-size:13px"><b>Jours travaillés</b> — les autres ne comptent ni dans la série ni dans les totaux :</div><div>'+cks+'</div>'+
-    '<button class="btn" style="margin-top:12px" onclick="dgSave()">💾 Enregistrer les objectifs</button>'+
-    '<div id="dgMsg" class="msg"></div></div>'; }
 function poleCardHtml(p, wk, admin){
   const rows=p.metrics.map(mt=>{ const real=wkReal(p.key,mt.key,wk), saved=wkTarget(wk,p.key,mt.key), auto=wkAutoTarget(p.key,mt.key,wk), eff=(saved!=null?saved:auto);
     const st=wkStatus(real, eff);
@@ -2092,119 +2037,13 @@ function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(
     '<div class="hint">Ton objectif de la semaine et ton avancement (calculé depuis tes EOD). Tu ne vois que les tiens.</div></div>'; }
 
 /* ===================== NAV (animée) ===================== */
-/* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
-let LINKEDIN=[], _liMetric="abo";
-const LI_METRICS=[["abo","Abonnés"],["impr7","Impressions 7j"],["impr28","Impressions 28j"],["eng7","Engagement 7j"],["eng28","Engagement 28j"],["vues","Vues profil 90j"],["rech","Recherches"]];
-const LI_LBL={abo:"⭐ Total abonnés",impr7:"Impressions 7j",impr28:"Impressions 28j",eng7:"Engagement 7j",eng28:"Engagement 28j",vues:"Vues profil 90j",rech:"Apparitions recherches"};
-function setLiMetric(k){ _liMetric=k; renderLinkedin(); }
-function liChartSvg(ws,key){
-  if(!ws.length) return '<div class="sub2" style="text-align:center;padding:20px 0">Ajoute des semaines pour voir la courbe.</div>';
-  const vals=ws.map(w=>Number(w[key])||0), max=Math.max(...vals,1), min=Math.min(...vals,0);
-  const W=520,H=150,pad=28, n=ws.length;
-  const X=i=> n<=1?W/2 : pad+(W-2*pad)*i/(n-1);
-  const Y=v=> H-22-(H-22-pad)*((v-min)/((max-min)||1));
-  const nf=v=>Number(v).toLocaleString('fr-FR');
-  const pts=vals.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
-  const area=`M${X(0).toFixed(1)},${(H-22).toFixed(1)} L`+pts.replace(/ /g," L")+` L${X(n-1).toFixed(1)},${(H-22).toFixed(1)} Z`;
-  const dots=vals.map((v,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#ff7a3d"/>`).join("");
-  const xl=ws.map((w,i)=>`<text x="${X(i).toFixed(1)}" y="${H-6}" fill="#9b9aa3" font-size="9" text-anchor="middle">${(w.date||'').slice(8,10)}/${(w.date||'').slice(5,7)}</text>`).join("");
-  const lastLbl=`<text x="${X(n-1).toFixed(1)}" y="${(Y(vals[n-1])-8).toFixed(1)}" fill="#f3f1ea" font-size="11" font-weight="700" text-anchor="${n>1?'end':'middle'}">${nf(vals[n-1])}</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
-    <defs><linearGradient id="ligl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7f5bc4"/><stop offset="1" stop-color="#ff7a3d"/></linearGradient>
-      <linearGradient id="liga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d" stop-opacity="0.25"/><stop offset="1" stop-color="#ff7a3d" stop-opacity="0"/></linearGradient></defs>
-    <path d="${area}" fill="url(#liga)"/>
-    <polyline points="${pts}" fill="none" stroke="url(#ligl)" stroke-width="2.5" stroke-linejoin="round"/>
-    ${dots}${xl}${lastLbl}
-  </svg>`;
-}
-async function loadLinkedin(){
-  if(!fbReady()){ $("liList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; } initFirebase();
-  const byDate={};
-  const mk=x=>({date:x.date, abo:x.abo||0, impr7:(x.impr7!=null?x.impr7:x.impr)||0, impr28:x.impr28||0, eng7:x.eng7||0, eng28:(x.eng28!=null?x.eng28:x.eng)||0, vues:x.vues||0, rech:x.rech||0, note:x.note||""});
-  try{ const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
-    snap.docs.forEach(d=>{ const x=d.data();
-      if(Array.isArray(x.weeks)){ x.weeks.forEach(w=>{ if(w&&w.date) byDate[w.date]=mk(w); }); }
-      else if(x.date && !x.deleted){ byDate[x.date]=mk(x); }
-      else if(x.date && x.deleted){ delete byDate[x.date]; }
-    });
-  }catch(e){}
-  LINKEDIN=Object.values(byDate).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  renderLinkedin();
-}
-async function saveLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
-  const g=id=>{ const e=$(id); return e?(Number(e.value)||0):0; };
-  const date=($("li_date")&&$("li_date").value)||todayStr();
-  const w={isLinkedin:true, date, abo:g("li_abo"), impr7:g("li_impr7"), impr28:g("li_impr28"), eng7:g("li_eng7"), eng28:g("li_eng28"), vues:g("li_vues"), rech:g("li_rech"), note:(($("li_note")&&$("li_note").value)||"").trim()};
-  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  if(!w.abo&&!w.impr7&&!w.impr28&&!w.eng7&&!w.eng28&&!w.vues&&!w.rech){ setMsg("Remplis au moins un chiffre.","err"); return; }
-  setMsg("Enregistrement…");
-  try{ await db.collection("setter_stats").doc("liweek_"+date).set(w);
-    ["li_abo","li_impr7","li_impr28","li_eng7","li_eng28","li_vues","li_rech","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";});
-    await loadLinkedin(); setMsg("Semaine enregistrée ✓","ok");
-  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
-}
-async function delLinkedin(date){ if(!isAdmin())return; if(!confirm("Supprimer cette semaine ?"))return; initFirebase();
-  try{ await db.collection("setter_stats").doc("liweek_"+date).set({isLinkedin:true, date, deleted:true}); await loadLinkedin(); }
-  catch(e){ alert("Erreur : "+e.message); } }
-function renderLinkedin(){
-  const box=$("liList"), kb=$("liKpis"); if(!box) return;
-  const ws=LINKEDIN.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  const nf=n=>Number(n||0).toLocaleString('fr-FR');
-  const series=k=>ws.filter(w=>Number(w[k])>0);
-  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" ");
-    const cw=series(_liMetric);
-    ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${cw.length?liChartSvg(cw,_liMetric):'<div class="sub2" style="text-align:center;padding:18px 0">Pas encore de donnée pour « '+(LI_LBL[_liMetric]||_liMetric)+' ».</div>'}</div>`:'<div class="sub2" style="padding:6px 2px">La courbe apparaît dès la 1re semaine enregistrée.</div>'; }
-  if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
-  if(kb){ const cards=LI_METRICS.map(([k,l])=>{ const s=series(k); if(!s.length) return ""; const cur=s[s.length-1], prev=s[s.length-2];
-      let delta=""; if(prev){ const dd=Number(cur[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(dd/Number(prev[k])*100):0, col=dd>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col};margin-top:2px">${dd>=0?"▲":"▼"} ${nf(Math.abs(dd))} (${pct>=0?'+':''}${pct}%)</div>`; }
-      return `<div class="box"><div class="n grad-text">${nf(cur[k])}</div><div class="l">${l}</div>${delta}</div>`; }).filter(Boolean).join("");
-    kb.innerHTML=cards||'<div class="sub2" style="padding:6px 2px">Ajoute une semaine pour voir les indicateurs.</div>'; }
-  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Saisis les chiffres de tes captures puis « Enregistrer la semaine ».</div>'; return; }
-  const desc=ws.slice().reverse();
-  box.innerHTML=desc.map(w=>{
-    const lines=LI_METRICS.map(([k,l])=>{ if(!(Number(w[k])>0)) return "";
-      const s=series(k); const idx=s.findIndex(x=>x.date===w.date); const prev=idx>0?s[idx-1]:null;
-      let d=""; if(prev){ const diff=Number(w[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(diff/Number(prev[k])*100):0, col=diff>=0?"#7ee2a3":"#ff6b6b"; d=` <span style="color:${col};font-size:12px">${diff>=0?"▲":"▼"} ${nf(Math.abs(diff))} (${pct>=0?'+':''}${pct}%)</span>`; }
-      return `<div class="kv"><span class="k">${l}</span><span class="v">${nf(w[k])}${d}</span></div>`; }).filter(Boolean).join("");
-    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center"><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="editLiWeek('${w.date}')">✎</button><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${w.note?`<div class="sub2" style="margin:2px 0 4px">${escapeHtml(w.note)}</div>`:""}${lines}</div>`;
-  }).join("");
-}
-// Import des 3 semaines réelles des captures de Clément (chaque chiffre dans le bon champ / la bonne fenêtre).
-async function seedLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
-  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
-  const weeks=[
-    {date:"2026-07-30", abo:7132, impr7:81231, vues:2506, rech:126, note:"Vue d'ensemble (7 j)"},
-    {date:"2026-08-07", abo:7453, impr28:145632, eng28:1914, note:"Stats contenu (28 j)"},
-    {date:"2026-08-14", abo:7707, impr7:14383, eng7:416, note:"Stats contenu 7 j (8→14 août)"}
-  ];
-  if(!confirm("Ça remplace toutes les données LinkedIn actuelles par les 3 semaines propres (30/07, 07/08, 14/08). OK ?")) return;
-  setMsg("Nettoyage des anciennes données…");
-  try{
-    // 1) on efface tout l'existant (ancien doc unique + semaines mal rangées) pour repartir propre
-    const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
-    for(const doc of snap.docs){
-      if(doc.id==="linkedin"){ await doc.ref.set({isLinkedin:true, weeks:[]}); }         // vide l'ancien doc unique
-      else { const dt=(doc.data().date)||doc.id.replace("liweek_",""); await doc.ref.set({isLinkedin:true, date:dt, deleted:true}); } // marque supprimé
-    }
-    // 2) on écrit les 3 semaines aux bons endroits
-    setMsg("Import des 3 semaines…");
-    for(const w of weeks){ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, abo:0,impr7:0,impr28:0,eng7:0,eng28:0,vues:0,rech:0, ...w}); }
-    await loadLinkedin(); setMsg("3 semaines importées proprement ✓","ok");
-  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
-}
-function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) return;
-  const s=(id,v)=>{const e=$(id);if(e)e.value=(v?v:"");};
-  s("li_date",w.date); s("li_abo",w.abo); s("li_impr7",w.impr7); s("li_impr28",w.impr28); s("li_eng7",w.eng7); s("li_eng28",w.eng28); s("li_vues",w.vues); s("li_rech",w.rech); s("li_note",w.note);
-  const m=$("liMsg"); if(m){m.className="msg";m.style.display="block";m.textContent="Semaine chargée — modifie les chiffres puis « Enregistrer ».";}
-  const f=$("li_date"); if(f) f.scrollIntoView({behavior:"smooth",block:"center"});
-}
 function show(v){
   // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
   if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
-  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
-  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="goals") loadGoals();
@@ -2214,7 +2053,76 @@ function show(v){
   if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
   if(v==="immersive") loadImmersive();
+  if(v==="unpaid") loadUnpaid();
 }
+/* ===================== IMPAYÉS (suivi recouvrement, visible par toute l'équipe) ===================== */
+const UNPAID_STATUS=[
+  {v:"relance",  l:"🔴 Relance en cours"},
+  {v:"a_retirer",l:"🟠 Accès à retirer"},
+  {v:"retire",   l:"⛔ Accès retiré"},
+  {v:"recouv",   l:"⚖️ Recouvrement"},
+  {v:"resolu",   l:"✅ Réglé / payé"},
+];
+function unpaidLabel(v){ const o=UNPAID_STATUS.find(x=>x.v===v); return o?o.l:"🔴 Relance en cours"; }
+async function loadUnpaid(){
+  const box=$("unpaidList"); if(!box) return;
+  if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
+  initFirebase(); box.innerHTML='<div class="empty">Chargement…</div>';
+  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
+  renderUnpaid();
+}
+function unpaidCount(){ return (CLIENTS||[]).filter(c=>c.impaye).length; }
+function updUnpaidNav(){ const b=$("nav-unpaid"); if(!b) return; const n=unpaidCount(); b.innerHTML='<span class="ic">⚠️</span>Impayés'+(n?` <span style="background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;font-weight:800">${n}</span>`:""); }
+function unpaidOverdue(){ const t=todayStr(); return (CLIENTS||[]).filter(c=>c.impaye && c.impaye_status!=="resolu" && c.impaye_date && c.impaye_date<t); }
+function renderUnpaid(){
+  const box=$("unpaidList"); if(!box) return; updUnpaidNav();
+  const money=canSeeMoney();
+  const list=CLIENTS.filter(c=>c.impaye).sort((a,b)=>String(a.impaye_date||"9999").localeCompare(String(b.impaye_date||"9999")));
+  if(!list.length){ box.innerHTML='<div class="card"><div class="empty">Aucun client impayé 🎉 — tout est réglé. (Pour en ajouter : coche « ⚠️ Impayé » sur une fiche client.)</div></div>'; return; }
+  const today=todayStr();
+  box.innerHTML=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${list.length}</b> client${list.length>1?"s":""} en impayé</div></div>`+list.map(c=>{
+    const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
+    const reste=clientReste(c); const overdue=c.impaye_date && c.impaye_date<today;
+    const opts=UNPAID_STATUS.map(o=>`<option value="${o.v}" ${o.v===(c.impaye_status||"relance")?"selected":""}>${o.l}</option>`).join("");
+    return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+        <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
+        <span class="gbadge" style="border-color:var(--red);color:#ff9a9a">${unpaidLabel(c.impaye_status)}</span>
+      </div>
+      ${money?`<div class="kv" style="margin-top:4px"><span class="k">💸 Reste à encaisser</span><span class="v" style="color:#ffcf7a">${eur(reste)}</span></div>`:""}
+      ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
+      <div class="payin" style="margin-top:8px">
+        <div><label>Statut</label><select class="upStatus">${opts}</select></div>
+        <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''}></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn ghost sm" style="width:auto" onclick="saveUnpaid('${c.id}')">💾 Enregistrer statut & date</button>
+        <button class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✅ Réglé — retirer de la liste</button>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📝 Historique des relances</div>
+        ${unpaidLogHtml(c)}
+        <div class="payin" style="margin-top:6px"><div style="flex:2"><input class="upNewNote" type="text" placeholder="Nouvelle note (datée automatiquement)…"></div><div style="flex:0"><button class="btn ghost sm" style="width:auto;white-space:nowrap" onclick="addUnpaidNote('${c.id}')">+ Ajouter</button></div></div>
+      </div>
+      <div class="upMsg msg"></div>
+    </div>`;
+  }).join("");
+}
+function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
+function unpaidLogHtml(c){ const l=unpaidLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
+  return l.map(e=>`<div class="kv" style="align-items:flex-start"><span class="k" style="white-space:nowrap">🗓 ${frDate(e.date)}</span><span class="v" style="text-align:left">${escapeHtml(e.text||"")}</span></div>`).join(""); }
+async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+  const status=card.querySelector('.upStatus').value, date=card.querySelector('.upDate').value||"";
+  const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({impaye_status:status, impaye_date:date}); c.impaye_status=status; c.impaye_date=date; m.className="msg ok"; m.textContent="Enregistré ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=document.querySelector('.card[data-id="'+CSS.escape(id)+'"]'); if(!c||!card) return;
+  const inp=card.querySelector('.upNewNote'); const txt=(inp&&inp.value||"").trim(); if(!txt){ return; }
+  const log=unpaidLog(c); log.push({date:todayStr(), text:txt, by:(LOGIN_NAME||"")});
+  const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Ajout…";
+  try{ await db.collection("clients").doc(id).update({impaye_log:log}); c.impaye_log=log; m.className="msg ok"; m.textContent="Note ajoutée ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+async function resolveUnpaid(id){ if(!fbReady())return; if(!confirm("Retirer ce client de la liste des impayés ? (l'étiquette Impayé sera enlevée)")) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  try{ await db.collection("clients").doc(id).update({impaye:false, impaye_status:"resolu"}); c.impaye=false; c.impaye_status="resolu"; renderUnpaid(); }catch(e){ alert("Erreur : "+e.message); } }
 async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -2306,6 +2214,8 @@ function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
 // SOURCE UNIQUE des closés du mois = tags EOD « Closé » + clients signés ce mois (dédup insensible ordre/accents). Utilisée par Conversions ET « Closés du mois » pour être cohérent.
 // Mois du CLOSING d'un client = le plus tôt entre la création de sa fiche (≈ signature) et sa date de début de contrat.
 // → un client signé en juillet mais dont le contrat démarre en août/septembre compte bien en JUILLET, pas au démarrage.
+// Vrai closé du mois = fiche avec un closer OU un montant. Les fiches créées par le coach pour un client existant/upsell (ni closer ni montant) ne comptent pas comme un close. Elles pèsent 0€ donc le CA signé ne change pas — seul le décompte se corrige.
+function isRealClose(c){ return (String((c&&c.closer)||"").trim()!=="") || (clientMontant(c)>0); }
 function closeMonth(c){
   const dd=(c&&c.date_debut||"").slice(0,7);
   let cr=""; const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ cr=ca.toDate().toISOString().slice(0,7); }catch(e){} }
@@ -2332,7 +2242,7 @@ function sameProspect(a,b){
 // Plus AUCune devinette de nom dans le compte → doublon impossible (fini "Betty H" vs "Haury Betty").
 function monthCloses(M){
   const list=[];
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return;
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return; if(!isRealClose(c)) return;
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return;
     list.push({prospect:nm, closer:(c.closer||"").trim()||"—", src:c.programme||"", date:c.date_debut||"", from:"client", id:c.id}); });
   return list;
@@ -2466,6 +2376,9 @@ async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFireba
   try{ await db.collection("setter_stats").doc("cfg_warns").set({isWarnCfg:true,map:WARNS},{merge:true}); renderTeamDigest(); }catch(e){ alert("Erreur : "+e.message); } }
 function renderInsights(selM, doneSet){
   const ins=[];
+  updUnpaidNav();
+  // Impayés dont la relance est dépassée → on remonte l'alerte pour que quelqu'un agisse.
+  unpaidOverdue().forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚠️",`Impayé <b>${escapeHtml(nm)}</b> — relance prévue le ${frDate(c.impaye_date)} (dépassée) · <span class="sub2">${escapeHtml(unpaidLabel(c.impaye_status))}</span>`]); });
   const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
@@ -2569,6 +2482,7 @@ const CLIENT_FIELDS=[
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
   { key:"statut",label:"Statut",type:"select" },
+  { key:"impaye",label:"⚠️ Impayé — suivi recouvrement (apparaît dans l'onglet Impayés, visible par l'équipe)",type:"check" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
 ];
@@ -2626,7 +2540,11 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
 }
 function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isAdmin())); }
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); toggleClientDelete(false); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
-function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+async function editClient(id){ let c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id;
+  // SÉCURITÉ ANTI-DÉSYNCHRO : on recharge la toute dernière version de CE client avant d'éditer,
+  // pour ne jamais écraser un paiement/une échéance validé·e entre-temps (encaissé qui retombe à 0…).
+  if(fbReady()){ initFirebase(); try{ const d=await db.collection("clients").doc(id).get(); if(d.exists){ c={id:d.id,...d.data()}; const idx=CLIENTS.findIndex(x=>x.id===id); if(idx>=0) CLIENTS[idx]=c; } }catch(e){} }
+  $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 async function deleteClient(){ if(!isAdmin()){ alert("Seul ton accès admin peut supprimer un client."); return; }
   const id=currentClientId; if(!id){ alert("Aucun client sélectionné."); return; }
   const c=CLIENTS.find(x=>x.id===id); const nom=c?((c.nom||"")+" "+(c.prenom||"")).trim():"ce client";
@@ -2753,6 +2671,7 @@ async function toggleSched(id,i){
 }
 function sameProg(cp, fp){ if(!fp) return true; if(cp===fp) return true; const oc=offerFor(cp), of=offerFor(fp); if(oc&&of&&oc.name===of.name) return true; return normOffer(cp)===normOffer(fp); }
 function renderClients(){
+  updUnpaidNav();
   // Le filtre programmes liste TOUS les programmes présents (réglages + fiches réelles), pour ne perdre aucun client
   const cfp=$("cfProg"); if(cfp){ const cur=cfp.value; const opts=[...new Set([...(SETTINGS.programmes||[]), ...CLIENTS.map(c=>c.programme).filter(Boolean)])];
     cfp.innerHTML='<option value="">Tous les programmes</option>'+opts.map(p=>`<option ${p===cur?'selected':''}>${escapeHtml(p)}</option>`).join(""); }
@@ -2807,7 +2726,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${c.impaye?' <span title="Impayé" style="color:#ff6b6b;font-weight:800">⚠️</span>':''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
@@ -2932,6 +2851,15 @@ async function loadFinance(){
   Object.keys(COO).forEach(mo=>{ const old=COO[mo]&&COO[mo].lines; if(Array.isArray(old)&&old.length && !(LOGI[mo]&&LOGI[mo].length)){ LOGI[mo]=old.map((l,i)=>({id:"g"+mo.replace(/-/g,"")+i, name:l.l||l.name||"", amount:Number(l.a!=null?l.a:l.amount)||0})); } });
   renderFinance();
 }
+// FIGE le mois d'archivage des personnes déjà archivées sans date (ex. la RH archivée avant ce correctif).
+// Sans ça, la date de coupure « bougeait » chaque mois et la personne réapparaissait dans un mois déjà passé.
+// Résultat garanti : archivé = retiré à partir de ce mois-ci et pour les suivants, JAMAIS des mois déjà faits.
+async function migrateArchivedFrom(){
+  if(!isAdmin() || !Array.isArray(SETTINGS.payList)) return;
+  let changed=false; const cur=monthStr();
+  SETTINGS.payList.forEach(p=>{ if(p && p.archived && !p.archivedFrom){ p.archivedFrom=cur; changed=true; } });
+  if(changed && fbReady()){ initFirebase(); try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, payList:SETTINGS.payList},{merge:true}); }catch(e){} }
+}
 function palier(n,table){ for(const [seuil,prime] of table){ if(n>=seuil) return prime; } return 0; }
 // Prime d'équipe par palier d'encaissé du mois (versée à CHAQUE closer et CHAQUE setter)
 const PALIERS_PRIME=[[100000,700,300],[75000,500,250],[50000,350,150],[25000,150,100]];
@@ -2974,7 +2902,7 @@ function renderFinance(){
   CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
-  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M);
+  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c));
   const genMonth=closedThisMonth.reduce((s,c)=>s+clientMontant(c),0);
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
@@ -3021,7 +2949,7 @@ function renderFinance(){
   const paiePlusPresta=totalPaie+prestaTot;
   const logiTot=logiTotal(M);
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
-  const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
+  const teamComm=pay.filter(p=>["closer","setter","coach","ads"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
     <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
