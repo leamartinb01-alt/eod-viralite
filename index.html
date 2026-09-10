@@ -2098,7 +2098,7 @@ function renderUnpaid(){
   box.innerHTML=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${list.length}</b> client${list.length>1?"s":""} en impayé</div></div>`+list.map(c=>{
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
     const reste=clientReste(c); const overdue=c.impaye_date && c.impaye_date<today;
-    const sinceAuto=unpaidSinceAuto(c), sinceDur=unpaidDurLabel(sinceAuto);
+    const sinceManual=c.impaye_since||"", sinceEff=sinceManual||unpaidSinceAuto(c), sinceDur=unpaidDurLabel(sinceEff);
     return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
         <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
@@ -2106,7 +2106,7 @@ function renderUnpaid(){
       </div>
       ${unpaidPipelineHtml(c)}
       <div class="payin" style="margin-top:4px">
-        <div><label>🕒 Impayé depuis</label><div style="padding:7px 2px;font-size:13px">${sinceAuto?`<b>${frDate(sinceAuto)}</b>${sinceDur?` · <span style="color:#ff9a9a">ça fait ${sinceDur}</span>`:""}`:'<span class="sub2">— (renseigne l\'échéancier)</span>'}</div></div>
+        <div><label>🕒 Impayé depuis (à remplir)</label><input type="date" class="upSince" value="${escapeHtml(sinceManual)}" onchange="saveUnpaidSince('${c.id}',this.value)">${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
         <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''} onchange="saveUnpaid('${c.id}')"></div>
       </div>
       ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
