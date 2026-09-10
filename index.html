@@ -2076,6 +2076,10 @@ function unpaidPipelineHtml(c){ const cur=unpaidStepIdx(c.impaye_status);
 // Impayé depuis = date de la PLUS VIEILLE échéance non payée (auto). Repli : champ manuel impaye_since.
 function unpaidSinceAuto(c){ const sc=(c&&c.schedule)||[]; const un=sc.filter(s=>!s.paid&&s.month).map(s=>String(s.month).slice(0,7)).sort(); if(un.length) return un[0]+"-01"; return (c&&c.impaye_since)?String(c.impaye_since).slice(0,10):""; }
 function unpaidDurLabel(dateStr){ if(!dateStr) return ""; const d=daysDiff(String(dateStr).slice(0,10), todayStr()); if(d==null||d<0) return ""; const mois=Math.floor(d/30); return d<30?`${d} j`:(mois<2?`1 mois (${d} j)`:`${mois} mois`); }
+// Menu déroulant de mois (24 derniers) pour « impayé depuis » — plus simple qu'un champ date.
+function sinceSelectHtml(id, sel){ const cur=String(sel||"").slice(0,7); const d=new Date(); d.setDate(1); let opts='<option value="">— choisir le mois —</option>';
+  for(let i=0;i<24;i++){ const val=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"; const lbl=d.toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); opts+=`<option value="${val}" ${val.slice(0,7)===cur?'selected':''}>${lbl}</option>`; d.setMonth(d.getMonth()-1); }
+  return `<select class="upSince" onchange="saveUnpaidSince('${id}',this.value)">${opts}</select>`; }
 // Date de bascule recouvrement = début de pause + 2 mois (règle : point mensuel, recouvrement si pas de retour après 2 mois).
 function unpaidRecouvDate(c){ const start=(c&&c.impaye_pause_date)||(c&&c.impaye_date)||""; return start?addMonthsISO(String(start).slice(0,10),2):""; }
 function unpaidPauseOverdue(c){ if(!c||c.impaye_status!=="pause") return false; const d=unpaidRecouvDate(c); return d && d<todayStr(); }
@@ -2106,7 +2110,7 @@ function renderUnpaid(){
       </div>
       ${unpaidPipelineHtml(c)}
       <div class="payin" style="margin-top:4px">
-        <div><label>🕒 Impayé depuis (à remplir)</label><input type="date" class="upSince" value="${escapeHtml(sinceManual)}" onchange="saveUnpaidSince('${c.id}',this.value)">${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
+        <div><label>🕒 Impayé depuis (mois)</label>${sinceSelectHtml(c.id, sinceManual)}${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
         <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''} onchange="saveUnpaid('${c.id}')"></div>
       </div>
       ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
