@@ -2057,13 +2057,18 @@ function show(v){
 }
 /* ===================== IMPAYÉS (suivi recouvrement, visible par toute l'équipe) ===================== */
 const UNPAID_STATUS=[
-  {v:"relance",  l:"🔴 Relance en cours"},
-  {v:"a_retirer",l:"🟠 Accès à retirer"},
-  {v:"retire",   l:"⛔ Accès retiré"},
-  {v:"recouv",   l:"⚖️ Recouvrement"},
-  {v:"resolu",   l:"✅ Réglé / payé"},
+  {v:"relance",   l:"🔴 Relance en cours"},
+  {v:"discussion",l:"🟡 En discussion"},
+  {v:"pause",     l:"⏸️ Accompagnement en pause"},
+  {v:"a_retirer", l:"🟠 Accès à retirer"},
+  {v:"retire",    l:"⛔ Accès retiré"},
+  {v:"recouv",    l:"⚖️ Recouvrement"},
+  {v:"resolu",    l:"✅ Réglé / payé"},
 ];
 function unpaidLabel(v){ const o=UNPAID_STATUS.find(x=>x.v===v); return o?o.l:"🔴 Relance en cours"; }
+// Date de bascule recouvrement = début de pause + 2 mois (règle : point mensuel, recouvrement si pas de retour après 2 mois).
+function unpaidRecouvDate(c){ const start=(c&&c.impaye_pause_date)||(c&&c.impaye_date)||""; return start?addMonthsISO(String(start).slice(0,10),2):""; }
+function unpaidPauseOverdue(c){ if(!c||c.impaye_status!=="pause") return false; const d=unpaidRecouvDate(c); return d && d<todayStr(); }
 async function loadUnpaid(){
   const box=$("unpaidList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -2092,9 +2097,13 @@ function renderUnpaid(){
       ${money?`<div class="kv" style="margin-top:4px"><span class="k">💸 Reste à encaisser</span><span class="v" style="color:#ffcf7a">${eur(reste)}</span></div>`:""}
       ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
       <div class="payin" style="margin-top:8px">
-        <div><label>Statut</label><select class="upStatus">${opts}</select></div>
+        <div><label>Statut</label><select class="upStatus" onchange="quickUnpaidStatus('${c.id}',this.value)">${opts}</select></div>
         <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''}></div>
       </div>
+      ${c.impaye_status==="pause"?`<div style="margin-top:8px;background:rgba(255,207,122,.08);border:1px solid rgba(255,207,122,.4);border-radius:10px;padding:8px 10px">
+        <label class="ck"><input type="checkbox" ${c.impaye_coach_ok?'checked':''} onchange="saveUnpaidCoachOk('${c.id}',this.checked)"> ✅ Romain (coach) est au courant de la pause</label>
+        <div class="sub2" style="margin-top:6px">⏸️ En pause depuis <b>${c.impaye_pause_date?frDate(c.impaye_pause_date):"—"}</b> · 🔁 faire un point <b>chaque mois</b> · ⚖️ si pas de retour avant <b style="color:${unpaidPauseOverdue(c)?'#ff9a9a':'#ffcf7a'}">${unpaidRecouvDate(c)?frDate(unpaidRecouvDate(c)):"—"}</b>, passer en recouvrement.${unpaidPauseOverdue(c)?' <b style="color:#ff9a9a">→ délai dépassé, à basculer en recouvrement.</b>':""}</div>
+      </div>`:""}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
         <button class="btn ghost sm" style="width:auto" onclick="saveUnpaid('${c.id}')">💾 Enregistrer statut & date</button>
         <button class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✅ Réglé — retirer de la liste</button>
@@ -2109,19 +2118,41 @@ function renderUnpaid(){
   }).join("");
 }
 function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
-function unpaidLogHtml(c){ const l=unpaidLog(c).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+function unpaidLogHtml(c){ const l=unpaidLog(c);
   if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
-  return l.map(e=>`<div class="kv" style="align-items:flex-start"><span class="k" style="white-space:nowrap">🗓 ${frDate(e.date)}</span><span class="v" style="text-align:left">${escapeHtml(e.text||"")}</span></div>`).join(""); }
+  // notes modifiables : édite le texte (auto-enregistré) ou supprime avec ✕
+  return l.map((e,i)=>`<div class="drow" data-i="${i}" style="display:flex;gap:6px;align-items:center;margin:4px 0">
+    <span class="sub2" style="white-space:nowrap">🗓 ${frDate(e.date)}</span>
+    <input class="upEdit" data-i="${i}" value="${escapeHtml(e.text||'')}" onchange="saveUnpaidNotes('${c.id}')" style="flex:1">
+    <button type="button" class="xrow" title="Supprimer la note" onclick="delUnpaidNote('${c.id}',${i})">✕</button>
+  </div>`).join(""); }
+async function saveUnpaidNotes(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
+  const base=unpaidLog(c);
+  const log=[...card.querySelectorAll('.upEdit')].map(inp=>{ const i=Number(inp.getAttribute('data-i')); const e=base[i]||{date:todayStr()}; return {date:e.date||todayStr(), text:(inp.value||'').trim(), by:e.by||''}; }).filter(x=>x.text);
+  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; renderUnpaid(); }catch(e){}
+}
+async function delUnpaidNote(id,i){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const log=unpaidLog(c).filter((_,j)=>j!==i);
+  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; renderUnpaid(); }catch(e){}
+}
 function unpaidCard(id){ return [...document.querySelectorAll('.card[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
 async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const status=card.querySelector('.upStatus').value, date=card.querySelector('.upDate').value||"";
   const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({impaye_status:status, impaye_date:date}); c.impaye_status=status; c.impaye_date=date; m.className="msg ok"; m.textContent="Enregistré ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+// Changement de statut immédiat (fluide). Passe en pause → on note la date de mise en pause (pour la règle des 2 mois).
+async function quickUnpaidStatus(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const upd={impaye_status:val};
+  if(val==="pause" && !c.impaye_pause_date) upd.impaye_pause_date=todayStr();
+  if(val!=="pause") upd.impaye_pause_date="";
+  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); renderUnpaid(); }catch(e){} }
+async function saveUnpaidCoachOk(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  try{ await db.collection("clients").doc(id).update({impaye_coach_ok:!!val}); c.impaye_coach_ok=!!val; }catch(e){} }
 async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const inp=card.querySelector('.upNewNote'); const txt=(inp&&inp.value||"").trim(); if(!txt){ return; }
   const log=unpaidLog(c); log.push({date:todayStr(), text:txt, by:(LOGIN_NAME||"")});
   const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Ajout…";
-  try{ await db.collection("clients").doc(id).update({impaye_log:log}); c.impaye_log=log; m.className="msg ok"; m.textContent="Note ajoutée ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; m.className="msg ok"; m.textContent="Note ajoutée ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 async function resolveUnpaid(id){ if(!fbReady())return; if(!confirm("Retirer ce client de la liste des impayés ? (l'étiquette Impayé sera enlevée)")) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   try{ await db.collection("clients").doc(id).update({impaye:false, impaye_status:"resolu"}); c.impaye=false; c.impaye_status="resolu"; renderUnpaid(); }catch(e){ alert("Erreur : "+e.message); } }
 async function loadImmersive(){
@@ -2380,6 +2411,8 @@ function renderInsights(selM, doneSet){
   updUnpaidNav();
   // Impayés dont la relance est dépassée → on remonte l'alerte pour que quelqu'un agisse.
   unpaidOverdue().forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚠️",`Impayé <b>${escapeHtml(nm)}</b> — relance prévue le ${frDate(c.impaye_date)} (dépassée) · <span class="sub2">${escapeHtml(unpaidLabel(c.impaye_status))}</span>`]); });
+  // Pause > 2 mois sans retour → à basculer en recouvrement.
+  (CLIENTS||[]).filter(c=>c.impaye && unpaidPauseOverdue(c)).forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚖️",`<b>${escapeHtml(nm)}</b> en pause depuis + de 2 mois sans retour — <b style="color:#ff9a9a">à passer en recouvrement</b>.`]); });
   const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
