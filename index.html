@@ -2111,7 +2111,14 @@ function renderUnpaid(){
       ${unpaidPipelineHtml(c)}
       <div class="payin" style="margin-top:4px">
         <div><label>🕒 Impayé depuis (mois)</label>${sinceSelectHtml(c.id, sinceManual)}${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
-        <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''} onchange="saveUnpaid('${c.id}')"></div>
+        <div><label>📅 Prochaine action (relance)</label>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:2px">
+            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',7)">+1 sem</button>
+            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',14)">+2 sem</button>
+            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',30)">+1 mois</button>
+            ${c.impaye_date?`<span class="sub2" style="white-space:nowrap">→ <b style="color:${overdue?'#ff9a9a':'#ffcf7a'}">${frDate(c.impaye_date)}</b>${overdue?' ⚠️':''} <button type="button" title="Effacer" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px" onclick="setUnpaidNext('${c.id}',null)">✕</button></span>`:'<span class="sub2">— aucune</span>'}
+          </div>
+        </div>
       </div>
       ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
       ${c.impaye_status==="pause"?`<div style="margin-top:8px;background:rgba(255,207,122,.08);border:1px solid rgba(255,207,122,.4);border-radius:10px;padding:8px 10px">
@@ -2156,6 +2163,10 @@ async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLI
   try{ await db.collection("clients").doc(id).update({impaye_date:date}); c.impaye_date=date; renderUnpaid(); }catch(e){} }
 async function saveUnpaidSince(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   try{ await db.collection("clients").doc(id).update({impaye_since:val||""}); c.impaye_since=val||""; renderUnpaid(); }catch(e){} }
+// Prochaine action : boutons rapides (+X jours) au lieu du champ date natif (buggé). days=null → efface.
+async function setUnpaidNext(id,days){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  let val=""; if(days!=null){ const d=new Date(); d.setDate(d.getDate()+Number(days)); val=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  try{ await db.collection("clients").doc(id).update({impaye_date:val}); c.impaye_date=val; renderUnpaid(); }catch(e){} }
 // Changement de statut immédiat (fluide). Passe en pause → on note la date de mise en pause (pour la règle des 2 mois).
 async function quickUnpaidStatus(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   const upd={impaye_status:val};
