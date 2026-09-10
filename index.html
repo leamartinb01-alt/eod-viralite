@@ -2073,8 +2073,9 @@ function unpaidPipelineHtml(c){ const cur=unpaidStepIdx(c.impaye_status);
     const bg=active?'var(--red)':(done?'rgba(52,199,89,.15)':'var(--card2)'), col=active?'#fff':(done?'#7ee2a3':'var(--muted)'), bd=active?'var(--red)':(done?'rgba(52,199,89,.45)':'var(--line)');
     return `<button type="button" onclick="quickUnpaidStatus('${c.id}','${s.v}')" style="flex:1;min-width:96px;background:${bg};color:${col};border:1px solid ${bd};border-radius:9px;padding:6px 6px;font-size:11.5px;font-weight:700;cursor:pointer">${done?'✓ ':''}${escapeHtml(s.l)}</button>`;
   }).join("")+`</div>`; }
-// Depuis combien de temps le client est impayé (date impaye_since).
-function unpaidSinceLabel(c){ const s=c&&c.impaye_since; if(!s) return ""; const d=daysDiff(String(s).slice(0,10), todayStr()); if(d==null) return ""; if(d<0) return ""; const mois=Math.floor(d/30); return d<30?`${d} j`:(mois<2?`${mois} mois (${d} j)`:`${mois} mois`); }
+// Impayé depuis = date de la PLUS VIEILLE échéance non payée (auto). Repli : champ manuel impaye_since.
+function unpaidSinceAuto(c){ const sc=(c&&c.schedule)||[]; const un=sc.filter(s=>!s.paid&&s.month).map(s=>String(s.month).slice(0,7)).sort(); if(un.length) return un[0]+"-01"; return (c&&c.impaye_since)?String(c.impaye_since).slice(0,10):""; }
+function unpaidDurLabel(dateStr){ if(!dateStr) return ""; const d=daysDiff(String(dateStr).slice(0,10), todayStr()); if(d==null||d<0) return ""; const mois=Math.floor(d/30); return d<30?`${d} j`:(mois<2?`1 mois (${d} j)`:`${mois} mois`); }
 // Date de bascule recouvrement = début de pause + 2 mois (règle : point mensuel, recouvrement si pas de retour après 2 mois).
 function unpaidRecouvDate(c){ const start=(c&&c.impaye_pause_date)||(c&&c.impaye_date)||""; return start?addMonthsISO(String(start).slice(0,10),2):""; }
 function unpaidPauseOverdue(c){ if(!c||c.impaye_status!=="pause") return false; const d=unpaidRecouvDate(c); return d && d<todayStr(); }
@@ -2097,7 +2098,7 @@ function renderUnpaid(){
   box.innerHTML=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${list.length}</b> client${list.length>1?"s":""} en impayé</div></div>`+list.map(c=>{
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
     const reste=clientReste(c); const overdue=c.impaye_date && c.impaye_date<today;
-    const since=unpaidSinceLabel(c);
+    const sinceAuto=unpaidSinceAuto(c), sinceDur=unpaidDurLabel(sinceAuto);
     return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
         <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
@@ -2105,7 +2106,7 @@ function renderUnpaid(){
       </div>
       ${unpaidPipelineHtml(c)}
       <div class="payin" style="margin-top:4px">
-        <div><label>🕒 Impayé depuis</label><input type="date" class="upSince" value="${escapeHtml(c.impaye_since||'')}" onchange="saveUnpaidSince('${c.id}',this.value)">${since?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${since}</b> qu'il n'a pas payé</div>`:""}</div>
+        <div><label>🕒 Impayé depuis</label><div style="padding:7px 2px;font-size:13px">${sinceAuto?`<b>${frDate(sinceAuto)}</b>${sinceDur?` · <span style="color:#ff9a9a">ça fait ${sinceDur}</span>`:""}`:'<span class="sub2">— (renseigne l\'échéancier)</span>'}</div></div>
         <div><label>📅 Prochaine action</label><input type="date" class="upDate" value="${escapeHtml(c.impaye_date||'')}"${overdue?' style="border-color:var(--red)"':''} onchange="saveUnpaid('${c.id}')"></div>
       </div>
       ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
@@ -2117,7 +2118,7 @@ function renderUnpaid(){
         <button class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✅ Réglé — retirer de la liste</button>
       </div>
       <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📝 Historique des relances</div>
+        <div class="sub2" style="font-weight:700;font-size:11.5px;margin-bottom:3px">📝 Historique des relances</div>
         ${unpaidLogHtml(c)}
         <div class="payin" style="margin-top:6px"><div style="flex:2"><input class="upNewNote" type="text" placeholder="Nouvelle note (datée automatiquement)…"></div><div style="flex:0"><button class="btn ghost sm" style="width:auto;white-space:nowrap" onclick="addUnpaidNote('${c.id}')">+ Ajouter</button></div></div>
       </div>
@@ -2128,13 +2129,13 @@ function renderUnpaid(){
 function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
 function unpaidLogHtml(c){ const l=unpaidLog(c);
   if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
-  // notes en lecture ; petit ✏️ pour éditer, ✕ pour supprimer.
-  return l.map((e,i)=>`<div class="drow" data-i="${i}" style="display:flex;gap:6px;align-items:center;margin:4px 0">
-    <span class="sub2" style="white-space:nowrap">🗓 ${frDate(e.date)}</span>
-    <span class="upView" data-i="${i}" style="flex:1">${escapeHtml(e.text||'')}</span>
-    <input class="upEdit hide" data-i="${i}" value="${escapeHtml(e.text||'')}" onchange="saveUnpaidNotes('${c.id}')" onblur="saveUnpaidNotes('${c.id}')" style="flex:1">
-    <button type="button" class="xrow" title="Modifier" onclick="var r=this.closest('.drow'),v=r.querySelector('.upView'),ip=r.querySelector('.upEdit');v.classList.toggle('hide');ip.classList.toggle('hide');if(!ip.classList.contains('hide'))ip.focus();">✏️</button>
-    <button type="button" class="xrow" title="Supprimer" onclick="delUnpaidNote('${c.id}',${i})">✕</button>
+  // notes en lecture (petit) ; petit ✏️ pour éditer, ✕ pour supprimer.
+  return l.map((e,i)=>`<div class="drow" data-i="${i}" style="display:flex;gap:5px;align-items:center;margin:2px 0;font-size:12px">
+    <span class="sub2" style="white-space:nowrap;font-size:11px">${frDate(e.date)}</span>
+    <span class="upView" data-i="${i}" style="flex:1;color:var(--muted)">${escapeHtml(e.text||'')}</span>
+    <input class="upEdit hide" data-i="${i}" value="${escapeHtml(e.text||'')}" onchange="saveUnpaidNotes('${c.id}')" onblur="saveUnpaidNotes('${c.id}')" style="flex:1;font-size:12px;padding:3px 6px">
+    <button type="button" title="Modifier" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:.6;padding:0 3px" onclick="var r=this.closest('.drow'),v=r.querySelector('.upView'),ip=r.querySelector('.upEdit');v.classList.toggle('hide');ip.classList.toggle('hide');if(!ip.classList.contains('hide'))ip.focus();">✏️</button>
+    <button type="button" title="Supprimer" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:.5;padding:0 3px" onclick="delUnpaidNote('${c.id}',${i})">✕</button>
   </div>`).join(""); }
 async function saveUnpaidNotes(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const base=unpaidLog(c);
@@ -2685,8 +2686,10 @@ function payMonthCard(M){
   const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totOrph=orphans.reduce((a,o)=>a+o.reste,0);
   // DÉJÀ ENCAISSÉ ce mois = TOUS les clients avec paidInMonth>0 (y compris litige : l'argent est encaissé), pour coller aux totaux du haut
-  const okCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
-  const totOk=okCls.reduce((a,c)=>a+paidInMonth(c,M),0);
+  const okAll=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+  const isArch=c=>(c.statut||"")==="Terminé" || ((c.statut||"")!=="Annulé / Litige" && clientMontant(c)>0 && clientReste(c)<=0); // contrat terminé ou entièrement soldé
+  const okCls=okAll.filter(c=>!isArch(c)); const okArch=okAll.filter(isArch);
+  const totOk=okAll.reduce((a,c)=>a+paidInMonth(c,M),0); // total du mois = actifs + archivés (le chiffre ne change pas)
   const okRow=c=>{ const amt=paidInMonth(c,M);
     const idx=(c.schedule||[]).findIndex(s=>s.paid && s.month===M);
     const g=(encGlobal(c)>0 && baseMonth(c)===M)?encGlobal(c):0;
@@ -2697,21 +2700,26 @@ function payMonthCard(M){
   const enAttente=due.length+late.length+orphans.length;
   return `<div class="card" style="margin-top:14px;border-color:${enAttente?'rgba(255,180,71,.45)':'rgba(52,199,89,.35)'}">
     <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
-    <p class="sub2" style="margin:0 0 6px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okCls.length})</p>
-    <details class="cdet"><summary>Voir le détail des paiements</summary>
-    <input type="text" id="paySearch" placeholder="🔎 Rechercher un client…" oninput="filterPayCard(this.value)" style="width:100%;margin:8px 0 4px">
+    <p class="sub2" style="margin:0 0 6px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okAll.length})</p>
+    <input type="text" id="paySearch" placeholder="🔎 Chercher un client…" oninput="filterPayCard(this.value)" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px;margin:0 0 6px">
+    <details class="cdet" id="payDetails"><summary>Voir le détail des paiements</summary>
     <div id="payCardRows">
     ${late.length?`<div class="section-title paysec" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title paysec" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
     ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
-    ${okCls.length?`<div class="section-title paysec" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length}) — ${eur(totOk)}</div>${okCls.map(okRow).join("")}`:'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>'}
+    ${okCls.length?`<div class="section-title paysec" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length})</div>${okCls.map(okRow).join("")}`:(okArch.length?'':'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>')}
+    ${okArch.length?`<details class="cdet payarch" style="margin-top:10px"><summary class="sub2">📦 Archivés — contrats soldés / terminés (${okArch.length})</summary>${okArch.map(okRow).join("")}</details>`:""}
     </div></details>
   </div>`;
 }
 // Recherche client dans le tableau des paiements (Finance). Filtre les lignes + masque les titres de section vides.
 function filterPayCard(q){ const box=$("payCardRows"); if(!box) return; q=(q||"").toLowerCase().trim();
+  const det=$("payDetails"); if(det && q) det.open=true; // ouvre le détail dès qu'on cherche
   box.querySelectorAll(".kv").forEach(r=>{ r.style.display=(!q||r.textContent.toLowerCase().includes(q))?"":"none"; });
-  box.querySelectorAll(".paysec").forEach(t=>{ let n=t.nextElementSibling, vis=false; while(n && !n.classList.contains("paysec")){ if(n.classList.contains("kv") && n.style.display!=="none"){ vis=true; break; } n=n.nextElementSibling; } t.style.display=(!q||vis)?"":"none"; });
+  // titres de section : masqués si aucune ligne visible en dessous
+  box.querySelectorAll(".section-title.paysec").forEach(t=>{ let n=t.nextElementSibling, vis=false; while(n && !(n.classList&&n.classList.contains("paysec")) && n.tagName!=="DETAILS"){ if(n.classList&&n.classList.contains("kv") && n.style.display!=="none"){ vis=true; break; } n=n.nextElementSibling; } t.style.display=(!q||vis)?"":"none"; });
+  // sous-liste « Archivés » : on l'ouvre et on la garde visible seulement si un client y correspond
+  box.querySelectorAll("details.payarch").forEach(d=>{ const anyVis=[...d.querySelectorAll(".kv")].some(r=>r.style.display!=="none"); if(q){ d.style.display=anyVis?"":"none"; if(anyVis) d.open=true; } else { d.style.display=""; d.open=false; } });
 }
 async function toggleSched(id,i){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
