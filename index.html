@@ -3454,6 +3454,7 @@ function renderFinTable(){
   if(!ms.length) ms=lastMonths(4).reverse();
   const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
   if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Aucun client pour l'instant.</div>`; return; }
+  const finArch=c=>(c.statut||"")==="Terminé" || ((c.statut||"")!=="Annulé / Litige" && clientMontant(c)>0 && clientReste(c)<=0); // contrat soldé/terminé
   const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Encaissé</th><th>Reste</th></tr>`;
   const body=rows.map(c=>{
     const enc=clientEncaisse(c), reste=clientReste(c);
@@ -3468,12 +3469,27 @@ function renderFinTable(){
       if(Math.round(p)>=1) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
       if(Math.round(d)>=1) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
       return `<td>${parts.length?parts.join('<br>'):'<span style="color:var(--faint)">—</span>'}</td>`; }).join("");
-    return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
+    return `<tr class="fitrow" data-name="${escapeHtml(nomP.toLowerCase())}" data-arch="${finArch(c)?'1':'0'}"><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
   const totReste=rows.reduce((s,c)=>s+clientReste(c),0);
-  $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
+  const nArch=rows.filter(finArch).length;
+  $("finTable").innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <input type="text" id="finTableSearch" placeholder="🔎 Chercher un client…" oninput="filterFinTable()" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px">
+      ${nArch?`<label class="ck" style="font-size:12px"><input type="checkbox" id="finTableArch" onchange="filterFinTable()"> 📦 voir les soldés/terminés (${nArch})</label>`:""}
+    </div>
+    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
+  filterFinTable();
+}
+// Recherche + filtre archivés dans le tableau « Encaissements par client × mois ».
+function filterFinTable(){ const box=$("finTable"); if(!box) return;
+  const q=(($("finTableSearch")&&$("finTableSearch").value)||"").toLowerCase().trim();
+  const showArch=!!($("finTableArch")&&$("finTableArch").checked);
+  box.querySelectorAll("tr.fitrow").forEach(tr=>{ const nm=tr.getAttribute("data-name")||""; const arch=tr.getAttribute("data-arch")==="1";
+    let ok = (!q || nm.includes(q));
+    if(ok && arch && !showArch && !q) ok=false; // masque les soldés/terminés par défaut, sauf si on les demande ou qu'on recherche
+    tr.style.display=ok?"":"none"; });
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
