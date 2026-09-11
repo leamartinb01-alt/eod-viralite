@@ -1915,7 +1915,7 @@ const POLES=[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
   {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
-    {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
+    {key:"budget",label:"Budget dépensé (€)"},{key:"vues",label:"Vues"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
 ];
 // Repères marché par semaine (base quand il n'y a pas encore d'historique). Servent au calcul auto des objectifs.
@@ -1924,7 +1924,7 @@ const BENCH={
   set_linkedin:{contacted:150,in_contact:40,calls_booked:8},
   set_appel:{contacted:300,in_contact:75,calls_booked:10},
   vente:{calls_done:20,closed:5},
-  ads:{budget:0,leads:20,rdv_ads:8},
+  ads:{budget:0,vues:0,leads:20,rdv_ads:8},
 };
 function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
 function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
