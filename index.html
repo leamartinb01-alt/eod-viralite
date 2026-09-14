@@ -2695,7 +2695,8 @@ function payMonthCard(M){
     return !(c.schedule||[]).some(s=>!s.paid);
   }).map(c=>({c,reste:clientMontant(c)-clientEncaisse(c)}));
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
-  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
+  const lnInfo=c=>{ const p=[]; if(c.date_debut) p.push("📅 contrat "+frDate(c.date_debut)); if(c.mail) p.push("✉️ "+escapeHtml(c.mail)); return p.length?`<br><span class="sub2" style="font-size:10.5px">${p.join(" · ")}</span>`:""; };
+  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}${lnInfo(r.c)}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
   const due=mois.filter(r=>!r.s.paid);
   const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
@@ -2721,7 +2722,7 @@ function payMonthCard(M){
     <div id="payCardRows">
     ${late.length?`<div class="section-title paysec" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title paysec" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
-    ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
+    ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span>${lnInfo(o.c)}</span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
     ${okCls.length?`<div class="section-title paysec" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length})</div>${okCls.map(okRow).join("")}`:(okArch.length?'':'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>')}
     ${okArch.length?`<details class="cdet payarch" style="margin-top:10px"><summary class="sub2">📦 Archivés — contrats soldés / terminés (${okArch.length})</summary>${okArch.map(okRow).join("")}</details>`:""}
     </div></details>
