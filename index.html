@@ -917,9 +917,12 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
   return o; }
 
 /* ===================== ACCÈS ===================== */
-let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
+let ACCESS="team";
+// "manager" = accès gestion : voit et gère tout (Finance incluse) SAUF les Comptes bancaires (Dubai) et les Réglages.
+const isAdmin=()=>ACCESS==="admin"||ACCESS==="manager"; // droits d'édition (finance, clients, impayés, équipe…)
+const isFullAdmin=()=>ACCESS==="admin"; // réservé Léa : Comptes bancaires + Réglages + sauvegarde
 const canClients=()=>true; // onglet Clients visible pour tous
-const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin) ET Anthony (client) ; masqués pour l'équipe (closers/coachs)
+const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin), le manager, ET Anthony (client) ; masqués pour l'équipe
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -989,10 +992,10 @@ function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
   $("nav-clients").classList.toggle("hide", !canClients());
   $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
-  $("nav-goals").classList.toggle("hide", !isAdmin()); // seule Léa voit la vue globale des objectifs (chacun voit les siens sur son EOD)
-  $("nav-finance").classList.toggle("hide", !isAdmin());
-  $("nav-accounts").classList.toggle("hide", !isAdmin());
-  $("nav-settings").classList.toggle("hide", !isAdmin());
+  $("nav-goals").classList.toggle("hide", !isAdmin()); // objectifs : admin + manager (chacun voit les siens sur son EOD)
+  $("nav-finance").classList.toggle("hide", !isAdmin()); // finance : admin + manager
+  $("nav-accounts").classList.toggle("hide", !isFullAdmin()); // Comptes bancaires (Dubai) : Léa uniquement
+  $("nav-settings").classList.toggle("hide", !isFullAdmin()); // Réglages : Léa uniquement
   initApp();
 }
 async function login(){
@@ -1006,7 +1009,7 @@ async function login(){
   try{ initFirebase(); let logins=[];
     if(db){ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get(); if(d.exists&&Array.isArray(d.data().logins)) logins=d.data().logins; }
     const m=logins.find(u=>u && email && String(u.email||"").trim().toLowerCase()===email && String(u.code||"")===v);
-    if(m){ ACCESS=(m.role==="admin"||m.role==="client")?m.role:"team"; LOGIN_NAME=m.name||""; return applyNavAccess(); }
+    if(m){ ACCESS=(m.role==="admin"||m.role==="client"||m.role==="manager")?m.role:"team"; LOGIN_NAME=m.name||""; return applyNavAccess(); }
   }catch(err){}
   e.className="msg err"; e.style.display="block"; e.textContent="Email ou mot de passe incorrect.";
 }
@@ -1136,7 +1139,7 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
-function loginRow(it){ it=it||{}; const roles=[["team","Équipe"],["client","Clients (Anthony)"],["admin","Admin (tout)"]];
+function loginRow(it){ it=it||{}; const roles=[["team","Équipe"],["client","Clients (Anthony)"],["manager","Gestion (tout sauf Comptes & Réglages)"],["admin","Admin (tout)"]];
   return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
     <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
     <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
@@ -2038,8 +2041,9 @@ function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(
 
 /* ===================== NAV (animée) ===================== */
 function show(v){
-  // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
-  if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
+  // Sécurité accès : Finance = admin/manager ; Comptes (banque Dubai) & Réglages = Léa uniquement (full admin).
+  if(v==="finance" && !isAdmin()) v="form";
+  if((v==="settings"||v==="accounts") && !isFullAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
   if(v==="clients" && !canClients()) v="form";
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
@@ -2599,14 +2603,14 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
-function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isAdmin())); }
+function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isFullAdmin())); }
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); toggleClientDelete(false); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
 async function editClient(id){ let c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id;
   // SÉCURITÉ ANTI-DÉSYNCHRO : on recharge la toute dernière version de CE client avant d'éditer,
   // pour ne jamais écraser un paiement/une échéance validé·e entre-temps (encaissé qui retombe à 0…).
   if(fbReady()){ initFirebase(); try{ const d=await db.collection("clients").doc(id).get(); if(d.exists){ c={id:d.id,...d.data()}; const idx=CLIENTS.findIndex(x=>x.id===id); if(idx>=0) CLIENTS[idx]=c; } }catch(e){} }
   $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
-async function deleteClient(){ if(!isAdmin()){ alert("Seul ton accès admin peut supprimer un client."); return; }
+async function deleteClient(){ if(!isFullAdmin()){ alert("Seule Léa (admin) peut supprimer un client."); return; }
   const id=currentClientId; if(!id){ alert("Aucun client sélectionné."); return; }
   const c=CLIENTS.find(x=>x.id===id); const nom=c?((c.nom||"")+" "+(c.prenom||"")).trim():"ce client";
   if(!confirm("Supprimer « "+nom+" » ?\n\nLe client disparaît de partout dans l'app. À n'utiliser qu'en cas d'erreur de saisie.")) return;
