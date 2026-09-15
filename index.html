@@ -1440,12 +1440,14 @@ function loicDueDate(c){ const base=lastLoicDate(c)||onbDate(c); return base?add
 async function markLoicCall(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
   const arr=Array.isArray(c.loic_calls)?c.loic_calls.slice():[]; arr.push(todayStr());
   try{ await db.collection("clients").doc(id).update({loic_calls:arr}); c.loic_calls=arr; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
+// Depuis 09/2026 : sur Viral Pro, Loïc fait UNIQUEMENT l'onboarding → pas de call Loïc récurrent. Les relances Loïc ne concernent qu'Élite Viral & Mentorat.
+function loicNeedsCall(c){ const p=normOffer(c&&c.programme); return /elite|mentorat/.test(p); }
 function loicCallsCard(cs){
   const today=todayStr(); const soon=(()=>{ const d=new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
-  const items=cs.map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
+  const items=cs.filter(loicNeedsCall).map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
   const row=o=>{ const overdue=o.due<today; const col=overdue?"#ff6b6b":"#ffcf7a";
     return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${o.last?"dernier appel Loïc "+frDate(o.last):"jamais appelé"}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} <button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button></span></div>`; };
-  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:6px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients sont à jour de leur appel Loïc du mois.</div>'}</div>`;
+  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:2px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div><div class="sub2" style="margin-bottom:6px">Élite Viral & Mentorat uniquement · sur Viral Pro, Loïc ne fait que l'onboarding.</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients Élite Viral & Mentorat sont à jour de leur appel Loïc.</div>'}</div>`;
 }
 // Upsells à préparer : à J-10 de la fin de contrat, le closer prépare l'upsell (pas encore upsellé).
 function upsellDueCard(cs){
