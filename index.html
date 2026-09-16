@@ -843,6 +843,12 @@ function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
+// Cadence attendue par mois = nb de séances de l'offre / nb de mois (Viral Pro 9/3, Élite 12/4, Mentorat 18/6 → 3 partout).
+function coachPerMonth(c){ const o=offerFor(c&&c.programme); if(o&&Number(o.sessions)&&Number(o.months)) return Math.max(1,Math.round(Number(o.sessions)/Number(o.months))); return 3; }
+// Fenêtre mensuelle courante calée sur l'anniversaire d'onboarding (15/09→15/10, 15/10→15/11…).
+function coachWindow(c){ const onb=onbDate(c); if(!onb) return null; const today=todayStr(); let start=String(onb).slice(0,10), g=0; while(g<120){ const next=addMonthsISO(start,1); if(next && next<=today){ start=next; g++; } else break; } return {start, end:addMonthsISO(start,1)}; }
+// Nb de calls/coachings pointés dans la fenêtre mensuelle courante.
+function coachDoneThisMonth(c){ const w=coachWindow(c); if(!w) return 0; const log=(c&&c.coaching&&c.coaching.log)||[]; return log.filter(e=>{ const d=e&&e.date?String(e.date).slice(0,10):""; return d && d>=w.start && (!w.end || d<w.end); }).reduce((s,e)=>s+(Number(e.n)||1),0); }
 function weekDates(wstr){ const m=/^(\d{4})-W(\d{2})$/.exec(wstr||""); if(!m) return null; const y=+m[1], w=+m[2]; const simple=new Date(Date.UTC(y,0,1+(w-1)*7)); const dow=simple.getUTCDay(); const start=new Date(simple); if(dow<=4) start.setUTCDate(simple.getUTCDate()-dow+1); else start.setUTCDate(simple.getUTCDate()+8-dow); const end=new Date(start); end.setUTCDate(start.getUTCDate()+6); return [start,end]; }
 function cgWeekLabel(wstr){ const r=weekDates(wstr); if(!r) return wstr||""; const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "sem. "+f(r[0])+" → "+f(r[1]); }
 function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
@@ -1311,6 +1317,8 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
     const lv=clientLevel(done); const cs2=coachCallStatus(c);
     const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
+    const cm=coachDoneThisMonth(c), cmt=coachPerMonth(c), cmCol=cm>=cmt?'#7ee2a3':(cm>0?'#ffcf7a':'var(--red)');
+    const callsMonthB = `<span class="gbadge" style="border-color:${cmCol};color:${cmCol}" title="Calls pris dans le mois en cours (depuis l'anniversaire d'onboarding)">📞 ${cm}/${cmt} ce mois</span>`;
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
@@ -1321,7 +1329,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
       <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        ${callsB}${editoB}
+        ${callsMonthB}${callsB}${editoB}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>
       </div>
@@ -1444,22 +1452,13 @@ async function markLoicCall(id){ if(!fbReady())return; initFirebase(); const c=C
 function loicNeedsCall(c){ const p=normOffer(c&&c.programme); return /elite|mentorat/.test(p); }
 function isViralPro(c){ return /viral pro/.test(normOffer(c&&c.programme)); }
 function lastCoachDate(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; let d=""; log.forEach(e=>{ if(e&&e.date && String(e.date).slice(0,10)>d) d=String(e.date).slice(0,10); }); return d; }
-// Un « point à prendre » = 1 audit/appel par mois. Loïc pour Élite/Mentorat ; le coach dédié pour Viral Pro.
-function pointsToTake(cs){ const soon=(()=>{ const d=new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
-  return cs.map(c=>{ let base,owner,manual;
-    if(loicNeedsCall(c)){ base=lastLoicDate(c)||onbDate(c); owner="Loïc"; manual=true; }
-    else if(isViralPro(c)){ base=lastCoachDate(c)||onbDate(c); owner=(coachesOf(c).join(" / ")||"Coach"); manual=false; }
-    else return null;
-    const due=base?addMonthsISO(String(base).slice(0,10),1):"";
-    return due?{c,last:base,due,owner,manual}:null;
-  }).filter(o=>o && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due)); }
 function loicCallsCard(cs){
-  const today=todayStr(); const items=pointsToTake(cs);
+  const today=todayStr(); const soon=(()=>{ const d=new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
+  // Uniquement les calls de Loïc (Élite Viral & Mentorat). Sur Viral Pro, Loïc ne fait que l'onboarding → les coachings sont suivis dans le tableau coaching normal.
+  const items=cs.filter(loicNeedsCall).map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
   const row=o=>{ const overdue=o.due<today; const col=overdue?"#ff6b6b":"#ffcf7a";
-    const dernier=o.last?"dernier "+(o.manual?"appel Loïc ":"coaching ")+frDate(o.last):(o.manual?"jamais appelé":"jamais coaché");
-    const btn=o.manual?`<button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button>`:`<span class="sub2" style="margin-left:6px">→ via coaching</span>`;
-    return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· 👤 ${escapeHtml(o.owner)} · ${dernier}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} ${btn}</span></div>`; };
-  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:2px">📞 Points à prendre — 1 / mois / client (${items.length})</div><div class="sub2" style="margin-bottom:6px">Élite Viral & Mentorat → Loïc · Viral Pro → le coach dédié (se met à jour dès qu'un coaching est pointé).</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients sont à jour de leur point du mois.</div>'}</div>`;
+    return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${o.last?"dernier appel Loïc "+frDate(o.last):"jamais appelé"}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} <button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button></span></div>`; };
+  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:2px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div><div class="sub2" style="margin-bottom:6px">Élite Viral & Mentorat uniquement · Viral Pro : suivi via le coaching normal (coach).</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients Élite Viral & Mentorat sont à jour de leur appel Loïc.</div>'}</div>`;
 }
 // Upsells à préparer : à J-10 de la fin de contrat, le closer prépare l'upsell (pas encore upsellé).
 function upsellDueCard(cs){
@@ -3084,7 +3083,7 @@ function renderFinance(){
   const dueCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
   // Détail cliquable du 💰 Encaissé : uniquement ce qui est compté ce mois
   (function(){ const eb=$("encBreak"); if(!eb) return;
-    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" (acompte)"); return parts.join(" + "); };
+    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" ("+monthShort(M)+")"); return parts.join(" + "); };
     const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>';
     eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
       <div style="font-weight:800;margin-bottom:6px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
