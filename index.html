@@ -2743,8 +2743,7 @@ function payMonthCard(M){
     ${late.length?`<div class="section-title paysec" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title paysec" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
     ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span>${lnInfo(o.c)}</span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
-    ${okCls.length?`<div class="section-title paysec" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length})</div>${okCls.map(okRow).join("")}`:(okArch.length?'':'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>')}
-    ${okArch.length?`<details class="cdet payarch" style="margin-top:10px"><summary class="sub2">📦 Archivés — contrats soldés / terminés (${okArch.length})</summary>${okArch.map(okRow).join("")}</details>`:""}
+    ${(!late.length&&!due.length&&!orphans.length)?'<div class="sub2" style="margin-top:10px">✅ Rien en attente ce mois — tout est encaissé.</div>':""}
     </div></details>
   </div>`;
 }
@@ -2761,8 +2760,19 @@ async function toggleSched(id,i){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
   const c=CLIENTS.find(x=>x.id===id); if(!c||!Array.isArray(c.schedule)||!c.schedule[i]) return;
-  const sch=c.schedule.map((s,j)=> j===i?{...s,paid:!s.paid}:s);
-  try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); if($("finMonth")) renderFinance(); }
+  const s=c.schedule[i]; let sch, warn="";
+  if(!s.paid){
+    // On encaisse : possibilité de corriger le montant réellement reçu.
+    const prev=Number(s.amount)||0;
+    const inp=prompt("Montant réellement encaissé ? (prévu : "+eur(prev)+")\n\nLaisse tel quel si c'est le bon montant.", prev);
+    if(inp===null) return; // annulé
+    const amt=Math.round((Number(String(inp).replace(",",".").replace(/[^0-9.]/g,""))||0));
+    sch=c.schedule.map((x,j)=> j===i?{...x,paid:true,amount:amt}:x);
+    if(amt!==prev) warn="⚠️ Montant modifié : "+eur(amt)+" encaissé (au lieu de "+eur(prev)+" prévu).\n\nPense à vérifier le MONTANT TOTAL du contrat sur la fiche client si besoin (pour que le « reste à encaisser » reste juste).";
+  } else {
+    sch=c.schedule.map((x,j)=> j===i?{...x,paid:false}:x); // on décoche : on ne touche pas au montant
+  }
+  try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); if($("finMonth")) renderFinance(); if(warn) alert(warn); }
   catch(e){ alert("Erreur : "+e.message); }
 }
 function sameProg(cp, fp){ if(!fp) return true; if(cp===fp) return true; const oc=offerFor(cp), of=offerFor(fp); if(oc&&of&&oc.name===of.name) return true; return normOffer(cp)===normOffer(fp); }
@@ -3048,7 +3058,7 @@ function renderFinance(){
   const teamComm=pay.filter(p=>["closer","setter","coach","ads"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
   $("finStats").innerHTML=`
-    <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
+    <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">🆕 <b style="color:#7ee2a3">${eur(newCash)}</b> new · 🔁 <b style="color:#8fb4ff">${eur(recCash)}</b> récurrent</div></div>
     <div class="box clic" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueMonth)}</div><div class="l">⏳ À encaisser en ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">total contrats : ${eur(dueTotal)}</div></div>
     <div class="box clic" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 CA signé ${monthShort(M)}</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
@@ -3508,12 +3518,6 @@ function renderFinTable(){
     return `<tr class="fitrow" data-name="${escapeHtml(nomP.toLowerCase())}" data-arch="${finArch(c)?'1':'0'}"><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
-  // New cash (client démarré ce mois) vs Récurrent (échéance d'un client plus ancien), par mois.
-  const newCashM=m=>rows.reduce((s,c)=>s+(baseMonth(c)===m?paidInMonth(c,m):0),0);
-  const recCashM=m=>rows.reduce((s,c)=>s+(baseMonth(c)!==m?paidInMonth(c,m):0),0);
-  const newRow=ms.map(m=>`<td style="color:#7ee2a3">${eur(newCashM(m))}</td>`).join("");
-  const recRow=ms.map(m=>`<td style="color:#8fb4ff">${eur(recCashM(m))}</td>`).join("");
-  const totNew=ms.reduce((s,m)=>s+newCashM(m),0), totRec=ms.reduce((s,m)=>s+recCashM(m),0);
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
   const totReste=rows.reduce((s,c)=>s+clientReste(c),0);
   const nArch=rows.filter(finArch).length;
@@ -3521,7 +3525,7 @@ function renderFinTable(){
       <input type="text" id="finTableSearch" placeholder="🔎 Chercher un client…" oninput="filterFinTable()" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px">
       ${nArch?`<label class="ck" style="font-size:12px"><input type="checkbox" id="finTableArch" onchange="filterFinTable()"> 📦 voir les soldés/terminés (${nArch})</label>`:""}
     </div>
-    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr><tr class="tot"><td style="color:#7ee2a3">🆕 New cash</td>${newRow}<td style="color:#7ee2a3">${eur(totNew)}</td><td>—</td></tr><tr class="tot"><td style="color:#8fb4ff">🔁 Récurrent</td>${recRow}<td style="color:#8fb4ff">${eur(totRec)}</td><td>—</td></tr></tbody></table></div>`;
+    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
   filterFinTable();
 }
 // Recherche + filtre archivés dans le tableau « Encaissements par client × mois ».
