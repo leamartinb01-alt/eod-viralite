@@ -2730,7 +2730,7 @@ function payMonthCard(M){
     const idx=(c.schedule||[]).findIndex(s=>s.paid && s.month===M);
     const g=(encGlobal(c)>0 && baseMonth(c)===M)?encGlobal(c):0;
     const lit=(c.statut||"")==="Annulé / Litige";
-    const tag=(idx>=0&&g>0)?"échéance + encaissé global":(idx>=0?"échéance "+monthShort(M):"encaissé (montant global)");
+    const tag=(idx>=0&&g>0)?("encaissé "+monthShort(M)):(idx>=0?("échéance "+monthShort(M)):("encaissé "+monthShort(M)+" · saisi fiche"));
     const btn=idx>=0?`<button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${c.id}',${idx})">↩︎ Annuler</button>`:`<span class="sub2" style="cursor:pointer;text-decoration:underline" onclick="editClient('${c.id}')">modifier</span>`;
     return `<div class="kv" style="align-items:center"><span class="k">✅ ${offerEmoji(c.programme)} ${nom(c)} ${lit?'<span class="pill warn" style="font-size:10px;padding:1px 6px">litige</span> ':''}<span class="sub2">· ${tag}</span></span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b style="color:#7ee2a3">${eur(amt)}</b>${btn}</span></div>`; };
   const enAttente=due.length+late.length+orphans.length;
@@ -3508,6 +3508,12 @@ function renderFinTable(){
     return `<tr class="fitrow" data-name="${escapeHtml(nomP.toLowerCase())}" data-arch="${finArch(c)?'1':'0'}"><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
+  // New cash (client démarré ce mois) vs Récurrent (échéance d'un client plus ancien), par mois.
+  const newCashM=m=>rows.reduce((s,c)=>s+(baseMonth(c)===m?paidInMonth(c,m):0),0);
+  const recCashM=m=>rows.reduce((s,c)=>s+(baseMonth(c)!==m?paidInMonth(c,m):0),0);
+  const newRow=ms.map(m=>`<td style="color:#7ee2a3">${eur(newCashM(m))}</td>`).join("");
+  const recRow=ms.map(m=>`<td style="color:#8fb4ff">${eur(recCashM(m))}</td>`).join("");
+  const totNew=ms.reduce((s,m)=>s+newCashM(m),0), totRec=ms.reduce((s,m)=>s+recCashM(m),0);
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
   const totReste=rows.reduce((s,c)=>s+clientReste(c),0);
   const nArch=rows.filter(finArch).length;
@@ -3515,7 +3521,7 @@ function renderFinTable(){
       <input type="text" id="finTableSearch" placeholder="🔎 Chercher un client…" oninput="filterFinTable()" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px">
       ${nArch?`<label class="ck" style="font-size:12px"><input type="checkbox" id="finTableArch" onchange="filterFinTable()"> 📦 voir les soldés/terminés (${nArch})</label>`:""}
     </div>
-    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
+    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr><tr class="tot"><td style="color:#7ee2a3">🆕 New cash</td>${newRow}<td style="color:#7ee2a3">${eur(totNew)}</td><td>—</td></tr><tr class="tot"><td style="color:#8fb4ff">🔁 Récurrent</td>${recRow}<td style="color:#8fb4ff">${eur(totRec)}</td><td>—</td></tr></tbody></table></div>`;
   filterFinTable();
 }
 // Recherche + filtre archivés dans le tableau « Encaissements par client × mois ».
