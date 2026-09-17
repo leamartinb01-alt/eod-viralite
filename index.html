@@ -3094,10 +3094,13 @@ function renderFinance(){
   // Détail cliquable du 💰 Encaissé : uniquement ce qui est compté ce mois
   (function(){ const eb=$("encBreak"); if(!eb) return;
     const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" ("+monthShort(M)+")"); return parts.join(" + "); };
-    const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>';
+    const rowC=c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`;
+    const newList=encCls.filter(c=>baseMonth(c)===M), recList=encCls.filter(c=>baseMonth(c)!==M);
+    const sec=(title,list,col)=> list.length?`<div class="section-title" style="margin:10px 2px 2px;color:${col}">${title} (${list.length}) — ${eur(list.reduce((s,c)=>s+paidInMonth(c,M),0))}</div>${list.map(rowC).join("")}`:"";
     eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
-      <div style="font-weight:800;margin-bottom:6px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
-      ${counted}
+      <div style="font-weight:800;margin-bottom:2px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
+      <div class="sub2" style="margin-bottom:4px">🆕 <b style="color:#7ee2a3">${eur(newCash)}</b> new · 🔁 <b style="color:#8fb4ff">${eur(recCash)}</b> récurrent</div>
+      ${(newList.length||recList.length)?sec("🆕 Nouveaux clients ce mois",newList,"#7ee2a3")+sec("🔁 Récurrent (clients déjà là)",recList,"#8fb4ff"):'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>'}
     </div>`;
   })();
   // Détail cliquable du ⏳ Reste à encaisser : partie CE MOIS (échéances planifiées) + partie TOTAL (reste dû sur les contrats)
