@@ -756,6 +756,17 @@ const FORMS = {
     { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
   ],
+  // Setter APPEL (ex : Emerry) — funnel téléphonique dédié : messages → réponses → appels réservés → appels qualifiés.
+  setter_appel:[
+    { key:"messages",     label:"💬 Messages envoyés aujourd'hui",              type:"number" },
+    { key:"replies",      label:"↩️ Réponses reçues",                          type:"number" },
+    { key:"calls_booked", label:"📅 Appels réservés (RDV calés)",              type:"number" },
+    { key:"calls_qualif", label:"✅ Appels qualifiés",                         type:"number" },
+    { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
+    { key:"need_help",    label:"Un blocage / besoin d'aide ?",                type:"textarea" },
+    { key:"mood",         label:"Ton énergie du jour ⚡️",                     type:"mood" },
+    { key:"feeling",      label:"Un mot sur ta journée ? (optionnel)",         type:"textarea" },
+  ],
   coach:[
     { key:"clientlog", label:"📋 Suivi clients du jour — action + note pour chaque client coaché", type:"clientlog" },
     { key:"skool_pass",   label:"🎓 Passe Skool faite — questions clients checkées & répondues", type:"check" },
@@ -773,6 +784,8 @@ const FORMS = {
     { key:"feeling",  label:"Un mot sur ta journée ? (optionnel)",    type:"textarea" },
   ],
 };
+// Champs EOD à afficher pour une personne : un setter sur le canal APPEL a son propre jeu d'indicateurs (messages/réponses/réservés/qualifiés).
+function eodFields(role,name){ if(role==="setter" && memberChannel(member(name))==="appel") return FORMS.setter_appel; return FORMS[role]||[]; }
 const MOOD_CLIENT=[{v:"Bien",e:"😄"},{v:"Moyen",e:"😐"},{v:"Pas bien",e:"😟"}];
 function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.warning, wr=val.warnReason||"", ras=!!val.ras;
   const moodBtns=MOOD_CLIENT.map(m=>`<button type="button" class="cmood${mood===m.v?' sel':''}" data-v="${m.v}" onclick="pickCMood(this)">${m.e} ${m.v}</button>`).join("");
@@ -1719,7 +1732,7 @@ async function exportReport(){
   const monthOpts=months.map(M=>`<option value="${esc(M)}">${esc(monthLabel(M))}</option>`).join("");
   const eodSorted=eods.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
   const eodHtml=eodSorted.map(x=>{
-    const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
+    const role=x.role||""; const flds=eodFields(role,x.member); const parts=[];
     flds.forEach(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
       if(f.type==="srccount"){ const a=srcArr(x); if(a.length){ const tot=a.reduce((s,z)=>s+(Number(z.n)||0),0); parts.push("Contactés ("+tot+"): "+a.map(z=>esc(z.src||'?')+" "+(z.n||0)).join(", ")); } return; }
@@ -1821,7 +1834,7 @@ let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
   if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
-  FORMS[role].forEach(f=>{
+  eodFields(role,$("member").value).forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
     if(f.type==="mood"){
@@ -1852,7 +1865,7 @@ function onMember(){
 }
 function fillEodForm(x){
   const role=member(x.member).role;
-  FORMS[role].forEach(f=>{
+  eodFields(role,x.member).forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
@@ -1874,7 +1887,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -1897,7 +1910,7 @@ async function submitEod(){
       await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload, created_at:firebase.firestore.FieldValue.serverTimestamp() });
       msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
     }
-    FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
+    eodFields(role,name).forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
@@ -1925,8 +1938,8 @@ const POLES=[
     {key:"contacted",label:"Contactées"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
   ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
   {key:"set_appel", label:"📞 Setting Appel / Rappel", src:"auto", role:"setter", ch:"appel", metrics:[
-    {key:"contacted",label:"Appelés / contactés"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
-  ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
+    {key:"messages",label:"Messages envoyés"},{key:"replies",label:"Réponses reçues"},{key:"calls_booked",label:"Appels réservés (RDV)"},{key:"calls_qualif",label:"Appels qualifiés"}
+  ], derived:{label:"Taux réponse → RDV", num:"calls_booked", den:"replies"}},
   {key:"vente", label:"💰 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
@@ -1938,7 +1951,7 @@ const POLES=[
 const BENCH={
   set_insta:{contacted:150,in_contact:45,calls_booked:8},
   set_linkedin:{contacted:150,in_contact:40,calls_booked:8},
-  set_appel:{contacted:300,in_contact:75,calls_booked:10},
+  set_appel:{messages:150,replies:50,calls_booked:10,calls_qualif:5},
   vente:{calls_done:20,closed:5},
   ads:{budget:0,vues:0,leads:20,rdv_ads:8},
 };
@@ -2349,9 +2362,9 @@ function closerConv(name,M){
   const closed=monthCloses(M).filter(l=>l.closer===name).length;
   return {calls,closed,show,no};
 }
-function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
+function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0,messages=0,replies=0,qualif=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; messages+=Number(p.messages)||0; replies+=Number(p.replies)||0; qualif+=Number(p.calls_qualif)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
   const booked=Math.max(bookedNum, bookedList); // RDV pris : que le setter les saisisse en nombre OU en liste
-  return {contacted,inContact,booked,verified}; }
+  return {contacted,inContact,booked,verified,messages,replies,qualif}; }
 // Ventilation par source (mini-chats, ADS, commentaires…) sur le mois : contacts saisis par source + RDV pris rattachés à cette source. Sert à voir ce qui convertit le mieux sur Insta.
 function setterSrcStats(name,M){ const map={};
   const get=s=>{ const k=s||"(sans source)"; return map[k]||(map[k]={src:k,contacts:0,rdv:0,verif:0}); };
@@ -2370,6 +2383,11 @@ function renderConversions(M){
     return `<div class="convrow"><div class="convh"><span class="convn">💼 ${escapeHtml(m.name)}</span><span class="convbig">${cv}</span></div>
       <div class="sub2">${c.calls} appels → ${c.closed} closés <span style="opacity:.6">(soit ${c.closed}/${c.calls})</span> · ${c.show} show-up · ${c.no} no-show${p.calls?`<br><span style="opacity:.55">${monthShort(pm)} : ${pv} — ${p.closed}/${p.calls} appels</span>`:""}</div></div>`; }).join("");
   const sRows=setters.map(m=>{ const s=setterConv(m.name,M), p=setterConv(m.name,pm);
+    if(memberChannel(m)==="appel"){
+      const cvR=pctTxt(s.replies,s.messages), cvB=pctTxt(s.booked,s.replies), cvQ=pctTxt(s.qualif,s.booked), pvB=pctTxt(p.booked,p.replies);
+      return `<div class="convrow"><div class="convh"><span class="convn">📞 ${escapeHtml(m.name)}</span><span class="convbig">${cvB} <span class="sub2" style="font-weight:600">réponse→RDV</span></span></div>
+        <div class="sub2">${s.messages} messages → ${s.replies} réponses <span style="opacity:.6">(${cvR})</span> · ${s.booked} appels réservés · ${s.qualif} qualifiés${s.booked?` <span style="opacity:.6">(${cvQ} qualifiés/réservés)</span>`:""} · ${s.verified} vérifiés${p.replies?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvB} réponse→RDV — ${p.booked}/${p.replies}</span>`:""}</div>${setterSrcHtml(m.name,M)}</div>`;
+    }
     const cvC=pctTxt(s.booked,s.contacted), cvV=pctTxt(s.booked,s.inContact), pvC=pctTxt(p.booked,p.contacted);
     return `<div class="convrow"><div class="convh"><span class="convn">🎯 ${escapeHtml(m.name)}</span><span class="convbig">${cvC} <span class="sub2" style="font-weight:600">contact→RDV · ${cvV} conv→RDV</span></span></div>
       <div class="sub2">${s.contacted} contactés → ${s.booked} RDV pris <span style="opacity:.6">(${s.booked}/${s.contacted})</span> · ${s.inContact} conversations → ${s.booked} RDV <span style="opacity:.6">(${s.booked}/${s.inContact})</span> · ${s.verified} vérifiés${p.contacted?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvC} contact→RDV — ${p.booked}/${p.contacted}</span>`:""}</div>${setterSrcHtml(m.name,M)}</div>`; }).join("");
@@ -2501,7 +2519,7 @@ function openMember(name){
   }
   const today=todayStr(), didToday=list.some(x=>x.report_date===today);
   const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
-  const fields=FORMS[m.role];
+  const fields=eodFields(m.role,m.name);
   const monthList=month.sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date)));
   const history = monthList.length ? monthList.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
@@ -3005,7 +3023,7 @@ function renderFinance(){
   const dueTot=dueTotal; // (compat) total = même chiffre que le tableau
   // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
   let newCash=0, recCash=0;
-  CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
+  CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(isNewClientMonth(c,M)) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
   const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c));
@@ -3095,7 +3113,7 @@ function renderFinance(){
   (function(){ const eb=$("encBreak"); if(!eb) return;
     const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" ("+monthShort(M)+")"); return parts.join(" + "); };
     const rowC=c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`;
-    const newList=encCls.filter(c=>baseMonth(c)===M), recList=encCls.filter(c=>baseMonth(c)!==M);
+    const newList=encCls.filter(c=>isNewClientMonth(c,M)), recList=encCls.filter(c=>!isNewClientMonth(c,M));
     const sec=(title,list,col)=> list.length?`<div class="section-title" style="margin:10px 2px 2px;color:${col}">${title} (${list.length}) — ${eur(list.reduce((s,c)=>s+paidInMonth(c,M),0))}</div>${list.map(rowC).join("")}`:"";
     eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
       <div style="font-weight:800;margin-bottom:2px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
@@ -3417,6 +3435,17 @@ function encGlobal(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaid
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
   const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ return ca.toDate().toISOString().slice(0,7); }catch(e){} }
   return monthStr(); } // on NE rattache PAS à une échéance future : date de démarrage → création → mois courant
+/* Vrai 1er mois du client (le plus tôt de toutes les traces) : date de début, création de la fiche, OU la 1re échéance de son plan.
+   → un client est "nouveau ce mois" UNIQUEMENT si aucune de ces traces n'est antérieure. Sinon = récurrent (déjà là), même si la date de début est mal renseignée. */
+function clientFirstMonth(c){
+  const ms=[];
+  const dd=(c&&c.date_debut||"").slice(0,7); if(dd) ms.push(dd);
+  const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ ms.push(ca.toDate().toISOString().slice(0,7)); }catch(e){} }
+  (c&&c.schedule||[]).forEach(s=>{ if(s.month) ms.push(s.month); });
+  if(!ms.length) return baseMonth(c);
+  ms.sort(); return ms[0];
+}
+function isNewClientMonth(c,M){ return clientFirstMonth(c)===M; }
 function paidInMonth(c,M){
   const s=(c&&c.schedule||[]).filter(x=>x.paid&&x.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
   return s + (encGlobal(c)>0 && baseMonth(c)===M ? encGlobal(c) : 0);
