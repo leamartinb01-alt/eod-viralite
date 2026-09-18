@@ -1350,6 +1350,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
       </div>
       ${editoMonths(c)}
       ${satisMonths(c)}
+      ${rappelsBlock(c)}
       <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       <div class="cgadd">
@@ -1444,6 +1445,25 @@ async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLI
   const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
   const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+/* Note de suivi des rappels faits — un texte libre par client, dans l'espace coaching. Visible par toute l'équipe. */
+function rappelsBlock(c){ const nb=((c.coach_rappels||"").match(/\n/g)||[]).length + ((c.coach_rappels||"").trim()?1:0);
+  return `<details class="cdet" style="margin-top:10px"><summary>📞 Suivi des rappels${nb?` — ${nb} ligne${nb>1?'s':''}`:''}</summary>
+    <div class="rapbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">
+      <label>Note des rappels faits (une ligne par rappel)</label>
+      <textarea class="cgRappels" rows="4" placeholder="Ex : 12/09/2026 : rappelé, pas de réponse — à relancer lundi">${escapeHtml(c.coach_rappels||"")}</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button type="button" class="btn ghost sm" onclick="addRappelDate('${c.id}')">📅 + Date du jour</button>
+        <button type="button" class="btn ghost sm" onclick="saveRappels('${c.id}')">💾 Enregistrer</button>
+      </div>
+      <div class="rapMsg msg"></div>
+    </div></details>`; }
+function rapBoxOf(id){ return [...document.querySelectorAll('.rapbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
+function addRappelDate(id){ const box=rapBoxOf(id); if(!box) return; const ta=box.querySelector(".cgRappels"); if(!ta) return;
+  const line=frDate(todayStr())+" : "; const cur=ta.value||""; ta.value=(cur && !cur.endsWith("\n")?cur+"\n":cur)+line; ta.focus(); ta.selectionStart=ta.selectionEnd=ta.value.length; }
+async function saveRappels(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=rapBoxOf(id); if(!c||!box) return;
+  const val=((box.querySelector(".cgRappels")&&box.querySelector(".cgRappels").value)||"").trim();
+  const m=box.querySelector(".rapMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({coach_rappels:val}); c.coach_rappels=val; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function firstCoachDate(c){ // 1er coaching pointé = call d'onboarding
   const log=(c&&c.coaching&&c.coaching.log)||[];
@@ -2189,7 +2209,7 @@ async function delUnpaidNote(id,i){ if(!fbReady())return; initFirebase(); const 
   const log=unpaidLog(c).filter((_,j)=>j!==i);
   try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; renderUnpaid(); }catch(e){}
 }
-function unpaidCard(id){ return [...document.querySelectorAll('.card[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
+function unpaidCard(id){ const root=$("unpaidList")||document; return [...root.querySelectorAll('.card[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
 async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
   const de=card.querySelector('.upDate'); const date=(de&&de.value)||"";
   try{ await db.collection("clients").doc(id).update({impaye_date:date}); c.impaye_date=date; renderUnpaid(); }catch(e){} }
