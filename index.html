@@ -576,6 +576,8 @@
     <div id="finTable"></div>
     <div class="section-title" style="margin-top:22px">💎 Ma rémunération (Léa · COO)</div>
     <div id="cooCard"></div>
+    <div class="section-title" style="margin-top:22px">💼 Rémunération Anthony (Head of Sales)</div>
+    <div id="anthoCard"></div>
   </div>
 
   <!-- RÉGLAGES -->
@@ -1707,7 +1709,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isAntho||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -2916,6 +2918,7 @@ async function saveVerifyNote(id){
 /* ===================== FINANCE & PAIE ===================== */
 let SSTATS={}; // key member|month -> {rdv,closes,posts}
 let COO={};    // key month -> {ca, soft, lines} pour la commission COO de Léa
+let ANTHO={};  // key month -> {fixe, ca, varOn, baseRef, force, facture} pour la rému d'Anthony (Head of Sales)
 let PRESTA={}; // key month -> [ {id,name,amount,cat,note,paid,fileUrl,fileName} ] prestataires hors équipe
 let LOGI={};   // key month -> [ {id,name,amount,note,paid,fileUrl,fileName} ] logiciels (déduits de la marge COO)
 let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
@@ -2970,7 +2973,7 @@ async function loadFinance(){
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isLinkedin) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; ANTHO={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isAntho){ ANTHO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isLinkedin) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   // Récupère les anciens logiciels saisis dans la carte COO (coo.lines) → section Logiciels, si pas encore de section pour ce mois
   Object.keys(COO).forEach(mo=>{ const old=COO[mo]&&COO[mo].lines; if(Array.isArray(old)&&old.length && !(LOGI[mo]&&LOGI[mo].length)){ LOGI[mo]=old.map((l,i)=>({id:"g"+mo.replace(/-/g,"")+i, name:l.l||l.name||"", amount:Number(l.a!=null?l.a:l.amount)||0})); } });
   renderFinance();
@@ -3075,6 +3078,7 @@ function renderFinance(){
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
   const teamComm=pay.filter(p=>["closer","setter","coach","ads"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
+  renderAntho(M, encTot);
   $("finStats").innerHTML=`
     <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">🆕 <b style="color:#7ee2a3">${eur(newCash)}</b> new · 🔁 <b style="color:#8fb4ff">${eur(recCash)}</b> récurrent</div></div>
     <div class="box clic" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueMonth)}</div><div class="l">⏳ À encaisser en ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">total contrats : ${eur(dueTotal)}</div></div>
@@ -3416,6 +3420,8 @@ async function saveAllFinance(M){ M=M||($("finMonth")&&$("finMonth").value)||mon
       const facture=($("coo_facture")&&$("coo_facture").value.trim())||"";
       COO[M]={ca:gv("coo_ca"),team:gv("coo_team"),presta:gv("coo_presta"),fixe:gv("coo_fixe"),soft:gv("coo_soft"),force:gv("coo_force"),facture};
       writes.push(db.collection("setter_stats").doc("coo_"+M).set({isCoo:true,month:M,ca:COO[M].ca,team:COO[M].team,presta:COO[M].presta,fixe:COO[M].fixe,soft:COO[M].soft,force:COO[M].force,facture})); }
+    // 5) Rému Anthony (Head of Sales)
+    if($("antho_ca")||$("antho_force")){ ANTHO[M]=anthoGather(M); writes.push(db.collection("setter_stats").doc("antho_"+M).set({isAntho:true,month:M,...ANTHO[M]})); }
     await Promise.all(writes);
     renderFinance();
     const m2=$("saveAllMsg"); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent="✅ Tout est enregistré ("+nFiches+" fiches de paie + logiciels + prestas + ta commission) — rien n'a été oublié."; }
@@ -3523,6 +3529,104 @@ async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); retur
   COO[M]={ca:gv("coo_ca"), team:gv("coo_team"), presta:gv("coo_presta"), fixe:gv("coo_fixe"), soft:gv("coo_soft"), force:gv("coo_force"), facture};
   const m=$("cooMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
   try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, soft:COO[M].soft, force:COO[M].force, facture}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
+  catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+}
+
+/* ===================== RÉMUNÉRATION ANTHONY (Head of Sales) ===================== */
+// Contrat Liberty Corp × Exodus du 14/09/2026.
+//  • Phase 1 (jusqu'au 31/10/2026) : fixe 4 000 € = 2 000 € sept. + 2 000 € oct. + (option) 8 % du CA encaissé INCRÉMENTAL au-dessus d'une base de référence.
+//  • Phase 2 (à partir du 01/11/2026) : pas de fixe, barème progressif par tranches sur le CA encaissé du mois (6 % / 7 % / 8 %).
+// Tout est modifiable à la main ; « Forcer le total » écrase le calcul. Bloc autonome (pas ré-injecté dans la marge COO → aucun risque de doublon).
+const ANTHO_PH2_START="2026-11"; // 1er novembre 2026
+function anthoIsPh2(M){ return String(M||"")>=ANTHO_PH2_START; }
+function anthoFixeDefault(M){ return (M==="2026-09"||M==="2026-10")?2000:0; } // fixe contractuel Phase 1
+// Barème progressif Phase 2 : 6 % de 0 à 50k, 7 % de 50k à 100k, 8 % au-delà — chaque taux sur SA tranche uniquement.
+function anthoTranches(ca){ ca=Math.max(0,Number(ca)||0); const parts=[];
+  const t1=Math.min(ca,50000); if(t1>0){ parts.push({base:t1,pct:6,montant:t1*0.06}); }
+  const t2=Math.min(Math.max(ca-50000,0),50000); if(t2>0){ parts.push({base:t2,pct:7,montant:t2*0.07}); }
+  const t3=Math.max(ca-100000,0); if(t3>0){ parts.push({base:t3,pct:8,montant:t3*0.08}); }
+  const total=parts.reduce((s,p)=>s+p.montant,0); return {total:Math.round(total),parts};
+}
+let _anthoAuto=0, _anthoMonth="";
+function renderAntho(M, caAuto){
+  const box=$("anthoCard"); if(!box) return;
+  if(!isAdmin()){ box.innerHTML=""; return; }
+  _anthoAuto=Math.round(Number(caAuto)||0); _anthoMonth=M;
+  const a=ANTHO[M]||{};
+  const vOr=v=>(v!=null&&v!=="")?v:'';
+  const ph2=anthoIsPh2(M);
+  const fixeDef=anthoFixeDefault(M);
+  const phaseTxt=ph2
+    ? `📈 <b>Phase 2</b> (à partir du 1<sup>er</sup> nov. 2026) — barème progressif par tranches, pas de fixe.`
+    : `🧱 <b>Phase 1</b> (jusqu'au 31 oct. 2026) — fixe ${eur(fixeDef)} ce mois${fixeDef?"":" (0 hors sept./oct.)"} + option part variable 8 % incrémentale.`;
+  box.innerHTML=`<details class="cdet"><summary style="font-weight:800;padding:10px 2px">💼 Détail rému Anthony — ${monthLabel(M)} <span class="sub2" style="font-weight:600">— clique pour déplier</span></summary><div class="card" style="margin-top:6px">
+    <div class="sub2" style="margin-bottom:8px">${phaseTxt}</div>
+    <label>CA encaissé effectif du mois (vide = auto : ${eur(_anthoAuto)})</label>
+    <input type="number" inputmode="numeric" id="antho_ca" value="${vOr(a.ca)}" placeholder="auto : ${_anthoAuto}" oninput="anthoRecalc()">
+    ${ph2?`
+      <div style="font-size:12px;color:var(--muted);margin:10px 0 2px">📊 Barème progressif (chaque taux sur sa tranche) :</div>
+      <div id="anthoGrid"></div>
+    `:`
+      <div class="payin" style="margin-top:8px">
+        <div><label>💶 Part fixe du mois (€)</label><input type="number" inputmode="numeric" id="antho_fixe" value="${vOr(a.fixe)}" placeholder="${fixeDef}" oninput="anthoRecalc()"></div>
+        <div><label>📐 Base de référence (€) — pour le variable</label><input type="number" inputmode="numeric" id="antho_baseref" value="${vOr(a.baseRef)}" placeholder="0" oninput="anthoRecalc()"></div>
+      </div>
+      <label class="ckline" style="margin-top:10px"><input type="checkbox" id="antho_varon" ${a.varOn?'checked':''} onchange="anthoRecalc()"> Activer la part variable : 8 % du CA encaissé au-dessus de la base de référence</label>
+    `}
+    <div class="kv" style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px"><span class="k">${ph2?'Rému variable (barème)':'Part fixe'}</span><span class="v" id="antho_l1"></span></div>
+    ${ph2?'':'<div class="kv"><span class="k">Part variable (8 % incrémental)</span><span class="v" style="color:#7ee2a3" id="antho_l2"></span></div>'}
+    <div class="sub2" id="antho_calc" style="text-align:right;opacity:.75;margin:-2px 0 4px"></div>
+    <div class="payin" style="margin-top:6px"><div><label>💰 Forcer le total à verser (optionnel)</label><input type="number" inputmode="numeric" id="antho_force" value="${vOr(a.force)}" placeholder="auto" oninput="anthoRecalc()"></div><div></div></div>
+    <label style="margin-top:8px">🔗 Lien de sa facture</label>
+    <input type="url" id="antho_facture" value="${escapeHtml(a.facture||'')}" placeholder="Colle le lien de la facture d'Anthony (Drive…) puis Enregistre">
+    ${a.facture?`<div style="margin-top:4px"><a href="${escapeHtml(a.facture)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 voir la facture</a></div>`:""}
+    <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">💰 Total à verser à Anthony</span><span class="v grad-text" style="font-weight:800;font-size:16px" id="antho_tot"></span></div>
+    <button class="btn ghost sm" style="margin-top:10px" onclick="saveAntho('${M}')">💾 Enregistrer ${M}</button>
+    <div id="anthoMsg" class="msg"></div>
+    <div class="hint">Rému d'Anthony (Head of Sales) selon son contrat. Ce bloc est <b>autonome</b> : il n'est pas déduit automatiquement de ta marge COO, donc pense à reporter ce montant dans tes déductions COO (ou sa fiche de paie) si tu veux qu'il pèse sur ta marge — pour éviter tout doublon, ne le compte qu'une seule fois. Tout est modifiable ; « Forcer le total » écrase le calcul.</div>
+  </div></details>`;
+  anthoRecalc();
+}
+function anthoRecalc(){ const box=$("anthoCard"); if(!box||!$("antho_ca")) return;
+  const M=_anthoMonth, ph2=anthoIsPh2(M);
+  const val=(id,dft)=>{ const e=$(id); if(!e||e.value==="") return dft; return Number(e.value)||0; };
+  const ca=val("antho_ca",_anthoAuto);
+  const fIn=$("antho_force")&&$("antho_force").value!==""?(Number($("antho_force").value)||0):null;
+  const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
+  let total=0, calc="";
+  if(ph2){
+    const tr=anthoTranches(ca);
+    set("antho_l1", eur(tr.total));
+    const g=$("anthoGrid"); if(g) g.innerHTML=anthoGridHtml(ca);
+    calc=tr.parts.length?tr.parts.map(p=>`${p.pct}% × ${eur(p.base)} = ${eur(Math.round(p.montant))}`).join(" + "):"0";
+    total=fIn!=null?fIn:tr.total;
+  } else {
+    const fixe=val("antho_fixe",anthoFixeDefault(M));
+    const varOn=$("antho_varon")&&$("antho_varon").checked;
+    const baseRef=val("antho_baseref",0);
+    const variable=varOn?Math.round(Math.max(0,ca-baseRef)*0.08):0;
+    set("antho_l1", eur(fixe));
+    set("antho_l2", eur(variable));
+    calc=varOn?`fixe ${eur(fixe)} + 8% × (${eur(ca)} − ${eur(baseRef)}) = ${eur(fixe)} + ${eur(variable)}`:`fixe ${eur(fixe)}`;
+    total=fIn!=null?fIn:fixe+variable;
+  }
+  set("antho_calc", calc);
+  set("antho_tot", eur(total)+(fIn!=null?" (forcé)":""));
+}
+function anthoGridHtml(ca){ ca=Math.max(0,Number(ca)||0);
+  const rows=[["0 à 50 000 €","6 %",ca>0],["50 000 € à 100 000 €","7 %",ca>50000],["Au-delà de 100 000 €","8 %",ca>100000]];
+  return `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:6px 0">
+    <div style="display:flex;background:var(--card2);font-size:11.5px;font-weight:700;color:var(--muted)"><div style="flex:1;padding:7px 10px">Tranche de CA encaissé du mois</div><div style="width:74px;padding:7px 10px;text-align:center">Taux</div></div>
+    ${rows.map(r=>`<div style="display:flex;border-top:1px solid var(--line);${r[2]?'background:rgba(52,199,89,.12)':''}"><div style="flex:1;padding:8px 10px;font-size:13px;${r[2]?'font-weight:700;color:#7ee2a3':''}">${r[2]?'➡️ ':''}${r[0]}</div><div style="width:74px;padding:8px 10px;text-align:center;font-size:14px;${r[2]?'font-weight:800;color:#7ee2a3':'font-weight:600'}">${r[1]}</div></div>`).join("")}
+  </div>`; }
+function anthoGather(M){ const gv=id=>{ const e=$(id); return (e&&e.value!=="")?Number(e.value):null; };
+  return { fixe:gv("antho_fixe"), ca:gv("antho_ca"), baseRef:gv("antho_baseref"),
+    varOn:!!($("antho_varon")&&$("antho_varon").checked), force:gv("antho_force"),
+    facture:($("antho_facture")&&$("antho_facture").value.trim())||"" }; }
+async function saveAntho(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
+  ANTHO[M]=anthoGather(M);
+  const m=$("anthoMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
+  try{ await db.collection("setter_stats").doc("antho_"+M).set({isAntho:true, month:M, ...ANTHO[M]}); if(m){ m.className="msg ok"; m.textContent="Rému Anthony enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
 function renderFinTable(){
