@@ -2168,6 +2168,7 @@ const FLOW_STATUS={
   ok:      {v:"ok",      l:"🟢 OK",           cl:"#7ee2a3"},
   arisque: {v:"arisque", l:"🟠 À risque",     cl:"#ffcf7a"},
   relance: {v:"relance", l:"🔴 En relance",   cl:"#ff9a9a"},
+  standby: {v:"standby", l:"⏳ En attente",   cl:"#c9a0ff"},
   escalade:{v:"escalade",l:"🚨 Escalade Léa", cl:"#ff6b6b"},
   coupes:  {v:"coupes",  l:"⛔ Accès coupés", cl:"#9aa0a6"},
 };
@@ -2182,6 +2183,7 @@ function effStep(c){ if(!c) return 0;
 // Ancien statut « réglé / payé » posé via l'ancien pipeline sans avoir retiré l'étiquette impayé → considéré comme résolu.
 function flowLegacyResolved(c){ return !!(c && c.impaye_status==="resolu" && (c.flow_step==null||c.flow_step==="") && !c.flow_cut_done); }
 function flowStatus(c){ if(!c) return "ok"; if(c.flow_cut_done) return "coupes"; if(flowLegacyResolved(c)) return "ok"; const s=effStep(c);
+  if(c.flow_standby && s>=1) return "standby"; // action faite, en attente de la réponse du client
   if(s>=4) return "escalade"; if(s>=2) return "relance"; if(s===1) return "arisque";
   return c.impaye?"arisque":"ok"; }
 function flowStatusDef(c){ return FLOW_STATUS[flowStatus(c)]||FLOW_STATUS.ok; }
@@ -2293,7 +2295,7 @@ function flowChecklistHtml(c){ const cur=effStep(c), cut=!!c.flow_cut_done;
     </div>`;
   }
   const rows=FLOW_STEPS.map(s=>{ const done=cut?true:(s.n<cur); const active=!cut && s.n===cur;
-    const mark=done?'✅':(active?'🔻':'☐'); const respCol=s.resp==='Léa'?'#ff9a9a':'#8fc4ff';
+    const mark=done?'✅':(active?(c.flow_standby?'⏳':'🔻'):'☐'); const respCol=s.resp==='Léa'?'#ff9a9a':'#8fc4ff';
     let body="";
     if(active){ const dl=flowDeadline(c), over=flowOverdue(c);
       const btns = s.n===1
@@ -2301,7 +2303,10 @@ function flowChecklistHtml(c){ const cur=effStep(c), cut=!!c.flow_cut_done;
         : s.n>=5
         ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowCut('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
         : `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ ${s.n>=4?'Régularise':'Répond'} → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`;
-      body=`<div class="sub2" style="margin-top:3px">${escapeHtml(s.action)}</div>${dl?`<div class="sub2" style="margin-top:3px">⏳ Deadline : <b style="color:${over?'#ff9a9a':'#ffcf7a'}">${frDate(dl)}</b>${over?' ⚠️ dépassée':''}</div>`:""}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${btns}</div>`;
+      const sb=!!c.flow_standby;
+      const sbLine=sb?`<div class="sub2" style="margin-top:4px;color:#c9a0ff">⏳ <b>En attente de réponse</b>${c.flow_standby_date?` depuis le ${frDate(c.flow_standby_date)}`:""} — action faite, on attend le client.</div>`:"";
+      const sbBtn=`<button type="button" class="btn ghost sm" style="width:auto;border-color:#c9a0ff;color:#c9a0ff" onclick="flowStandby('${c.id}')">${sb?'↩️ Lever l\'attente':'⏳ Action faite → en attente'}</button>`;
+      body=`<div class="sub2" style="margin-top:3px">${escapeHtml(s.action)}</div>${dl?`<div class="sub2" style="margin-top:3px">⏳ Deadline : <b style="color:${over?'#ff9a9a':'#ffcf7a'}">${frDate(dl)}</b>${over?' ⚠️ dépassée':''}</div>`:""}${sbLine}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${sbBtn}${btns}</div>`;
     }
     const bg=active?'rgba(255,107,107,.06)':'transparent', bd=active?'var(--red)':'var(--line)', opa=(!done&&!active)?'opacity:.5':'';
     return `<div style="border:1px solid ${bd};border-radius:10px;padding:8px 10px;margin-top:6px;background:${bg};${opa}">
@@ -2368,23 +2373,28 @@ function renderUnpaid(){
 function flowRefresh(){ if($("unpaidList")) renderUnpaid(); if($("coachingList")&&!$("view-coaching").classList.contains("hide")) renderCoachingTab(); updUnpaidNav(); }
 function flowLogPush(c, text){ const log=unpaidLog(c); log.push({date:todayStr(), text, by:(LOGIN_NAME||"")}); return log; }
 async function flowStart(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:1, flow_date:todayStr(), flow_ping_msg:false, flow_ping_cut:false, flow_cut_done:false, flow_dismissed:false, impaye_log:flowLogPush(c,"🚦 Étape 1 · Détection — décrochage/silence signalé")};
+  const upd={flow_step:1, flow_date:todayStr(), flow_ping_msg:false, flow_ping_cut:false, flow_cut_done:false, flow_dismissed:false, flow_standby:false, impaye_log:flowLogPush(c,"🚦 Étape 1 · Détection — décrochage/silence signalé")};
   try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
 async function flowAdvance(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
   const cur=effStep(c); const next=Math.min(5, (cur||1)+1); const s=flowStepDef(next);
-  const upd={flow_step:next, flow_date:todayStr()};
+  const upd={flow_step:next, flow_date:todayStr(), flow_standby:false};
   if(next===4){ upd.flow_ping_msg=true; upd.flow_ping_cut=false; }
   if(next===5){ upd.flow_ping_cut=true; upd.flow_ping_msg=false; }
   upd.impaye_log=flowLogPush(c, "➡️ Passage étape "+next+" · "+(s?s.label:"")+(next>=4?" — ping Léa":""));
   try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
+// Standby : le coach a fait l'action de l'étape (message envoyé, appel passé) et attend la réponse du client. On peut l'activer/désactiver.
+async function flowStandby(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const now=!c.flow_standby; const s=flowStepDef(effStep(c));
+  const upd={flow_standby:now, flow_standby_date:now?todayStr():"", impaye_log:flowLogPush(c, now?("⏳ En attente de réponse — "+(s?s.label:"")):"↩️ Attente levée")};
+  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
 async function flowRespond(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:0, flow_ping_msg:false, flow_ping_cut:false, impaye_log:flowLogPush(c,"✓ A répondu / régularisé → retour au cycle normal")};
+  const upd={flow_step:0, flow_ping_msg:false, flow_ping_cut:false, flow_standby:false, impaye_log:flowLogPush(c,"✓ A répondu / régularisé → retour au cycle normal")};
   try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
 async function flowCut(id){ if(!isFullAdmin()){ alert("Seule Léa coupe les accès."); return; } if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_cut_done:true, flow_ping_cut:false, flow_ping_msg:false, flow_step:5, impaye_log:flowLogPush(c,"⛔ Accès coupés (Skool → WhatsApp → calls) — fin du flow, pas de recouvrement")};
+  const upd={flow_cut_done:true, flow_ping_cut:false, flow_ping_msg:false, flow_standby:false, flow_step:5, impaye_log:flowLogPush(c,"⛔ Accès coupés (Skool → WhatsApp → calls) — fin du flow, pas de recouvrement")};
   try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
 async function flowDismiss(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:0, flow_dismissed:true, impaye_log:flowLogPush(c,"✓ Détection ignorée (tout va bien)")};
+  const upd={flow_step:0, flow_dismissed:true, flow_standby:false, impaye_log:flowLogPush(c,"✓ Détection ignorée (tout va bien)")};
   try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
 function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
 function unpaidLogHtml(c){ const l=unpaidLog(c);
