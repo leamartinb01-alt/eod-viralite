@@ -944,7 +944,6 @@ const isAdmin=()=>ACCESS==="admin"||ACCESS==="manager"; // droits d'édition (fi
 const isFullAdmin=()=>ACCESS==="admin"; // réservé Léa : Comptes bancaires + Réglages + sauvegarde
 const canClients=()=>true; // onglet Clients visible pour tous
 const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin), le manager, ET Anthony (client) ; masqués pour l'équipe
-const isLoic=()=>/(^|\s)loic(\s|$)/.test(noAcc(String(LOGIN_NAME||""))); // Loïc : la gestion des impayés/décrochages ne le concerne pas
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -1018,7 +1017,6 @@ function applyNavAccess(){
   $("nav-finance").classList.toggle("hide", !isAdmin()); // finance : admin + manager
   $("nav-accounts").classList.toggle("hide", !isFullAdmin()); // Comptes bancaires (Dubai) : Léa uniquement
   $("nav-settings").classList.toggle("hide", !isFullAdmin()); // Réglages : Léa uniquement
-  if($("nav-unpaid")) $("nav-unpaid").classList.toggle("hide", isLoic()); // Impayés/décrochages : ne concerne pas Loïc
   initApp();
 }
 async function login(){
@@ -1349,7 +1347,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
         ${callsMonthB}${callsB}${editoB}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
         <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>
-        ${(flowListed(c)||flowAtRiskAuto(c))?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
+        ${flowListed(c)?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
       </div>
       ${editoMonths(c)}
       ${satisMonths(c)}
@@ -2097,7 +2095,6 @@ function show(v){
   if(v==="finance" && !isAdmin()) v="form";
   if((v==="settings"||v==="accounts") && !isFullAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
-  if(v==="unpaid" && isLoic()) v="form"; // Loïc ne voit pas les impayés/décrochages
   if(v==="clients" && !canClients()) v="form";
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
@@ -2275,37 +2272,70 @@ function flowLeaDashboard(){ if(!isFullAdmin()) return "";
     <div class="section-title" style="margin:12px 2px 2px">⛔ Accès à couper (${cut.length})</div>
     ${cut.length?cut.map(c=>row(c,'cut')).join(""):'<div class="sub2" style="margin-top:4px">Rien à couper. 🎉</div>'}
   </div>`; }
+// Rappel du SOP (les 5 étapes), toujours visible en haut de l'onglet — pour que les coachs retrouvent le process.
+function flowSopCard(){
+  const stepLine=s=>`<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)">
+     <div style="font-weight:800;color:#ff9a9a;min-width:22px">${s.n}</div>
+     <div style="flex:1">
+       <div style="font-weight:700;font-size:13px">${escapeHtml(s.label)} <span class="sub2" style="font-weight:600">· ${escapeHtml(s.jour)} · ${s.resp==='Léa'?'👑 Léa':'🎓 Coach'}</span></div>
+       <div class="sub2" style="margin-top:2px">${escapeHtml(s.action)}</div>
+       <div class="sub2" style="margin-top:2px;opacity:.7">↳ ${s.n>=5?'fin → ⛔ accès coupés (pas de recouvrement, le client peut revenir librement)':'✓ répond → retour au cycle normal · ✗ silence → étape '+(s.n+1)}</div>
+     </div></div>`;
+  return `<details class="cdet" open style="margin-bottom:10px"><summary style="font-weight:800">📋 SOP — Décrochage &amp; impayés <span class="sub2" style="font-weight:600">(silence = impayé qui vient · le coach porte tout · Léa agit sur 2 pings · Loïc n'intervient pas · pas de recouvrement)</span></summary>
+    <div class="card" style="margin-top:6px">${FLOW_STEPS.map(stepLine).join("")}</div></details>`;
+}
+// Checklist des 5 étapes pour un client : étapes faites cochées ✅, étape en cours active (script + 2 sorties), étapes à venir ☐.
+function flowChecklistHtml(c){ const cur=effStep(c), cut=!!c.flow_cut_done;
+  if(cur===0 && !cut){ // client mis en impayé mais process pas encore lancé
+    return `<div style="margin:6px 0;padding:9px 11px;border:1px solid rgba(255,207,122,.5);border-radius:12px;background:rgba(255,207,122,.06)">
+      <div class="sub2">🟠 <b>À risque</b> — process pas encore lancé.</div>
+      <button type="button" class="btn sm" style="width:auto;margin-top:8px;background:var(--red);border-color:var(--red)" onclick="flowStart('${c.id}')">🚨 Lancer le process (le client décroche / ne paie pas)</button>
+    </div>`;
+  }
+  const rows=FLOW_STEPS.map(s=>{ const done=cut?true:(s.n<cur); const active=!cut && s.n===cur;
+    const mark=done?'✅':(active?'🔻':'☐'); const respCol=s.resp==='Léa'?'#ff9a9a':'#8fc4ff';
+    let body="";
+    if(active){ const dl=flowDeadline(c), over=flowOverdue(c);
+      const btns = s.n===1
+        ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Répond → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
+        : s.n>=5
+        ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowCut('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
+        : `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ ${s.n>=4?'Régularise':'Répond'} → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`;
+      body=`<div class="sub2" style="margin-top:3px">${escapeHtml(s.action)}</div>${dl?`<div class="sub2" style="margin-top:3px">⏳ Deadline : <b style="color:${over?'#ff9a9a':'#ffcf7a'}">${frDate(dl)}</b>${over?' ⚠️ dépassée':''}</div>`:""}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${btns}</div>`;
+    }
+    const bg=active?'rgba(255,107,107,.06)':'transparent', bd=active?'var(--red)':'var(--line)', opa=(!done&&!active)?'opacity:.5':'';
+    return `<div style="border:1px solid ${bd};border-radius:10px;padding:8px 10px;margin-top:6px;background:${bg};${opa}">
+       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+         <div style="font-weight:${active?'800':'600'};font-size:13px">${mark} Étape ${s.n} · ${escapeHtml(s.label)}</div>
+         <span class="sub2" style="font-weight:600">${escapeHtml(s.jour)} · <span style="color:${respCol}">${s.resp==='Léa'?'👑 Léa':'🎓 Coach'}</span></span>
+       </div>${body}</div>`;
+  }).join("");
+  const tail=cut?`<div class="sub2" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2)">⛔ <b>Accès coupés</b> — fin du flow. Le client peut revenir librement (aucun recouvrement).</div>`:"";
+  return rows+tail;
+}
 function renderUnpaid(){
   const box=$("unpaidList"); if(!box) return; updUnpaidNav();
   const money=canSeeMoney(); const today=todayStr();
-  const inflow=CLIENTS.filter(c=>flowListed(c)&&!c.flow_cut_done);
-  const detected=CLIENTS.filter(c=>flowAtRiskAuto(c)); // paiement raté, pas encore dans le flow
-  const cutlist=CLIENTS.filter(c=>c.flow_cut_done);
+  // UNIQUEMENT ce que Léa (ou le coach) a mis manuellement en impayé/décrochage — aucune détection auto, pas d'archivés.
+  const inflow=CLIENTS.filter(c=>flowListed(c)&&!c.flow_cut_done&&!c.archived);
+  const cutlist=CLIENTS.filter(c=>c.flow_cut_done&&!c.archived);
   const order={escalade:0,relance:1,arisque:2,ok:3,coupes:4};
   inflow.sort((a,b)=>(order[flowStatus(a)]-order[flowStatus(b)])||String(a.impaye_date||"9999").localeCompare(String(b.impaye_date||"9999")));
   const lea=flowLeaDashboard();
-  if(!inflow.length && !detected.length && !cutlist.length){ box.innerHTML=lea+'<div class="card"><div class="empty">Aucun client en décrochage / impayé 🎉 — tout est réglé. (Pour en ajouter : coche « ⚠️ Impayé » sur une fiche client, ou clique « 🚨 Signaler un décrochage » ci-dessous sur une fiche.)</div></div>'; return; }
-  const cardOf=(c,detectedMode)=>{
+  const head=lea+flowSopCard();
+  if(!inflow.length && !cutlist.length){ box.innerHTML=head+'<div class="card"><div class="empty">Aucun client en décrochage / impayé pour le moment. <br><span class="sub2">Pour en ajouter : coche « ⚠️ Impayé » sur une fiche client (onglet Clients), ou clique « 🚨 Signaler un décrochage » sur sa carte Coaching.</span></div></div>'; return; }
+  const cardOf=(c)=>{
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
     const reste=clientReste(c); const st=flowStatusDef(c);
     const sinceManual=c.impaye_since||"", sinceEff=sinceManual||unpaidSinceAuto(c), sinceDur=unpaidDurLabel(sinceEff);
-    const detBanner=detectedMode?`<div class="sub2" style="margin:2px 0 6px;padding:7px 9px;border:1px solid rgba(255,207,122,.5);border-radius:10px;background:rgba(255,207,122,.08)">🟠 <b>À risque détecté</b> — paiement raté repéré. Lance le process quand le silence est confirmé.</div>`:"";
-    const panel=detectedMode
-      ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">
-           <button type="button" class="btn ghost sm" style="width:auto" onclick="flowDismiss('${c.id}')">✓ Tout va bien → ignorer</button>
-           <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowStart('${c.id}')">🚨 Silence confirmé → lancer le process</button>
-         </div>`
-      : flowStepPanel(c);
     return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
         <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
         <span class="gbadge" style="border-color:${st.cl};color:${st.cl};font-weight:800">${st.l}</span>
       </div>
       ${money&&reste>0?`<div class="sub2" style="margin-top:2px">💰 Reste dû : <b style="color:#ffcf7a">${eur(reste)}</b></div>`:""}
-      ${detBanner}
-      ${detectedMode?"":flowPipelineHtml(c)}
-      ${panel}
-      <div class="payin" style="margin-top:4px">
+      ${flowChecklistHtml(c)}
+      <div class="payin" style="margin-top:8px">
         <div><label>🕒 Silence / impayé depuis (mois)</label>${sinceSelectHtml(c.id, sinceManual)}${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
         <div><label>📅 Prochain point (rappel)</label>
           <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:2px">
@@ -2328,11 +2358,10 @@ function renderUnpaid(){
       <div class="upMsg msg"></div>
     </div>`;
   };
-  let html=lea;
-  html+=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${inflow.length}</b> client${inflow.length>1?"s":""} dans le flow${detected.length?` · <b style="color:#ffcf7a">${detected.length}</b> détecté${detected.length>1?"s":""} (paiement raté)`:""}</div></div>`;
-  if(detected.length) html+=`<div class="section-title" style="margin-top:6px">🟠 Détectés — à confirmer</div>`+detected.map(c=>cardOf(c,true)).join("");
-  html+=(detected.length?`<div class="section-title" style="margin-top:6px">🚦 Dans le flow</div>`:"")+inflow.map(c=>cardOf(c,false)).join("");
-  if(cutlist.length) html+=`<details class="cdet" style="margin-top:12px"><summary style="font-weight:800">⛔ Accès coupés — historique (${cutlist.length})</summary>${cutlist.map(c=>cardOf(c,false)).join("")}</details>`;
+  let html=head;
+  html+=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${inflow.length}</b> client${inflow.length>1?"s":""} en cours de suivi</div></div>`;
+  html+=inflow.map(cardOf).join("");
+  if(cutlist.length) html+=`<details class="cdet" style="margin-top:12px"><summary style="font-weight:800">⛔ Accès coupés — historique (${cutlist.length})</summary>${cutlist.map(cardOf).join("")}</details>`;
   box.innerHTML=html;
 }
 // ---- Transitions du flow (le coach porte tout ; Léa n'agit que sur les 2 pings) ----
@@ -3040,7 +3069,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${(flowListed(c)||flowAtRiskAuto(c))?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
