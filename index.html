@@ -471,7 +471,7 @@
       <h2>📚 Suivi coaching</h2>
       <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
-      <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select></div>
+      <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select><select id="cgVerF" onchange="renderCoachingTab()"><option value="">🏷 Toutes versions</option><option value="v1">🏷 V1 — appels limités</option><option value="v2">🔓 V2 — appels illimités</option></select></div>
     </div>
     <div id="coachingList"></div>
   </div>
@@ -856,6 +856,8 @@ function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; con
 function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dgMineBlock(name)+setterGoalsBlock(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
+// Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
+function isV2(c){ return !!(c && c.v2); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
 // Cadence attendue par mois = nb de séances de l'offre / nb de mois (Viral Pro 9/3, Élite 12/4, Mentorat 18/6 → 3 partout).
@@ -1328,27 +1330,34 @@ async function loadCoaching(){
   renderCoachingTab();
 }
 function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
+    const unlim=isV2(c);
     const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
+    const verB = `<span class="gbadge" title="${unlim?'Version 2 — appels illimités':'Version 1 — appels limités selon offre'}" style="border-color:${unlim?'#c9a0ff':'var(--line)'};color:${unlim?'#c9a0ff':'var(--muted)'};font-weight:800">${unlim?'🔓 V2 · illimité':'🏷 V1'}</span>`;
     const lv=clientLevel(done); const cs2=coachCallStatus(c);
     const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
     const cm=coachDoneThisMonth(c), cmt=coachPerMonth(c), cmCol=cm>=cmt?'#7ee2a3':(cm>0?'#ffcf7a':'var(--red)');
-    const callsMonthB = `<span class="gbadge" style="border-color:${cmCol};color:${cmCol}" title="Calls pris dans le mois en cours (depuis l'anniversaire d'onboarding)">📞 ${cm}/${cmt} ce mois</span>`;
+    const callsMonthB = unlim
+      ? `<span class="gbadge" style="border-color:var(--line);color:var(--muted)" title="Appels pris ce mois — offre illimitée, pas de cap">📞 ${cm} ce mois · ∞</span>`
+      : `<span class="gbadge" style="border-color:${cmCol};color:${cmCol}" title="Calls pris dans le mois en cours (depuis l'anniversaire d'onboarding)">📞 ${cm}/${cmt} ce mois</span>`;
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${done} / ${tot}</span></div>
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${unlim?`${done} · ∞`:`${done} / ${tot}`}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-sub" style="margin-top:2px">📅 Démarrage (onboarding) : <b>${onbDate(c)?frDate(onbDate(c)):"—"}</b></div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
-      <div class="cwk-bar"><span style="width:${pct}%"></span></div>
+      ${unlim?`<div class="cwk-sub" style="margin-top:6px;color:#c9a0ff">🔓 <b>Appels illimités</b> — pas de nombre à respecter. Suivi à la régularité (voir statut ci-dessous).</div>`:`<div class="cwk-bar"><span style="width:${pct}%"></span></div>`}
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
+        ${verB}
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
         ${callsMonthB}${callsB}${editoB}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
-        <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>
+        ${unlim?'':`<span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>`}
+        ${callMgmtBadge(c)}
         ${flowListed(c)?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="sub2">📞 Suivi appel :</span>${callMgmtBtns(c)}</div>
       ${editoMonths(c)}
       ${satisMonths(c)}
       ${rappelsBlock(c)}
@@ -1365,7 +1374,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
         </div>
         <label>🎬 Lien Fathom du call (optionnel) — le client pourra revisionner</label><input type="url" class="cgFathom" placeholder="https://fathom.video/…">
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
-        <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
+        ${unlim?`<div class="cwk-in"><span class="sub2">🔓 Version 2 — appels illimités, pas de total à définir.</span></div>`:`<div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>`}
       </div>
     </div>`;
 }
@@ -1374,8 +1383,10 @@ function renderCoachingTab(){
   const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
   const fcSel=$("cgCoachF"); const fc=(fcSel&&fcSel.value)||"";
   if(fcSel){ const cur=fcSel.value; fcSel.innerHTML='<option value="">👥 Tous les coachs (sections)</option>'+(SETTINGS.coachs||[]).map(n=>`<option ${n===cur?'selected':''}>${escapeHtml(n)}</option>`).join(""); }
+  const ver=($("cgVerF")&&$("cgVerF").value)||"";
   let cs=CLIENTS.filter(isSuivi);
   if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
+  if(ver==="v2") cs=cs.filter(c=>isV2(c)); else if(ver==="v1") cs=cs.filter(c=>!isV2(c));
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
@@ -1522,6 +1533,21 @@ function coachCallStatus(c){
   if(dd<=13) return {code:"relance", label:"🟠 à relancer · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"#ffcf7a"};
   return {code:"late", label:"❌ en retard · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"var(--red)"};
 }
+/* Suivi appel « Proposé / Géré » — surtout pour les clients dont on ne sait pas trop où ils en sont (offres illimitées / retards).
+   Le coach marque 📤 Proposé (call proposé) puis ✅ Géré (traité). Champs : call_propose_date, call_gere_date. */
+function callMgmtState(c){ if(c&&c.call_gere_date) return "gere"; if(c&&c.call_propose_date) return "propose"; return ""; }
+function callMgmtBadge(c){ const s=callMgmtState(c);
+  if(s==="gere") return `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">✅ Géré${c.call_gere_date?" · "+dayLabel(c.call_gere_date):""}</span>`;
+  if(s==="propose") return `<span class="gbadge" style="border-color:#8fb4ff;color:#8fb4ff">📤 Proposé${c.call_propose_date?" · "+dayLabel(c.call_propose_date):""}</span>`;
+  return ""; }
+function callMgmtBtns(c){ const s=callMgmtState(c);
+  return `<button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;${s==='propose'?'border-color:#8fb4ff;color:#8fb4ff':''}" onclick="setCallMgmt('${c.id}','propose')">📤 Proposé</button>`
+    +`<button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;${s==='gere'?'border-color:#7ee2a3;color:#7ee2a3':''}" onclick="setCallMgmt('${c.id}','gere')">✅ Géré</button>`; }
+async function setCallMgmt(id,kind){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const upd={};
+  if(kind==='propose'){ upd.call_propose_date=c.call_propose_date?"":todayStr(); if(upd.call_propose_date) upd.call_gere_date=""; }
+  else { upd.call_gere_date=c.call_gere_date?"":todayStr(); }
+  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
 // Édito : 1 calendrier tous les 15 jours. Retard = basé sur la RÉCENCE du dernier envoyé (pas un compteur cumulé).
 // Si le dernier a été envoyé il y a < 15 j → à jour. Si ≥ 15 j (ou aucun depuis l'onboarding) → en retard.
 function editoLastDate(c){ const em=(c&&c.edito)||{}; let d=""; Object.keys(em).forEach(k=>{ const e=em[k]; if(e&&e.sent&&e.date&&String(e.date)>d) d=String(e.date); }); return d; }
@@ -1580,7 +1606,10 @@ function coachAlertsCard(cs){
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const st=c=>coachCallStatus(c);
   // Calls = info seulement (se mettent à jour quand Romain pointe un coaching)
-  const callRow=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
+  const callRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:7px 0">
+    <div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:52%">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">${callMgmtBadge(c)||'<span class="sub2">à traiter :</span>'}${callMgmtBtns(c)}</div>
+  </div>`;
   // Édito = statut + champ « couvert jusqu'au » (le remplir fait passer le client en attente)
   const edRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:8px 0">
     <div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:52%">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>
@@ -2801,6 +2830,7 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
+  { key:"v2",label:"🔓 Version 2 — appels ILLIMITÉS (si décoché : Version 1, nombre d'appels selon l'offre). Tous les clients actuels = Version 1.",type:"check" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
@@ -3079,7 +3109,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${isV2(c)?' <span title="Version 2 — appels illimités" style="color:#c9a0ff;font-weight:800">🔓</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
@@ -3101,7 +3131,7 @@ function renderClients(){
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
       ${inImmersive(c.id)?line("🎟️ Journée immersive",immDaysFor(c.id)):""}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${isV2(c)?`${coachDone(c)} séances · 🔓 illimité`:`${coachDone(c)} / ${coachTotal(c)} séances`}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés <span class="sub2">(quinzaines)</span></span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 6px">${(()=>{const em=c.edito||{};const months=editoMonthsCount(c);let s="";for(let m=1;m<=months;m++){for(let q=1;q<=2;q++){const i=(m-1)*2+q;const e=em[i]||{};s+=`<span class="pill ${e.sent?'ok':''}" style="font-size:11px">${e.sent?'✅':'⬜'} M${m}·Q${q}${e.sent&&e.date?' '+escapeHtml(dayLabel(e.date)):''}</span>`;}}return s;})()}</div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
