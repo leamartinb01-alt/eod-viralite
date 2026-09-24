@@ -945,7 +945,7 @@ let ACCESS="team";
 const isAdmin=()=>ACCESS==="admin"||ACCESS==="manager"; // droits d'édition (finance, clients, impayés, équipe…)
 const isFullAdmin=()=>ACCESS==="admin"; // réservé Léa : Comptes bancaires + Réglages + sauvegarde
 const canClients=()=>true; // onglet Clients visible pour tous
-const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin), le manager, ET Anthony (client) ; masqués pour l'équipe
+const canSeeMoney=()=>isAdmin(); // montants/finances visibles UNIQUEMENT pour Léa (admin) et la Gestion (manager) ; masqués pour l'équipe ET pour Anthony (accès Clients)
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -1210,7 +1210,7 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>🔑 Identifiants (accès par personne)</h3>
     <div id="loginBox">${lg}</div>
     <button type="button" class="addrow" onclick="addLogin()">+ Ajouter une personne</button>
-    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son niveau : <b>Équipe</b> (EOD, Coaching…), <b>Clients</b> (comme Anthony, avec les montants), <b>Admin</b> (tout). Quand quelqu'un part, supprime sa ligne — les codes des autres ne bougent pas. Les 3 codes maîtres restent toujours en secours.</div></div>`;
+    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son niveau : <b>Équipe</b> (EOD, Coaching…), <b>Clients</b> (comme Anthony — voit les fiches clients & le coaching, PAS les finances/montants), <b>Admin</b> (tout). Quand quelqu'un part, supprime sa ligne — les codes des autres ne bougent pas. Les 3 codes maîtres restent toujours en secours.</div></div>`;
   box.innerHTML=html;
 }
 async function saveSettings(){
