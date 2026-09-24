@@ -1073,7 +1073,10 @@ function normPay(it){
   if(!it) return null;
   // prime = touche les primes paliers (comme Ilyas). Par défaut ON pour closer/setter (comportement historique), sinon OFF. archived = mis de côté (exclu de la paie mais gardé).
   const primeDefault=(r)=>(r==="closer"||r==="setter");
-  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||""};
+  if(it.role){ let pct=Number(it.pct)||0;
+    // Repli standard si le % a été perdu (case vide) : closer → 10 %, setter → 5 % (mêmes valeurs que les défauts historiques). Coach/Autre/Ads restent à 0 (fixe).
+    if(!pct){ if(it.role==="closer") pct=10; else if(it.role==="setter") pct=5; }
+    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||""}; }
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -3318,7 +3321,19 @@ function renderFinance(){
     if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
       cls.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig, eur(paidInMonth(c,M))]); }); }
     if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
-    if(!fixe && !pct && !prime) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
+    if(!fixe && !pct){
+      // Paiement manuel : on ne calcule pas de commission, mais on AFFICHE qui il a closé / setté ce mois (avec l'encaissé) pour t'aider à fixer le montant.
+      const closedBy=CLIENTS.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+      const setBy=CLIENTS.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+      rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
+      if(closedBy.length){ const caC=closedBy.reduce((s,c)=>s+paidInMonth(c,M),0);
+        rows.push(["💼 Clients qu'il a closés — encaissé ce mois", closedBy.length+" · "+eur(caC)]);
+        closedBy.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig+" <span class='sub2'>· contrat "+eur(clientMontant(c))+"</span>", eur(paidInMonth(c,M))+" encaissé"]); }); }
+      if(setBy.length){ const caS=setBy.reduce((s,c)=>s+paidInMonth(c,M),0);
+        rows.push(["🎯 Clients venant de ses leads — encaissé ce mois", setBy.length+" · "+eur(caS)]);
+        setBy.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); rows.push(["↳ "+escapeHtml(nmC), eur(paidInMonth(c,M))+" encaissé"]); }); }
+      if(!closedBy.length && !setBy.length) rows.push(["Clients rattachés ce mois","aucun (vérifie le champ Closer/Setter sur les fiches)"]);
+    }
     return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, primeOn:!!it.prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
