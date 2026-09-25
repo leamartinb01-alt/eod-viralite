@@ -946,7 +946,12 @@ const isAdmin=()=>ACCESS==="admin"||ACCESS==="manager"; // droits d'édition (fi
 const isFullAdmin=()=>ACCESS==="admin"; // réservé Léa : Comptes bancaires + Réglages + sauvegarde
 const canClients=()=>true; // onglet Clients visible pour tous
 // Argent sur les FICHES CLIENTS (montant, encaissé, échéancier) : Léa (admin), la Gestion (manager), ET les closers (pour qu'ils remplissent leurs ventes) — PAS les setters/coachs, PAS Anthony (accès Clients). L'onglet Finance/paie/comptes reste réservé à l'admin/gestion via la nav + le garde-fou dans show().
-function isCloserUser(){ return ACCESS!=="client" && ((member(LOGIN_NAME||"")||{}).role==="closer"); }
+function isCloserUser(){ if(ACCESS==="client") return false; const n=(LOGIN_NAME||"").trim(); if(!n) return false;
+  if(((member(n)||{}).role)==="closer") return true; // closer dans la Gestion d'équipe
+  const key=noAcc(n).trim();
+  const pl=(SETTINGS.payList||[]).find(p=>p&&p.name&&noAcc(String(p.name)).trim()===key); // …ou closer dans la liste de paie
+  return !!(pl && ((normPay(pl)||{}).role)==="closer");
+}
 const canSeeMoney=()=>isAdmin()||isCloserUser();
 
 /* ===================== FIREBASE ===================== */
@@ -3052,7 +3057,7 @@ function filterPayCard(q){ const box=$("payCardRows"); if(!box) return; q=(q||""
   box.querySelectorAll("details.payarch").forEach(d=>{ const anyVis=[...d.querySelectorAll(".kv")].some(r=>r.style.display!=="none"); if(q){ d.style.display=anyVis?"":"none"; if(anyVis) d.open=true; } else { d.style.display=""; d.open=false; } });
 }
 async function toggleSched(id,i){
-  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  if(!canSeeMoney()){ alert("Réservé à l'admin, la gestion et les closers."); return; }
   if(!fbReady()) return; initFirebase();
   const c=CLIENTS.find(x=>x.id===id); if(!c||!Array.isArray(c.schedule)||!c.schedule[i]) return;
   const s=c.schedule[i]; let sch, warn="";
@@ -3119,7 +3124,7 @@ function renderClients(){
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=Math.max(0,clientMontant(c)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
-    const money=canSeeMoney(); const clk=isAdmin();
+    const money=canSeeMoney(); const clk=canSeeMoney();
     const sched=money?(c.schedule||[]).map((s,i)=>({s,i})).sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month)))
       .map(({s,i})=>`<div class="mm ${s.paid?'paid':'due'}"${clk?` onclick="toggleSched('${c.id}',${i})" style="cursor:pointer" title="Cocher / décocher payé"`:''}><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅ payé':(clk?'⏳ cocher':'⏳')}</div></div>`).join(""):"";
     const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
