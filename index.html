@@ -950,7 +950,7 @@ let ACCESS="setter";
 const ACCESS_TABS={
   setter: ["form"],                                                           // EOD seulement
   closer: ["form","clients","unpaid","immersive"],                            // EOD + Clients + Impayés + Immersive
-  coach:  ["clients","coaching","unpaid","immersive"],                        // Clients + Coaching + Impayés + Immersive
+  coach:  ["form","clients","coaching","unpaid","immersive"],                 // EOD + Clients + Coaching + Impayés + Immersive
   hos:    ["form","team","goals","coaching","unpaid","immersive","clients"],  // Head of Sales : tout sauf Finance/Comptes/Réglages
   admin:  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout
 };
@@ -1178,7 +1178,7 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
-function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales (tout sauf Finance/Comptes/Réglages)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
+function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (EOD + Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales (tout sauf Finance/Comptes/Réglages)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
   return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
     <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
     <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
@@ -1237,7 +1237,7 @@ function renderSettings(){
     <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son <b>rôle</b> :<br>
       • <b>Setter</b> → EOD seulement.<br>
       • <b>Closer</b> → EOD + Clients + Impayés + Immersive.<br>
-      • <b>Coach</b> → Clients + Coaching + Impayés + Immersive.<br>
+      • <b>Coach</b> → EOD + Clients + Coaching + Impayés + Immersive.<br>
       • <b>Head of Sales</b> → tout sauf Finance / Comptes / Réglages.<br>
       • <b>Admin (Léa)</b> → tout.<br>
       Finance, Comptes (Dubai) et Réglages restent réservés à toi (Admin) uniquement. Quand quelqu'un part, supprime sa ligne. Le code maître admin reste en secours.</div></div>`;
