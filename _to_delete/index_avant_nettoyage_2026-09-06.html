@@ -4,9 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#0b0b0e" />
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-<meta http-equiv="Pragma" content="no-cache" />
-<meta http-equiv="Expires" content="0" />
 <title>Écosystème Viral · Pilotage</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -95,7 +92,6 @@
   .av-closer{background:linear-gradient(135deg,#ff8b47,#e04c6b)}
   .av-setter{background:linear-gradient(135deg,#5aa9ff,#7f5bc4)}
   .av-coach{background:linear-gradient(135deg,#34c759,#1f9e6b)}
-  .av-ads{background:linear-gradient(135deg,#f7b733,#fc4a1a)}
   .avatar.sm{width:38px;height:38px;flex:0 0 38px;font-size:14px}
   .avatar.lg{width:74px; height:74px; flex:0 0 74px; font-size:26px}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
@@ -405,7 +401,6 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 25/09/2026 · accès par rôle (Setter/Closer/Coach/HoS/Admin)</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -459,9 +454,9 @@
       <details id="convCard" class="card foldcard" open><summary><span>📊 Conversions (temps réel)</span><span class="chev">▸</span></summary><div id="convList" style="margin-top:8px"></div></details>
       <details id="sourcesCard" class="card foldcard" open><summary><span>🌐 Sources des leads</span><span class="chev">▸</span></summary><div id="sourcesList" style="margin-top:8px"></div></details>
       <details id="closedCard" class="card foldcard" open><summary><span>🎯 Closés du mois</span><span class="chev">▸</span></summary><div id="closedList" style="margin-top:8px"></div></details>
-      <details id="warnCard" class="card foldcard hide" open style="border-color:var(--red)"><summary><span style="color:var(--red)">⚠️ Warnings clients</span><span class="chev">▸</span></summary><div id="warnList" style="margin-top:8px"></div></details>
-      <details id="digestCard" class="card foldcard" open><summary><span>📆 Résumé des EOD par jour</span><span class="chev">▸</span></summary><div id="digestList" style="margin-top:8px"></div></details>
-      <details id="insightCard" class="card foldcard hide" open><summary><span>À noter 👀</span><span class="chev">▸</span></summary><div id="teamInsights" style="margin-top:8px"></div></details>
+      <div id="warnCard" class="card hide" style="border-color:var(--red)"><h2 style="color:var(--red)">⚠️ Warnings clients</h2><div id="warnList"></div></div>
+      <div id="digestCard" class="card"><h2>📆 Résumé des EOD par jour</h2><div id="digestList"></div></div>
+      <div id="insightCard" class="card hide"><h2>À noter 👀</h2><div id="teamInsights"></div></div>
       <div class="section-title">Membres · clique pour le suivi</div>
       <div class="grid" id="teamGrid"></div>
       <div id="teamManage"></div>
@@ -475,19 +470,9 @@
       <h2>📚 Suivi coaching</h2>
       <p class="sub2">Pointe chaque semaine les coachings faits par client (visible par toute l'équipe).</p>
       <input id="cgSearch" class="srch" placeholder="🔎 Rechercher un client…" oninput="renderCoachingTab()">
-      <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select><select id="cgVerF" onchange="renderCoachingTab()"><option value="">🏷 Toutes versions</option><option value="v1">🏷 V1 — appels limités</option><option value="v2">🔓 V2 — appels illimités</option></select></div>
+      <div class="filters" style="margin:8px 0 0"><select id="cgCoachF" onchange="renderCoachingTab()"><option value="">👥 Tous les coachs (sections)</option></select></div>
     </div>
     <div id="coachingList"></div>
-  </div>
-
-  <!-- IMPAYÉS -->
-  <div id="view-unpaid" class="wrap hide">
-    <div class="card">
-      <h2>⚠️ Clients impayés — suivi recouvrement</h2>
-      <p class="sub2">Les clients qui n'ont pas payé. Statut, note et prochaine action visibles par toute l'équipe. Quand c'est réglé, on retire l'étiquette.</p>
-      <div class="hint">Pour ajouter un client ici : ouvre sa fiche (onglet Clients) et coche « ⚠️ Impayé ». Tout le monde peut mettre à jour le statut / la note / la date ci-dessous.</div>
-    </div>
-    <div id="unpaidList"></div>
   </div>
 
   <!-- JOURNÉE IMMERSIVE -->
@@ -580,8 +565,6 @@
     <div id="finTable"></div>
     <div class="section-title" style="margin-top:22px">💎 Ma rémunération (Léa · COO)</div>
     <div id="cooCard"></div>
-    <div class="section-title" style="margin-top:22px">💼 Rémunération Anthony (Head of Sales)</div>
-    <div id="anthoCard"></div>
   </div>
 
   <!-- RÉGLAGES -->
@@ -602,8 +585,7 @@
       <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
         <p class="sub2" style="margin:0 0 8px">♻️ <b>Restaurer</b> — en cas de perte de données, recharge une sauvegarde .json (ça réécrit tout).</p>
         <input id="restoreFile" type="file" accept=".json,application/json" style="font-size:13px">
-        <button class="btn ghost" style="margin-top:8px" onclick="restoreBackup()">♻️ Restaurer depuis un fichier .json (réécrit tout)</button>
-        <button class="btn ghost" style="margin-top:8px" onclick="restoreLoginsOnly()">🔑 Restaurer UNIQUEMENT les identifiants (ne touche à rien d'autre)</button>
+        <button class="btn ghost" style="margin-top:8px" onclick="restoreBackup()">♻️ Restaurer depuis un fichier .json</button>
         <div id="restoreMsg" class="msg"></div>
       </div>
     </div>
@@ -683,7 +665,6 @@
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
   <button id="nav-goals" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
-  <button id="nav-unpaid" onclick="show('unpaid')"><span class="ic">⚠️</span>Impayés</button>
   <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
   <button id="nav-clients" class="hide" onclick="show('clients')"><span class="ic">💼</span>Clients</button>
   <button id="nav-finance" class="hide" onclick="show('finance')"><span class="ic">📈</span>Finance</button>
@@ -763,17 +744,6 @@ const FORMS = {
     { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
     { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
   ],
-  // Setter APPEL (ex : Emerry) — funnel téléphonique dédié : messages → réponses → appels réservés → appels qualifiés.
-  setter_appel:[
-    { key:"messages",     label:"💬 Messages envoyés aujourd'hui",              type:"number" },
-    { key:"replies",      label:"↩️ Réponses reçues",                          type:"number" },
-    { key:"calls_booked", label:"📅 Appels réservés (RDV calés)",              type:"number" },
-    { key:"calls_qualif", label:"✅ Appels qualifiés",                         type:"number" },
-    { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
-    { key:"need_help",    label:"Un blocage / besoin d'aide ?",                type:"textarea" },
-    { key:"mood",         label:"Ton énergie du jour ⚡️",                     type:"mood" },
-    { key:"feeling",      label:"Un mot sur ta journée ? (optionnel)",         type:"textarea" },
-  ],
   coach:[
     { key:"clientlog", label:"📋 Suivi clients du jour — action + note pour chaque client coaché", type:"clientlog" },
     { key:"skool_pass",   label:"🎓 Passe Skool faite — questions clients checkées & répondues", type:"check" },
@@ -782,17 +752,7 @@ const FORMS = {
     { key:"mood",      label:"Ton énergie ⚡️",                       type:"mood" },
     { key:"feeling",   label:"Remarque libre (optionnel)",            type:"textarea" },
   ],
-  ads:[
-    { key:"budget",   label:"💸 Budget dépensé aujourd'hui (€)",       type:"number" },
-    { key:"leads",    label:"🎯 Leads captés aujourd'hui",            type:"number" },
-    { key:"rdv_ads",  label:"📅 RDV issus des ads aujourd'hui",       type:"number" },
-    { key:"ads_note", label:"Note du jour (créas testées, ajustements…)", type:"textarea" },
-    { key:"mood",     label:"Ton énergie du jour ⚡️",                type:"mood" },
-    { key:"feeling",  label:"Un mot sur ta journée ? (optionnel)",    type:"textarea" },
-  ],
 };
-// Champs EOD à afficher pour une personne : un setter sur le canal APPEL a son propre jeu d'indicateurs (messages/réponses/réservés/qualifiés).
-function eodFields(role,name){ if(role==="setter" && memberChannel(member(name))==="appel") return FORMS.setter_appel; return FORMS[role]||[]; }
 const MOOD_CLIENT=[{v:"Bien",e:"😄"},{v:"Moyen",e:"😐"},{v:"Pas bien",e:"😟"}];
 function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.warning, wr=val.warnReason||"", ras=!!val.ras;
   const moodBtns=MOOD_CLIENT.map(m=>`<button type="button" class="cmood${mood===m.v?' sel':''}" data-v="${m.v}" onclick="pickCMood(this)">${m.e} ${m.v}</button>`).join("");
@@ -807,12 +767,11 @@ function clientLogRow(c,val){ val=val||{}; const mood=val.mood||"", warn=!!val.w
   </div>`; }
 function pickCMood(btn){ const box=btn.parentNode; box.querySelectorAll(".cmood").forEach(b=>b.classList.remove("sel")); btn.classList.add("sel"); const h=box.parentNode.querySelector(".clMood"); if(h) h.value=btn.getAttribute("data-v"); }
 function gatherClientLog(){ const box=$("clientLog"); if(!box) return []; return [...box.querySelectorAll(".cllog")].map(r=>({id:r.getAttribute("data-id"),name:r.getAttribute("data-name"),mood:(r.querySelector(".clMood").value||""),ras:r.querySelector(".clRas").checked,warning:r.querySelector(".clWarn").checked,warnReason:(r.querySelector(".clWarnR").value||"").trim()})).filter(x=>x.mood||x.ras||x.warning||x.warnReason); }
-const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach", ads:"Ads" };
+const ROLE_LABEL = { closer:"Closer", setter:"Setter", coach:"Coach" };
 const SUIVI = {
   closer:[ {key:"cash_gen_day",label:"Cash généré (mois)",money:true}, {key:"cash_day",label:"Cash collecté (mois)",money:true} ],
   setter:[ {key:"contacted",label:"Contactées"}, {key:"in_contact",label:"En contact"}, {key:"calls_booked",label:"Calls pris"} ],
   coach: [ {key:"sessions",label:"Sessions"}, {key:"people",label:"Coachés"} ],
-  ads:  [ {key:"budget",label:"Budget"}, {key:"leads",label:"Leads"}, {key:"rdv_ads",label:"RDV ads"} ],
 };
 const WINS = ["Boom 🎯 EOD envoyé, t'es une machine !","Au top 🙌 merci, ça compte vraiment.","Et voilà 🔥 un EOD de plus au compteur !","Propre 💪 garde le rythme !","Envoyé ✅ ta série continue, bravo !"];
 
@@ -825,7 +784,7 @@ const initials = n => (n||"?").trim().slice(0,2).toUpperCase();
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function member(name){ return CONFIG.TEAM.find(x=>x.name===name) || {name,role:"setter",title:"Setter"}; }
 function teamActive(){ return (CONFIG.TEAM||[]).filter(m=>!m.archived); } // membres actifs (les archivés restent en base, juste masqués des vues actives)
-function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":role==="ads"?"av-ads":"av-setter"; }
+function avClass(role){ return role==="closer"?"av-closer":role==="coach"?"av-coach":"av-setter"; }
 // Accepte tous les formats tapés à la main : "09/2026", "09.2026", "9-2026", "2026/09", "202609"… → "2026-09"
 function normMonth(s){ s=String(s||"").trim(); if(!s) return "";
   let m;
@@ -861,16 +820,8 @@ function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; con
 function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dgMineBlock(name)+setterGoalsBlock(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
-// Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
-function isV2(c){ return !!(c && c.v2); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
-// Cadence attendue par mois = nb de séances de l'offre / nb de mois (Viral Pro 9/3, Élite 12/4, Mentorat 18/6 → 3 partout).
-function coachPerMonth(c){ const o=offerFor(c&&c.programme); if(o&&Number(o.sessions)&&Number(o.months)) return Math.max(1,Math.round(Number(o.sessions)/Number(o.months))); return 3; }
-// Fenêtre mensuelle courante calée sur l'anniversaire d'onboarding (15/09→15/10, 15/10→15/11…).
-function coachWindow(c){ const onb=onbDate(c); if(!onb) return null; const today=todayStr(); let start=String(onb).slice(0,10), g=0; while(g<120){ const next=addMonthsISO(start,1); if(next && next<=today){ start=next; g++; } else break; } return {start, end:addMonthsISO(start,1)}; }
-// Nb de calls/coachings pointés dans la fenêtre mensuelle courante.
-function coachDoneThisMonth(c){ const w=coachWindow(c); if(!w) return 0; const log=(c&&c.coaching&&c.coaching.log)||[]; return log.filter(e=>{ const d=e&&e.date?String(e.date).slice(0,10):""; return d && d>=w.start && (!w.end || d<w.end); }).reduce((s,e)=>s+(Number(e.n)||1),0); }
 function weekDates(wstr){ const m=/^(\d{4})-W(\d{2})$/.exec(wstr||""); if(!m) return null; const y=+m[1], w=+m[2]; const simple=new Date(Date.UTC(y,0,1+(w-1)*7)); const dow=simple.getUTCDay(); const start=new Date(simple); if(dow<=4) start.setUTCDate(simple.getUTCDate()-dow+1); else start.setUTCDate(simple.getUTCDate()+8-dow); const end=new Date(start); end.setUTCDate(start.getUTCDate()+6); return [start,end]; }
 function cgWeekLabel(wstr){ const r=weekDates(wstr); if(!r) return wstr||""; const f=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "sem. "+f(r[0])+" → "+f(r[1]); }
 function lastMonths(n){ const out=[]; const d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,7)); d.setMonth(d.getMonth()-1); } return out; }
@@ -897,7 +848,7 @@ function addCallRow(d){ d=d||{}; const box=$("callRows"); if(!box) return; ensur
   </div>`); }
 function gatherCalls(){ return [...document.querySelectorAll("#callRows .callRow")].map(r=>({ p:r.querySelector('.cP').value.trim(), src:r.querySelector('.cS').value, res:r.querySelector('.cR').value })).filter(x=>x.p||x.res); }
 function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensureProspectDL();
-  let srcOpts=leadSourceList(currentSetterChannel()); if(d.src&&!srcOpts.includes(d.src)) srcOpts=[d.src].concat(srcOpts); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
+  const srcOpts=leadSourceList(); const optHtml=['<option value="">— source —</option>'].concat(srcOpts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`)).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow bookRow">
     <input class="bkN" type="text" list="prospectDL" autocomplete="off" placeholder="Nom du RDV pris" value="${escapeHtml(d.name||'')}" style="flex:1.3">
@@ -907,16 +858,10 @@ function addBookRow(d){ d=d||{}; const box=$("bookRows"); if(!box) return; ensur
   </div>`); }
 function gatherBooked(){ return [...document.querySelectorAll("#bookRows .bookRow")].map(r=>({ name:r.querySelector('.bkN').value.trim(), src:(r.querySelector('.bkS')?r.querySelector('.bkS').value:""), verified:r.querySelector('.bkV').checked })).filter(x=>x.name); }
 function bookedArr(x){ const b=x&&x.payload&&x.payload.booked; return Array.isArray(b)?b:[]; }
-// Sources de leads par CANAL (Insta / LinkedIn / Appel), éditables en Réglages. Chaque setter voit les sources de son canal.
-function channelSourceKey(ch){ return ch==="linkedin"?"leadSrcLinkedin":(ch==="appel"?"leadSrcAppel":"leadSrcInsta"); }
-function leadSourceList(ch){ const key=channelSourceKey(ch); let a=SETTINGS[key];
-  if(!(Array.isArray(a)&&a.length)) a=SETTINGS.leadSources; // repli sur l'ancienne liste unique si le canal n'est pas encore rempli
-  if(!(Array.isArray(a)&&a.length)) a=["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"];
-  return a.slice(); }
-// Canal du setter en train de faire son EOD (d'après le titre du membre sélectionné).
-function currentSetterChannel(){ const nm=($("member")&&$("member").value)||""; return memberChannel(member(nm)||{}); }
+// Sources de leads Insta (éditables en Réglages) — ventilation quotidienne des contacts + source de chaque RDV pris.
+function leadSourceList(){ const a=(SETTINGS.leadSources&&SETTINGS.leadSources.length)?SETTINGS.leadSources.slice():["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"]; return a; }
 function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
-  let opts=leadSourceList(currentSetterChannel()); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
+  let opts=leadSourceList().slice(); if(d.src&&!opts.includes(d.src)) opts.unshift(d.src);
   const optHtml=opts.map(o=>`<option ${o===d.src?'selected':''}>${escapeHtml(o)}</option>`).join("");
   box.insertAdjacentHTML("beforeend",
   `<div class="drow srcRow">
@@ -927,7 +872,7 @@ function addSrcRow(d){ d=d||{}; const box=$("srcRows"); if(!box) return;
 function gatherSrcCount(){ return [...document.querySelectorAll("#srcRows .srcRow")].map(r=>({ src:r.querySelector('.scS').value, n:Number(r.querySelector('.scN').value)||0 })).filter(x=>x.n>0); }
 function srcArr(x){ const a=x&&x.payload&&x.payload.contacts_src; return Array.isArray(a)?a:[]; }
 function seedSrcRows(arr){ const box=$("srcRows"); if(!box) return; box.innerHTML="";
-  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList(currentSetterChannel()).forEach(s=>addSrcRow({src:s,n:''})); }
+  if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList().forEach(s=>addSrcRow({src:s,n:''})); }
   if(!box.children.length) addSrcRow(); }
 function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
 function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
@@ -944,24 +889,10 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
   (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
   return o; }
 
-/* ===================== ACCÈS (par rôle) =====================
-   5 accès. Chacun ne voit QUE les onglets listés ci-dessous. Finance/paie, Comptes (Dubai) et Réglages = Léa (admin) UNIQUEMENT. */
-let ACCESS="setter";
-const ACCESS_TABS={
-  setter: ["form"],                                                           // EOD seulement
-  closer: ["form","clients","unpaid","immersive"],                            // EOD + Clients + Impayés + Immersive
-  coach:  ["clients","coaching","unpaid","immersive"],                        // Clients + Coaching + Impayés + Immersive
-  hos:    ["form","team","goals","coaching","unpaid","immersive","clients"],  // Head of Sales : tout sauf Finance/Comptes/Réglages
-  admin:  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout
-};
-// Compat anciens rôles : team→closer, client→hos (Anthony HoS), manager→hos.
-function normAccess(r){ if(ACCESS_TABS[r]) return r; if(r==="team") return "closer"; if(r==="client") return "hos"; if(r==="manager") return "hos"; return "setter"; }
-function accessTabs(){ return ACCESS_TABS[ACCESS]||ACCESS_TABS.setter; }
-function canView(tab){ return accessTabs().indexOf(tab)>=0; }
-const isAdmin=()=>ACCESS==="admin"; // droits d'édition réservés (finance, réglages, équipe, objectifs…) = Léa
-const isFullAdmin=()=>ACCESS==="admin"; // Léa : Finance + Comptes + Réglages + sauvegarde
-const canClients=()=>canView("clients"); // onglet Clients selon le rôle
-const canSeeMoney=()=>true; // argent sur les FICHES CLIENTS (montant/encaissé/échéancier) visible pour tous ceux qui voient une fiche — ce n'est PAS la finance globale (elle reste sur l'onglet Finance, admin only)
+/* ===================== ACCÈS ===================== */
+let ACCESS="team"; const isAdmin=()=>ACCESS==="admin";
+const canClients=()=>true; // onglet Clients visible pour tous
+const canSeeMoney=()=>isAdmin()||ACCESS==="client"; // montants visibles pour Léa (admin) ET Anthony (client) ; masqués pour l'équipe (closers/coachs)
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -1016,8 +947,8 @@ function renderTeamManage(){
     ${list}${archList}
     <div class="payin" style="margin-top:12px">
       <div><label>Prénom</label><input id="nmName" placeholder="Ex : Sarah"></div>
-      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':this.value==='ads'?'Responsable Ads':'Setter'">
-        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option><option value="ads">Ads</option></select></div>
+      <div><label>Rôle</label><select id="nmRole" onchange="document.getElementById('nmTitle').placeholder=this.value==='closer'?'Closeur·se':this.value==='coach'?'Coach':'Setter'">
+        <option value="closer">Closer</option><option value="setter" selected>Setter</option><option value="coach">Coach</option></select></div>
     </div>
     <div style="margin-top:8px"><label style="font-size:12px;color:var(--muted)">Intitulé (optionnel)</label>
       <input id="nmTitle" placeholder="Setter" style="width:100%"></div>
@@ -1029,10 +960,13 @@ function renderTeamManage(){
 let LOGIN_NAME=""; // nom de la personne connectée (via identifiant individuel)
 function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
-  // Chaque onglet de nav est visible seulement si le rôle y a droit.
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("hide", !canView(k)); });
+  $("nav-clients").classList.toggle("hide", !canClients());
+  $("nav-team").classList.toggle("hide", ACCESS==="client"); // Anthony (accès clients) n'a pas besoin de voir l'Équipe
+  $("nav-goals").classList.toggle("hide", !isAdmin()); // seule Léa voit la vue globale des objectifs (chacun voit les siens sur son EOD)
+  $("nav-finance").classList.toggle("hide", !isAdmin());
+  $("nav-accounts").classList.toggle("hide", !isAdmin());
+  $("nav-settings").classList.toggle("hide", !isAdmin());
   initApp();
-  show(accessTabs()[0]||"form"); // atterrit sur le 1er onglet autorisé du rôle
 }
 async function login(){
   const email=(($("loginEmail")&&$("loginEmail").value)||"").trim().toLowerCase();
@@ -1045,7 +979,7 @@ async function login(){
   try{ initFirebase(); let logins=[];
     if(db){ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get(); if(d.exists&&Array.isArray(d.data().logins)) logins=d.data().logins; }
     const m=logins.find(u=>u && email && String(u.email||"").trim().toLowerCase()===email && String(u.code||"")===v);
-    if(m){ ACCESS=normAccess(m.role); LOGIN_NAME=m.name||""; return applyNavAccess(); }
+    if(m){ ACCESS=(m.role==="admin"||m.role==="client")?m.role:"team"; LOGIN_NAME=m.name||""; return applyNavAccess(); }
   }catch(err){}
   e.className="msg err"; e.style.display="block"; e.textContent="Email ou mot de passe incorrect.";
 }
@@ -1064,10 +998,7 @@ const SETTINGS_DEFAULT={
   closers:["Julie","Anthony","Loïc","Loïc et Céline","Céline"],
   coachs:["Romain","Clément","Coach Viralité","Coach Conversion","Loïc"],
   callSources:["ADS","Instagram","TikTok","LinkedIn","YouTube","Loïc direct","Appel","Typeform","Setting closer"],
-  leadSources:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
-  leadSrcInsta:["Manychat","ADS","Commentaires","Story","DM entrants","Prospection"],
-  leadSrcLinkedin:["DM LinkedIn","Invitations","Commentaires / Posts","InMail","Prospection"],
-  leadSrcAppel:["Rappel","Base à rappeler","No-show relancé","Prospection tél"],
+  leadSources:["Mini-chats","ADS","Commentaires","Story","DM entrants","Prospection"],
   weekGoals:{}, weekActuals:{},
   logins:[],
   checks:[{key:"whatsapp",label:"📱 Groupe WhatsApp donné"},{key:"acces_booster",label:"🚀 Accès Viralité Booster donné"}],
@@ -1079,17 +1010,14 @@ const PAYLIST_DEFAULT=[
   {name:"Lucas",   label:"Setter LinkedIn",           role:"setter", pct:5,  fixe:700},
   {name:"Romain",  label:"Coach Conversion & Viralité", role:"coach", pct:0, fixe:2000},
 ];
-const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"ads",l:"Ads"},{v:"autre",l:"Autre"}];
-const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",ads:"Ads",autre:"Autre"};
+const PAY_ROLES=[{v:"closer",l:"Closer"},{v:"setter",l:"Setter"},{v:"coach",l:"Coach"},{v:"autre",l:"Autre"}];
+const ROLE_LBL={closer:"Closer",setter:"Setter",coach:"Coach",autre:"Autre"};
 // Migration depuis l'ancien format (type/rate/base) → {role, pct, fixe}
 function normPay(it){
   if(!it) return null;
   // prime = touche les primes paliers (comme Ilyas). Par défaut ON pour closer/setter (comportement historique), sinon OFF. archived = mis de côté (exclu de la paie mais gardé).
   const primeDefault=(r)=>(r==="closer"||r==="setter");
-  if(it.role){ let pct=Number(it.pct)||0;
-    // Repli standard si le % a été perdu (case vide) : closer → 10 %, setter → 5 % (mêmes valeurs que les défauts historiques). Coach/Autre/Ads restent à 0 (fixe).
-    if(!pct){ if(it.role==="closer") pct=10; else if(it.role==="setter") pct=5; }
-    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||""}; }
+  if(it.role) return {name:it.name, role:it.role, label:it.label||"", pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived};
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1101,19 +1029,15 @@ function normPay(it){
   if(t==="fixe")       return {name:it.name, role:"autre",  pct:0, fixe:base};
   return {name:it.name, role:"autre", pct:0, fixe:0};
 }
-// Une personne archivée reste comptée pour les mois AVANT son archivage (historique/commissions préservés) ; elle disparaît seulement à partir du mois « archivé dès ». Sans mois précis → repli sur le mois en cours (figé à la prochaine sauvegarde).
-function payActiveMonth(it, M){ if(!it) return false; if(!it.archived) return true; const from=it.archivedFrom||monthStr(); return String(M) < String(from); }
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
-const SET_KEYS=["setters","closers","coachs","callSources","leadSrcInsta","leadSrcLinkedin","leadSrcAppel","programmes","statuts","cgvTypes"];
-const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSrcInsta:"Sources leads — Setter Insta (Manychat, ADS, commentaires…)",leadSrcLinkedin:"Sources leads — Setter LinkedIn",leadSrcAppel:"Sources leads — Setter Appel",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
+const SET_KEYS=["setters","closers","coachs","callSources","leadSources","programmes","statuts","cgvTypes"];
+const SET_LABELS={setters:"Setters",closers:"Closers",coachs:"Coachs (qui fait la séance)",callSources:"Sources des appels (Calendly)",leadSources:"Sources des leads Insta (setters : mini-chats, ADS, commentaires…)",programmes:"Programmes",statuts:"Statuts client",cgvTypes:"Type de CGV"};
 async function loadSettings(){
   if(!db) return;
   try{ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get();
     if(d.exists){ const x=d.data(); SET_KEYS.forEach(k=>{ if(Array.isArray(x[k])) SETTINGS[k]=x[k]; });
-      // Migration : ancienne liste unique "leadSources" → seed les 3 canaux s'ils ne sont pas encore enregistrés (garde tes sources déjà saisies).
-      if(Array.isArray(x.leadSources)&&x.leadSources.length){ SETTINGS.leadSources=x.leadSources; ["leadSrcInsta","leadSrcLinkedin","leadSrcAppel"].forEach(k=>{ if(!Array.isArray(x[k])) SETTINGS[k]=x.leadSources.slice(); }); }
       if(Array.isArray(x.offers)&&x.offers.length) SETTINGS.offers=x.offers;
       if(x.immersive) SETTINGS.immersive=x.immersive;
       if(Array.isArray(x.immersives)) SETTINGS.immersives=x.immersives;
@@ -1161,12 +1085,10 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
     <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
-    <input class="pyPct" type="text" inputmode="decimal" placeholder="% ex 10" title="% de commission sur l'encaissé de ses clients (closer 10, setter 5)" value="${it.pct?it.pct:''}" style="width:90px;min-width:90px">
-    <input class="pyFixe" type="text" inputmode="numeric" placeholder="fixe € (vide)" title="Salaire fixe mensuel en € — souvent vide pour un closer/setter" value="${it.fixe?it.fixe:''}" style="width:100px;min-width:100px">
+    <input class="pyPct" type="number" inputmode="decimal" step="0.5" placeholder="%" title="% de l'encaissé de ses clients" value="${it.pct?it.pct:''}" style="width:62px">
+    <input class="pyFixe" type="number" inputmode="numeric" placeholder="fixe €" title="Montant fixe mensuel" value="${it.fixe?it.fixe:''}" style="width:76px">
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
-    <label class="ck" title="Archivé = plus payé À PARTIR du mois choisi. Les mois d'avant gardent son historique/ses commissions." style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 archivé dès</label>
-    <input class="pyArchFrom" type="month" title="Archivé à partir de ce mois (les mois précédents restent payés)" value="${escapeHtml(it.archivedFrom||'')}" style="width:130px">
-
+    <label class="ck" title="Archivé = mis de côté, exclu de la paie mais gardé (tu peux le réactiver)" style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="this.closest('.pyrow').style.opacity=this.checked?'.55':'1'">📦 archivé</label>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
   </div>`; }
@@ -1178,12 +1100,12 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
-function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales (tout sauf Finance/Comptes/Réglages)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
+function loginRow(it){ it=it||{}; const roles=[["team","Équipe"],["client","Clients (Anthony)"],["admin","Admin (tout)"]];
   return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
     <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
     <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
     <input class="lgCode" type="text" placeholder="code perso" value="${escapeHtml(it.code||"")}" style="flex:1;min-width:100px">
-    <select class="lgRole" style="flex:1;min-width:130px">${roles.map(r=>`<option value="${r[0]}" ${r[0]===curRole?"selected":""}>${r[1]}</option>`).join("")}</select>
+    <select class="lgRole" style="flex:1;min-width:130px">${roles.map(r=>`<option value="${r[0]}" ${r[0]===(it.role||"team")?"selected":""}>${r[1]}</option>`).join("")}</select>
     <button type="button" class="xrow" onclick="this.closest('.lgrow').remove()">✕</button>
   </div>`; }
 function addLogin(){ const box=$("loginBox"); if(box){ box.insertAdjacentHTML("beforeend", loginRow({role:"team"})); const i=box.lastElementChild.querySelector(".lgName"); if(i) i.focus(); } }
@@ -1205,25 +1127,14 @@ function renderSettings(){
     <button type="button" class="addrow" onclick="addGoal()">+ Ajouter un objectif</button>
     <div class="hint">Choisis <b>pour qui</b> (un setter précis, ou « Tous les setters » pour une cible commune). Chacun ne voit que SES objectifs dans son EOD, avec la progression du mois (fait / cible).</div></div>`;
   const pr=(SETTINGS.payList||[]).map(payRow).join("");
-  const payHead=`<div class="drow" style="flex-wrap:wrap;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">
-    <div style="flex:2;min-width:100px">Nom</div>
-    <div style="flex:1.6;min-width:110px">Poste affiché</div>
-    <div style="flex:1.2;min-width:100px">Rôle</div>
-    <div style="width:90px">% commission</div>
-    <div style="width:100px">Fixe €/mois</div>
-    <div style="white-space:nowrap">🎁 paliers</div>
-    <div style="white-space:nowrap">📦 archivé</div>
-  </div>`;
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
-    ${payHead}
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint">Les 2 petits carrés après le rôle = <b>1er : le % de commission</b> · <b>2e : le fixe € mensuel</b>. Un closer : mets <b>10</b> dans le % et laisse le fixe vide. Un setter : <b>5</b> dans le %.<br>
-      Pour chacun : son <b>rôle</b>, puis son <b>%</b> et/ou son <b>fixe €</b>.<br>
+    <div class="hint">Pour chacun : son <b>rôle</b>, puis son <b>%</b> et/ou son <b>fixe €</b>.<br>
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
       <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
-      <b>📦 archivé dès</b> = la personne n'est plus payée <b>à partir du mois choisi</b>. Les mois <b>avant</b> ce mois gardent son historique et ses commissions intactes (ta marge des mois passés ne bouge pas). Décoche pour la réactiver. Rien n'est supprimé.<br>
+      <b>📦 archivé</b> = la personne est mise de côté : elle disparaît de la Finance mais reste ici (décoche pour la réactiver et revoir sa data). Rien n'est supprimé.<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
@@ -1234,13 +1145,7 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>🔑 Identifiants (accès par personne)</h3>
     <div id="loginBox">${lg}</div>
     <button type="button" class="addrow" onclick="addLogin()">+ Ajouter une personne</button>
-    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son <b>rôle</b> :<br>
-      • <b>Setter</b> → EOD seulement.<br>
-      • <b>Closer</b> → EOD + Clients + Impayés + Immersive.<br>
-      • <b>Coach</b> → Clients + Coaching + Impayés + Immersive.<br>
-      • <b>Head of Sales</b> → tout sauf Finance / Comptes / Réglages.<br>
-      • <b>Admin (Léa)</b> → tout.<br>
-      Finance, Comptes (Dubai) et Réglages restent réservés à toi (Admin) uniquement. Quand quelqu'un part, supprime sa ligne. Le code maître admin reste en secours.</div></div>`;
+    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son niveau : <b>Équipe</b> (EOD, Coaching…), <b>Clients</b> (comme Anthony, avec les montants), <b>Admin</b> (tout). Quand quelqu'un part, supprime sa ligne — les codes des autres ne bougent pas. Les 3 codes maîtres restent toujours en secours.</div></div>`;
   box.innerHTML=html;
 }
 async function saveSettings(){
@@ -1248,26 +1153,20 @@ async function saveSettings(){
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({who:r.querySelector('.glWho').value, label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
-  const _gl=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
-  // 🛡️ ANTI-ÉCRASEMENT : on ne remplace la liste d'identifiants QUE s'il y a au moins une ligne. Une liste vide (Firebase pas encore chargé, ou tout supprimé par erreur) ne peut PLUS écraser les identifiants existants.
-  const _loginsEmpty=(_gl.length===0);
-  if(!_loginsEmpty) SETTINGS.logins=_gl;
+  SETTINGS.logins=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
     name:r.querySelector('.pyName').value.trim(),
     label:(r.querySelector('.pyLabel').value||"").trim(),
     role:r.querySelector('.pyRole').value,
-    pct: Number(String(r.querySelector('.pyPct').value||"").replace(",",".").replace(/[^0-9.]/g,""))||0,
-    fixe:Number(String(r.querySelector('.pyFixe').value||"").replace(",",".").replace(/[^0-9.]/g,""))||0,
+    pct: Number(r.querySelector('.pyPct').value)||0,
+    fixe:Number(r.querySelector('.pyFixe').value)||0,
     prime:!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked),
-    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked),
-    archivedFrom:(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })()
+    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked)
   })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  const _payload={isSettings:true, ...SETTINGS};
-  if(_loginsEmpty) delete _payload.logins; // liste vide → on NE touche PAS aux identifiants déjà en base (merge les conserve)
-  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set(_payload,{merge:true});
-    m.className="msg ok"; m.textContent="Réglages enregistrés ✓"+(_loginsEmpty?" (identifiants existants conservés)":"")+" — visibles par toute l'équipe."; renderSettings(); }
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, ...SETTINGS},{merge:true});
+    m.className="msg ok"; m.textContent="Réglages enregistrés ✓ — visibles par toute l'équipe."; renderSettings(); }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 
@@ -1368,37 +1267,26 @@ async function loadCoaching(){
   renderCoachingTab();
 }
 function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
-    const unlim=isV2(c);
     const tot=coachTotal(c), done=coachDone(c), pct=tot?Math.min(100,Math.round(done/tot*100)):0;
     const o=offerFor(c.programme); const acc=o&&o.months?" · 🗓 "+o.months+" mois d'accès":"";
-    const verB = `<span class="gbadge" title="${unlim?'Version 2 — appels illimités':'Version 1 — appels limités selon offre'}" style="border-color:${unlim?'#c9a0ff':'var(--line)'};color:${unlim?'#c9a0ff':'var(--muted)'};font-weight:800">${unlim?'🔓 V2 · illimité':'🏷 V1'}</span>`;
     const lv=clientLevel(done); const cs2=coachCallStatus(c);
     const callsB = `<span class="gbadge" style="border-color:${cs2.cl};color:${cs2.cl}">${cs2.label}</span>`;
-    const cm=coachDoneThisMonth(c), cmt=coachPerMonth(c), cmCol=cm>=cmt?'#7ee2a3':(cm>0?'#ffcf7a':'var(--red)');
-    const callsMonthB = unlim
-      ? `<span class="gbadge" style="border-color:var(--line);color:var(--muted)" title="Appels pris ce mois — offre illimitée, pas de cap">📞 ${cm} ce mois · ∞</span>`
-      : `<span class="gbadge" style="border-color:${cmCol};color:${cmCol}" title="Calls pris dans le mois en cours (depuis l'anniversaire d'onboarding)">📞 ${cm}/${cmt} ce mois</span>`;
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${unlim?`${done} · ∞`:`${done} / ${tot}`}</span></div>
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${done} / ${tot}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       <div class="cwk-sub" style="margin-top:2px">📅 Démarrage (onboarding) : <b>${onbDate(c)?frDate(onbDate(c)):"—"}</b></div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
-      ${unlim?`<div class="cwk-sub" style="margin-top:6px;color:#c9a0ff">🔓 <b>Appels illimités</b> — pas de nombre à respecter. Suivi à la régularité (voir statut ci-dessous).</div>`:`<div class="cwk-bar"><span style="width:${pct}%"></span></div>`}
+      <div class="cwk-bar"><span style="width:${pct}%"></span></div>
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
-        ${verB}
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        ${callsMonthB}${callsB}${editoB}
+        ${callsB}${editoB}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
-        ${unlim?'':`<span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>`}
-        ${callMgmtBadge(c)}
-        ${flowListed(c)?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
+        <span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="sub2">📞 Suivi appel :</span>${callMgmtBtns(c)}</div>
       ${editoMonths(c)}
       ${satisMonths(c)}
-      ${rappelsBlock(c)}
       <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
       <details class="cdet" style="margin-top:10px"><summary>📋 Détail des séances</summary>${coachLogHtml(c,true)}</details>
       <div class="cgadd">
@@ -1412,7 +1300,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
         </div>
         <label>🎬 Lien Fathom du call (optionnel) — le client pourra revisionner</label><input type="url" class="cgFathom" placeholder="https://fathom.video/…">
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
-        ${unlim?`<div class="cwk-in"><span class="sub2">🔓 Version 2 — appels illimités, pas de total à définir.</span></div>`:`<div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>`}
+        <div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>
       </div>
     </div>`;
 }
@@ -1421,18 +1309,16 @@ function renderCoachingTab(){
   const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
   const fcSel=$("cgCoachF"); const fc=(fcSel&&fcSel.value)||"";
   if(fcSel){ const cur=fcSel.value; fcSel.innerHTML='<option value="">👥 Tous les coachs (sections)</option>'+(SETTINGS.coachs||[]).map(n=>`<option ${n===cur?'selected':''}>${escapeHtml(n)}</option>`).join(""); }
-  const ver=($("cgVerF")&&$("cgVerF").value)||"";
   let cs=CLIENTS.filter(isSuivi);
   if(q) cs=cs.filter(c=>((c.nom||"")+" "+(c.prenom||"")+" "+(c.programme||"")).toLowerCase().includes(q));
-  if(ver==="v2") cs=cs.filter(c=>isV2(c)); else if(ver==="v1") cs=cs.filter(c=>!isV2(c));
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
+  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Loïc (1/mois) + upsells à préparer (J-10)
+  // Filtre sur un coach précis → liste plate
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+upC+loicC+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
-  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Fondateur (1/mois) + upsells à préparer (J-10) — sur tous les clients
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
   let html=seedBtn+upC+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
@@ -1491,30 +1377,10 @@ function satisMonths(c){ const months=editoMonthsCount(c), sm=c.satis||{}; let r
     <div class="satbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">${rows}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveSatis('${c.id}')">💾 Enregistrer</button>
       <div class="satMsg msg"></div></div></details>`; }
-async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=[...document.querySelectorAll('.satbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; if(!c||!box) return;
+async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=document.querySelector('.satbox[data-id="'+CSS.escape(id)+'"]'); if(!c||!box) return;
   const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
   const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-/* Note de suivi des rappels faits — un texte libre par client, dans l'espace coaching. Visible par toute l'équipe. */
-function rappelsBlock(c){ const nb=((c.coach_rappels||"").match(/\n/g)||[]).length + ((c.coach_rappels||"").trim()?1:0);
-  return `<details class="cdet" style="margin-top:10px"><summary>📞 Suivi des rappels${nb?` — ${nb} ligne${nb>1?'s':''}`:''}</summary>
-    <div class="rapbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">
-      <label>Note des rappels faits (une ligne par rappel)</label>
-      <textarea class="cgRappels" rows="4" placeholder="Ex : 12/09/2026 : rappelé, pas de réponse — à relancer lundi">${escapeHtml(c.coach_rappels||"")}</textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        <button type="button" class="btn ghost sm" onclick="addRappelDate('${c.id}')">📅 + Date du jour</button>
-        <button type="button" class="btn ghost sm" onclick="saveRappels('${c.id}')">💾 Enregistrer</button>
-      </div>
-      <div class="rapMsg msg"></div>
-    </div></details>
-    ${(effStep(c)===0 && !c.flow_cut_done)?`<button type="button" class="btn ghost sm" style="margin-top:8px;border-color:rgba(255,107,107,.5);color:#ff9a9a" onclick="flowStart('${c.id}')">🚨 Signaler un décrochage / silence → lance le process impayés</button>`:`<div class="sub2" style="margin-top:8px">🚦 Process décrochage en cours — <b style="color:${flowStatusDef(c).cl}">${flowStatusDef(c).l}</b> · <a href="#" onclick="show('unpaid');return false" style="text-decoration:underline">voir dans Impayés</a></div>`}`; }
-function rapBoxOf(id){ return [...document.querySelectorAll('.rapbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
-function addRappelDate(id){ const box=rapBoxOf(id); if(!box) return; const ta=box.querySelector(".cgRappels"); if(!ta) return;
-  const line=frDate(todayStr())+" : "; const cur=ta.value||""; ta.value=(cur && !cur.endsWith("\n")?cur+"\n":cur)+line; ta.focus(); ta.selectionStart=ta.selectionEnd=ta.value.length; }
-async function saveRappels(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=rapBoxOf(id); if(!c||!box) return;
-  const val=((box.querySelector(".cgRappels")&&box.querySelector(".cgRappels").value)||"").trim();
-  const m=box.querySelector(".rapMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  try{ await db.collection("clients").doc(id).update({coach_rappels:val}); c.coach_rappels=val; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Suivi "à jour ?" : basé sur l'ONBOARDING (début réel du suivi) + la RÉCENCE du dernier call. Cadence 3 calls/mois ≈ 1 tous les 10 j. */
 function firstCoachDate(c){ // 1er coaching pointé = call d'onboarding
   const log=(c&&c.coaching&&c.coaching.log)||[];
@@ -1534,17 +1400,12 @@ function loicDueDate(c){ const base=lastLoicDate(c)||onbDate(c); return base?add
 async function markLoicCall(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c)return;
   const arr=Array.isArray(c.loic_calls)?c.loic_calls.slice():[]; arr.push(todayStr());
   try{ await db.collection("clients").doc(id).update({loic_calls:arr}); c.loic_calls=arr; renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
-// Depuis 09/2026 : sur Viral Pro, Loïc fait UNIQUEMENT l'onboarding → le point mensuel est fait par le COACH dédié. Élite Viral & Mentorat = point mensuel de Loïc.
-function loicNeedsCall(c){ const p=normOffer(c&&c.programme); return /elite|mentorat/.test(p); }
-function isViralPro(c){ return /viral pro/.test(normOffer(c&&c.programme)); }
-function lastCoachDate(c){ const log=(c&&c.coaching&&c.coaching.log)||[]; let d=""; log.forEach(e=>{ if(e&&e.date && String(e.date).slice(0,10)>d) d=String(e.date).slice(0,10); }); return d; }
 function loicCallsCard(cs){
   const today=todayStr(); const soon=(()=>{ const d=new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
-  // Uniquement les calls de Loïc (Élite Viral & Mentorat). Sur Viral Pro, Loïc ne fait que l'onboarding → les coachings sont suivis dans le tableau coaching normal.
-  const items=cs.filter(loicNeedsCall).map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
+  const items=cs.map(c=>({c,last:lastLoicDate(c),due:loicDueDate(c)})).filter(o=>o.due && o.due<=soon).sort((a,b)=>a.due.localeCompare(b.due));
   const row=o=>{ const overdue=o.due<today; const col=overdue?"#ff6b6b":"#ffcf7a";
     return `<div class="kv" style="align-items:center"><span class="k" style="cursor:pointer" onclick="editClient('${o.c.id}')">${offerEmoji(o.c.programme)} ${escapeHtml(((o.c.nom||"")+" "+(o.c.prenom||"")).trim())}${coachBadges(o.c)} <span class="sub2">· ${o.last?"dernier appel Loïc "+frDate(o.last):"jamais appelé"}</span></span><span class="v" style="color:${col};white-space:nowrap">${overdue?"⚠️ retard":"⏳"} avant ${frDate(o.due)} <button class="btn ghost sm" style="width:auto;margin-left:6px;padding:3px 8px;font-size:11px" onclick="markLoicCall('${o.c.id}')">✅ fait</button></span></div>`; };
-  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:2px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div><div class="sub2" style="margin-bottom:6px">Élite Viral & Mentorat uniquement · Viral Pro : suivi via le coaching normal (coach).</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients Élite Viral & Mentorat sont à jour de leur appel Loïc.</div>'}</div>`;
+  return `<div class="card" style="border-color:rgba(255,107,107,.35);margin-bottom:10px"><div style="font-weight:800;margin-bottom:6px">📞 Calls Loïc à prendre — 1 / mois / client (${items.length})</div>${items.length?items.map(row).join(""):'<div class="sub2">✅ Tous les clients sont à jour de leur appel Loïc du mois.</div>'}</div>`;
 }
 // Upsells à préparer : à J-10 de la fin de contrat, le closer prépare l'upsell (pas encore upsellé).
 function upsellDueCard(cs){
@@ -1571,21 +1432,6 @@ function coachCallStatus(c){
   if(dd<=13) return {code:"relance", label:"🟠 à relancer · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"#ffcf7a"};
   return {code:"late", label:"❌ en retard · dernier call "+dayLabel(last)+" ("+dd+" j)", cl:"var(--red)"};
 }
-/* Suivi appel « Proposé / Géré » — surtout pour les clients dont on ne sait pas trop où ils en sont (offres illimitées / retards).
-   Le coach marque 📤 Proposé (call proposé) puis ✅ Géré (traité). Champs : call_propose_date, call_gere_date. */
-function callMgmtState(c){ if(c&&c.call_gere_date) return "gere"; if(c&&c.call_propose_date) return "propose"; return ""; }
-function callMgmtBadge(c){ const s=callMgmtState(c);
-  if(s==="gere") return `<span class="gbadge" style="border-color:#7ee2a3;color:#7ee2a3">✅ Géré${c.call_gere_date?" · "+dayLabel(c.call_gere_date):""}</span>`;
-  if(s==="propose") return `<span class="gbadge" style="border-color:#8fb4ff;color:#8fb4ff">📤 Proposé${c.call_propose_date?" · "+dayLabel(c.call_propose_date):""}</span>`;
-  return ""; }
-function callMgmtBtns(c){ const s=callMgmtState(c);
-  return `<button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;${s==='propose'?'border-color:#8fb4ff;color:#8fb4ff':''}" onclick="setCallMgmt('${c.id}','propose')">📤 Proposé</button>`
-    +`<button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 10px;font-size:12px;${s==='gere'?'border-color:#7ee2a3;color:#7ee2a3':''}" onclick="setCallMgmt('${c.id}','gere')">✅ Géré</button>`; }
-async function setCallMgmt(id,kind){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={};
-  if(kind==='propose'){ upd.call_propose_date=c.call_propose_date?"":todayStr(); if(upd.call_propose_date) upd.call_gere_date=""; }
-  else { upd.call_gere_date=c.call_gere_date?"":todayStr(); }
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
 // Édito : 1 calendrier tous les 15 jours. Retard = basé sur la RÉCENCE du dernier envoyé (pas un compteur cumulé).
 // Si le dernier a été envoyé il y a < 15 j → à jour. Si ≥ 15 j (ou aucun depuis l'onboarding) → en retard.
 function editoLastDate(c){ const em=(c&&c.edito)||{}; let d=""; Object.keys(em).forEach(k=>{ const e=em[k]; if(e&&e.sent&&e.date&&String(e.date)>d) d=String(e.date); }); return d; }
@@ -1644,10 +1490,7 @@ function coachAlertsCard(cs){
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const st=c=>coachCallStatus(c);
   // Calls = info seulement (se mettent à jour quand Romain pointe un coaching)
-  const callRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:7px 0">
-    <div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:52%">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">${callMgmtBadge(c)||'<span class="sub2">à traiter :</span>'}${callMgmtBtns(c)}</div>
-  </div>`;
+  const callRow=(c,col)=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v" style="color:${col};max-width:60%;text-align:right">${st(c).label.replace(/^[^ ]+ /,'')}</span></div>`;
   // Édito = statut + champ « couvert jusqu'au » (le remplir fait passer le client en attente)
   const edRow=(c,col)=>`<div style="border-top:1px dashed var(--line);padding:8px 0">
     <div style="display:flex;justify-content:space-between;gap:8px"><span style="cursor:pointer;font-weight:600" onclick="editClient('${c.id}')">${offerEmoji(c.programme)} ${nom(c)}</span><span style="color:${col};font-size:12px;text-align:right;max-width:52%">${editoStatus(c).label.replace(/^🗓 édito[^·]*·?\s*/,'')}</span></div>
@@ -1769,23 +1612,6 @@ async function restoreBackup(){
     m.className="msg ok"; m.textContent="Restauration terminée ✓ ("+n+" éléments). Recharge la page (Cmd+Shift+R).";
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
-// Restaure UNIQUEMENT les identifiants depuis une sauvegarde .json — ne touche à RIEN d'autre (ni clients, ni finance, ni le reste).
-async function restoreLoginsOnly(){
-  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
-  const inp=$("restoreFile"); const f=inp&&inp.files&&inp.files[0]; const m=$("restoreMsg");
-  if(!f){ m.className="msg err"; m.style.display="block"; m.textContent="Choisis d'abord ta sauvegarde .json ci-dessus."; return; }
-  let data; try{ data=JSON.parse(await f.text()); }catch(e){ m.className="msg err"; m.style.display="block"; m.textContent="Fichier JSON invalide."; return; }
-  const ss=Array.isArray(data.setter_stats)?data.setter_stats:[];
-  const cfg=ss.find(x=>x && (x.id===SETTINGS_DOC || x.isSettings) && Array.isArray(x.logins));
-  const logins=(cfg&&Array.isArray(cfg.logins))?cfg.logins.filter(l=>l&&l.email&&l.code):[];
-  if(!logins.length){ m.className="msg err"; m.style.display="block"; m.textContent="Aucun identifiant trouvé dans cette sauvegarde."; return; }
-  if(!confirm(`Restaurer UNIQUEMENT les ${logins.length} identifiant(s) ?\n\nÇa ne touche PAS aux clients, à la finance, ni au reste. Continuer ?`)) return;
-  if(!fbReady()){ m.className="msg err"; m.textContent="Backend non connecté."; return; } initFirebase();
-  m.className="msg"; m.style.display="block"; m.textContent="Restauration des identifiants…";
-  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, logins},{merge:true}); SETTINGS.logins=logins; renderSettings();
-    m.className="msg ok"; m.textContent=logins.length+" identifiant(s) restauré(s) ✓ — rien d'autre n'a été touché."; }
-  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
-}
 // MÊME logique que l'onglet Finance (role/pct/fixe) pour que le rapport exporté concorde au centime.
 function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
@@ -1815,7 +1641,7 @@ async function exportReport(){
     const [cs,es,ss]=await Promise.all([db.collection("clients").get(), db.collection("eod_reports").orderBy("created_at","desc").limit(2000).get(), db.collection("setter_stats").get()]);
     cls=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);
     eods=es.docs.map(d=>({id:d.id,...d.data()}));
-    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isAntho||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
+    ss.docs.forEach(d=>{ const x=d.data(); if(x.isCalls||x.isCoo||x.isPresta||x.isLogi||x.isLinkedin||x.isPrestaFile||x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg) return; statMap[(x.member||"")+"|"+(x.month||"")]=x; });
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; return; }
   const esc=s=>escapeHtml(String(s==null?"":s));
   const dnow=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -1840,7 +1666,7 @@ async function exportReport(){
   const monthOpts=months.map(M=>`<option value="${esc(M)}">${esc(monthLabel(M))}</option>`).join("");
   const eodSorted=eods.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
   const eodHtml=eodSorted.map(x=>{
-    const role=x.role||""; const flds=eodFields(role,x.member); const parts=[];
+    const role=x.role||""; const flds=FORMS[role]||[]; const parts=[];
     flds.forEach(f=>{
       if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("Calls: "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
       if(f.type==="srccount"){ const a=srcArr(x); if(a.length){ const tot=a.reduce((s,z)=>s+(Number(z.n)||0),0); parts.push("Contactés ("+tot+"): "+a.map(z=>esc(z.src||'?')+" "+(z.n||0)).join(", ")); } return; }
@@ -1941,8 +1767,8 @@ function initApp(){
 let editingEodId=null;
 function onMember(){
   const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
-  if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
-  eodFields(role,$("member").value).forEach(f=>{
+  if(role==="setter"||role==="closer") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
+  FORMS[role].forEach(f=>{
     let inp;
     if(f.type==="check"){ box.insertAdjacentHTML("beforeend",`<label class="ckline" style="margin-top:12px"><input type="checkbox" id="f_${f.key}"> ${f.label}</label>`); return; }
     if(f.type==="mood"){
@@ -1965,7 +1791,7 @@ function onMember(){
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
-  if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
+  if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
   if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
@@ -1973,7 +1799,7 @@ function onMember(){
 }
 function fillEodForm(x){
   const role=member(x.member).role;
-  eodFields(role,x.member).forEach(f=>{
+  FORMS[role].forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
     else if(f.type==="booked"){ const box=$("bookRows"); if(box){ box.innerHTML=""; bookedArr(x).forEach(addBookRow); if(!box.children.length) addBookRow(); } }
@@ -1995,7 +1821,7 @@ function editEod(id){
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
   const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload={}; FORMS[role].forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -2018,18 +1844,27 @@ async function submitEod(){
       await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload, created_at:firebase.firestore.FieldValue.serverTimestamp() });
       msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
     }
-    eodFields(role,name).forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
+    FORMS[role].forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
+    if((role==="setter"||role==="closer") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
-/* ===================== OBJECTIFS ===================== */
-/* dgVal : lit une métrique dans un EOD (sert au réalisé auto des objectifs hebdo). */
+/* ===================== OBJECTIFS JOUR PAR JOUR ===================== */
+/* Cibles quotidiennes par personne. Les chiffres viennent des EOD (aucune ressaisie). */
+const DG_METRICS=[
+  {key:"contacted",    label:"Personnes contactées",       short:"Contactées"},
+  {key:"in_contact",   label:"En contact (conversations)", short:"En contact"},
+  {key:"calls_booked", label:"RDV calés",                  short:"RDV"},
+  {key:"calls_done",   label:"Appels passés",              short:"Appels"},
+  {key:"closed",       label:"Closés",                     short:"Closés"},
+  {key:"cash_day",     label:"Cash collecté (€)",          short:"Cash"},
+];
+function dgMeta(k){ return DG_METRICS.find(x=>x.key===k)||{key:k,label:k,short:k}; }
 function dgVal(e,key){ if(!e) return 0;
   if(key==="calls_done") return callsArr(e).length;
   if(key==="closed") return callsArr(e).filter(c=>c.res==="Closé").length;
@@ -2046,35 +1881,37 @@ const POLES=[
     {key:"contacted",label:"Contactées"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
   ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
   {key:"set_appel", label:"📞 Setting Appel / Rappel", src:"auto", role:"setter", ch:"appel", metrics:[
-    {key:"messages",label:"Messages envoyés"},{key:"replies",label:"Réponses reçues"},{key:"calls_booked",label:"Appels réservés (RDV)"},{key:"calls_qualif",label:"Appels qualifiés"}
-  ], derived:{label:"Taux réponse → RDV", num:"calls_booked", den:"replies"}},
+    {key:"contacted",label:"Appelés / contactés"},{key:"in_contact",label:"Conversations engagées"},{key:"calls_booked",label:"RDV pris"}
+  ], derived:{label:"Taux contact → RDV", num:"calls_booked", den:"contacted"}},
   {key:"vente", label:"💰 Pôle Vente / Closing", src:"auto", role:"closer", metrics:[
     {key:"calls_done",label:"Calls effectués"},{key:"closed",label:"Closés"}
   ], derived:{label:"Taux de closing", num:"closed", den:"calls_done"}},
   {key:"ads", label:"📢 Pôle Ads", src:"manual", metrics:[
-    {key:"budget",label:"Budget dépensé (€)"},{key:"vues",label:"Vues"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
+    {key:"budget",label:"Budget dépensé (€)"},{key:"leads",label:"Leads captés"},{key:"rdv_ads",label:"RDV issus des ads"}
   ], derived:{label:"Coût par lead (€)", num:"budget", den:"leads", euro:true, invert:true}},
+  {key:"contenu", label:"📸 Pôle Contenu / Insta (Loïc)", src:"manual", metrics:[
+    {key:"stories",label:"Stories postées"},{key:"posts",label:"Posts / Reels"},{key:"vues",label:"Vues / reach"},{key:"abo",label:"Abonnés gagnés"}
+  ]},
 ];
 // Repères marché par semaine (base quand il n'y a pas encore d'historique). Servent au calcul auto des objectifs.
 const BENCH={
   set_insta:{contacted:150,in_contact:45,calls_booked:8},
   set_linkedin:{contacted:150,in_contact:40,calls_booked:8},
-  set_appel:{messages:150,replies:50,calls_booked:10,calls_qualif:5},
+  set_appel:{contacted:300,in_contact:75,calls_booked:10},
   vente:{calls_done:20,closed:5},
-  ads:{budget:0,vues:0,leads:20,rdv_ads:8},
+  ads:{budget:0,leads:20,rdv_ads:8},
+  contenu:{stories:15,posts:5,vues:0,abo:0},
 };
 function chMatch(title, ch){ const t=noAcc(String(title||"")); if(ch==="insta") return /insta/.test(t); if(ch==="linkedin") return /linkedin|link/.test(t); if(ch==="appel") return /appel|rappel|phone|tel|call/.test(t); return true; }
 function poleMembers(p){ let l=teamActive().filter(m=>m.role===p.role); if(p.ch) l=l.filter(m=>chMatch(m.title,p.ch)); return l; }
 function memberChannel(m){ if(chMatch(m.title,"insta")) return "insta"; if(chMatch(m.title,"linkedin")) return "linkedin"; if(chMatch(m.title,"appel")) return "appel"; return "insta"; }
-function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="ads") return "ads"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
+function poleForMember(m){ if(m.role==="closer") return "vente"; if(m.role==="setter") return "set_"+memberChannel(m); return null; }
 // Semaines calées sur le lundi (clé = date du lundi, ex "2026-08-31").
-// IMPORTANT : on formate la date en LOCAL (pas toISOString qui décale d'un jour dans les fuseaux à l'est de Londres, ex. Paris) et on parse à midi pour éviter les bascules d'heure d'été.
-function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), j=String(d.getDate()).padStart(2,"0"); return y+"-"+m+"-"+j; }
-function mondayOf(ds){ const d=new Date((ds||todayStr())+"T12:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return ymdLocal(d); }
-function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T12:00:00"); for(let i=0;i<7;i++){ const d=new Date(base); d.setDate(d.getDate()+i); out.push(ymdLocal(d)); } return out; }
-function weekLabelOf(wk){ const start=new Date(wk+"T12:00:00"); const end=new Date(start); end.setDate(end.getDate()+7); const f=x=>x.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du lundi "+f(start)+" au lundi "+f(end); }
-function prevWeek(wk){ const d=new Date(wk+"T12:00:00"); d.setDate(d.getDate()-7); return ymdLocal(d); }
-function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ const d=new Date(cur+"T12:00:00"); d.setDate(d.getDate()+i*7); out.push(ymdLocal(d)); } return out; }
+function mondayOf(ds){ const d=new Date((ds||todayStr())+"T00:00:00"); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d.toISOString().slice(0,10); }
+function weekDaysOf(wk){ const out=[]; const base=new Date(wk+"T00:00:00").getTime(); for(let i=0;i<7;i++) out.push(new Date(base+i*86400000).toISOString().slice(0,10)); return out; }
+function weekLabelOf(wk){ const d=weekDaysOf(wk); const f=x=>new Date(x+"T00:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"}); return "Semaine du "+f(d[0])+" au "+f(d[6]); }
+function prevWeek(wk){ return new Date(new Date(wk+"T00:00:00").getTime()-7*86400000).toISOString().slice(0,10); }
+function weekOptions(){ const cur=mondayOf(todayStr()); const out=[]; for(let i=2;i>=-9;i--){ out.push(new Date(new Date(cur+"T00:00:00").getTime()+i*7*86400000).toISOString().slice(0,10)); } return out; }
 function wkGoals(){ return SETTINGS.weekGoals||(SETTINGS.weekGoals={}); }
 function wkActuals(){ return SETTINGS.weekActuals||(SETTINGS.weekActuals={}); }
 function wkTarget(wk,pole,mk){ const w=wkGoals()[wk]; const v=w&&w[pole+"|"+mk]; return (v==null||v==="")?null:Number(v); }
@@ -2101,6 +1938,35 @@ function wkAutoTarget(pole,mk,wk){ const vals=[]; let w=prevWeek(wk);
 function wkEffTarget(wk,pole,mk){ const t=wkTarget(wk,pole,mk); return t!=null?t:wkAutoTarget(pole,mk,wk); }
 function selWeek(){ const s=$("wkSelect"); return (s&&s.value)||mondayOf(todayStr()); }
 /* Propositions de départ tant que rien n'est enregistré — s'adapte à l'équipe du moment */
+function dgDefaults(){ const out=[];
+  teamActive().forEach(m=>{ const t=noAcc(m.title||"");
+    if(m.role==="setter"){ const ph=/appel|phone|tel/.test(t);
+      out.push({who:m.name,key:"contacted",target:ph?60:30});
+      out.push({who:m.name,key:"in_contact",target:ph?15:10});
+      out.push({who:m.name,key:"calls_booked",target:2}); }
+    else if(m.role==="closer"){ out.push({who:m.name,key:"calls_done",target:4}); out.push({who:m.name,key:"closed",target:1}); } });
+  return out; }
+function dgGoals(){ const g=SETTINGS.dayGoals; return (Array.isArray(g)&&g.length)?g:dgDefaults(); }
+function dgSaved(){ return Array.isArray(SETTINGS.dayGoals)&&SETTINGS.dayGoals.length>0; }
+function dgFor(n){ return dgGoals().filter(g=>g.who===n && Number(g.target)>0); }
+function dgPeople(){ const out=[]; dgGoals().forEach(g=>{ if(g.who&&Number(g.target)>0&&out.indexOf(g.who)<0) out.push(g.who); }); return out; }
+function dgWorkDays(){ const d=SETTINGS.goalDays; return (Array.isArray(d)&&d.length)?d.map(Number):[1,2,3,4,5]; }
+function dgIsWork(ds){ return dgWorkDays().indexOf(new Date(ds+"T00:00:00").getDay())>=0; }
+function dgDays(M){ const out=[]; const p=String(M||"").split("-"); const y=+p[0], mo=+p[1]; if(!y||!mo) return out;
+  const last=new Date(y,mo,0).getDate(); const today=todayStr();
+  for(let i=1;i<=last;i++){ const ds=M+"-"+String(i).padStart(2,"0"); if(ds>today) break; out.push(ds); } return out; }
+function dgEod(n,ds){ return EODS.find(x=>x.member===n && x.report_date===ds)||null; }
+function dgPct(d,t){ t=Number(t)||0; return t?Math.min(100,Math.round(d/t*100)):0; }
+function dgCls(d,t){ t=Number(t)||0; if(!t) return ""; const p=d/t; return p>=1?"dgok":(p>=0.5?"dgmid":"dgbad"); }
+function dgAllOk(n,ds){ const gs=dgFor(n); if(!gs.length) return false; const e=dgEod(n,ds); if(!e) return false; return gs.every(g=>dgVal(e,g.key)>=Number(g.target)); }
+/* Série = jours ouvrés consécutifs où TOUS les objectifs sont atteints (la journée en cours non remplie ne casse rien) */
+function dgStreak(n){ let s=0; const now=Date.now(), td=todayStr();
+  for(let i=0;i<120;i++){ const ds=new Date(now-i*86400000).toISOString().slice(0,10);
+    if(!dgIsWork(ds)) continue;
+    if(ds===td && !dgEod(n,ds)) continue;
+    if(dgAllOk(n,ds)) s++; else break; }
+  return s; }
+function dgMonth(){ const s=$("dgMonth"); return (s&&s.value)||monthStr(); }
 function fillWeekSelect(){ const s=$("wkSelect"); if(!s) return; const cur=selWeek()||mondayOf(todayStr()); s.innerHTML=weekOptions().map(wk=>{ const isNext=wk>mondayOf(todayStr()); const isCur=wk===mondayOf(todayStr()); return `<option value="${wk}" ${wk===cur?'selected':''}>${weekLabelOf(wk)}${isCur?' · cette semaine':(isNext?' · à venir':'')}</option>`; }).join(""); if(!s.value) s.value=mondayOf(todayStr()); }
 async function loadGoals(){
   const box=$("goalsBody"); if(!box) return;
@@ -2112,6 +1978,58 @@ async function loadGoals(){
   fillWeekSelect();
   renderGoals();
 }
+function dgTodayHtml(){
+  const ds=todayStr();
+  const cards=dgPeople().map(n=>{
+    const gs=dgFor(n), e=dgEod(n,ds);
+    const rows=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
+      return '<div style="margin:7px 0"><div class="dgtop"><span>'+escapeHtml(dgMeta(g.key).label)+'</span><span class="'+dgCls(v,t)+'"><b>'+v+'</b> / '+t+'</span></div><div class="cwk-bar"><span style="width:'+dgPct(v,t)+'%"></span></div></div>'; }).join("");
+    const st=dgStreak(n);
+    return '<div class="dgcard"><div class="dgname">'+(dgAllOk(n,ds)?"🏆 ":"")+escapeHtml(n)+(st>1?' <span class="dgstreak">🔥 '+st+' j</span>':"")+'</div>'+rows+
+      '<div class="hint" style="margin-top:6px">'+(e?"EOD envoyé ✓":"⏳ EOD du jour pas encore envoyé")+'</div></div>'; }).join("");
+  return '<div class="card"><h2>📅 Aujourd\'hui — '+dayLabel(ds)+'</h2><div class="dggrid">'+cards+'</div></div>';
+}
+function dgPersonHtml(n,M){
+  const gs=dgFor(n); if(!gs.length) return "";
+  const days=dgDays(M).reverse();
+  const work=days.filter(dgIsWork);
+  const hit=work.filter(ds=>dgAllOk(n,ds)).length;
+  const head=gs.map(g=>'<th>'+escapeHtml(dgMeta(g.key).short)+'<div class="dgt">cible '+(Number(g.target)||0)+'</div></th>').join("");
+  const rows=days.map(ds=>{ const e=dgEod(n,ds), w=dgIsWork(ds);
+    const cells=gs.map(g=>{ const v=dgVal(e,g.key), t=Number(g.target)||0;
+      return '<td class="'+(w&&e?dgCls(v,t):"")+'">'+(e?v:"—")+'</td>'; }).join("");
+    const mark=!w?"·":(dgAllOk(n,ds)?"🏆":(e?"":"⚠️"));
+    return '<tr class="'+(w?"":"dgoff")+'"><td class="dgday">'+dayLabel(ds)+'</td>'+cells+'<td>'+mark+'</td></tr>'; }).join("");
+  const tot=gs.map(g=>{ const s=days.reduce((a,ds)=>a+dgVal(dgEod(n,ds),g.key),0); const t=(Number(g.target)||0)*work.length;
+    return '<td><b>'+s+'</b><div class="dgt">/ '+t+'</div></td>'; }).join("");
+  const st=dgStreak(n);
+  return '<details class="card dgp" open><summary><b>'+escapeHtml(n)+'</b> <span class="sub2">· '+hit+'/'+work.length+' jours objectifs atteints'+(st>1?' · 🔥 '+st+' j de série':"")+'</span></summary>'+
+    '<div class="dgscroll"><table class="dgtab"><thead><tr><th>Jour</th>'+head+'<th>✓</th></tr></thead><tbody>'+rows+
+    '<tr class="dgtot"><td>Total '+monthLabel(M)+'</td>'+tot+'<td>'+hit+'/'+work.length+'</td></tr></tbody></table></div>'+
+    '<div class="hint">🏆 tous les objectifs du jour atteints · ⚠️ jour ouvré sans EOD · les jours non travaillés sont grisés.</div></details>';
+}
+function dgRowHtml(g){ g=g||{};
+  const inTeam=teamActive().some(m=>m.name===g.who);
+  const extra=(g.who&&!inTeam)?'<option value="'+escapeHtml(g.who)+'" selected>'+escapeHtml(g.who)+' (hors équipe)</option>':"";
+  const opts=teamActive().map(m=>'<option value="'+escapeHtml(m.name)+'"'+(m.name===g.who?" selected":"")+'>'+escapeHtml(m.name)+'</option>').join("");
+  const mets=DG_METRICS.map(m=>'<option value="'+m.key+'"'+(m.key===g.key?" selected":"")+'>'+escapeHtml(m.label)+'</option>').join("");
+  return '<div class="drow dgrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">'+
+    '<select class="dgWho" style="min-width:120px">'+extra+opts+'</select>'+
+    '<select class="dgKey" style="min-width:180px">'+mets+'</select>'+
+    '<input class="dgTarget" type="number" min="0" value="'+(Number(g.target)||0)+'" style="width:86px" placeholder="cible/jour">'+
+    '<button type="button" class="xrow" onclick="this.closest(\'.dgrow\').remove()">✕</button></div>'; }
+function dgAddRow(){ const b=$("dgBox"); if(b) b.insertAdjacentHTML("beforeend",dgRowHtml({who:(teamActive()[0]||{}).name||"",key:"contacted",target:0})); }
+function dgEditorHtml(){ if(!isAdmin()) return "";
+  const rows=dgGoals().map(dgRowHtml).join("");
+  const dn=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"], wd=dgWorkDays();
+  const cks=[1,2,3,4,5,6,0].map(d=>'<label class="ck" style="margin-right:10px"><input type="checkbox" class="dgWd" value="'+d+'"'+(wd.indexOf(d)>=0?" checked":"")+'> '+dn[d]+'</label>').join("");
+  return '<div class="card"><h2>⚙️ Cibles quotidiennes</h2>'+
+    (dgSaved()?'':'<div class="hint" style="margin-bottom:9px">💡 Rien n\'est encore enregistré : ci-dessous des <b>propositions</b> de départ. Ajuste les chiffres puis clique « Enregistrer ».</div>')+
+    '<div id="dgBox">'+rows+'</div>'+
+    '<button type="button" class="addrow" onclick="dgAddRow()">+ Ajouter un objectif</button>'+
+    '<div style="margin:13px 0 6px;font-size:13px"><b>Jours travaillés</b> — les autres ne comptent ni dans la série ni dans les totaux :</div><div>'+cks+'</div>'+
+    '<button class="btn" style="margin-top:12px" onclick="dgSave()">💾 Enregistrer les objectifs</button>'+
+    '<div id="dgMsg" class="msg"></div></div>'; }
 function poleCardHtml(p, wk, admin){
   const rows=p.metrics.map(mt=>{ const real=wkReal(p.key,mt.key,wk), saved=wkTarget(wk,p.key,mt.key), auto=wkAutoTarget(p.key,mt.key,wk), eff=(saved!=null?saved:auto);
     const st=wkStatus(real, eff);
@@ -2174,13 +2092,119 @@ function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(
     '<div class="hint">Ton objectif de la semaine et ton avancement (calculé depuis tes EOD). Tu ne vois que les tiens.</div></div>'; }
 
 /* ===================== NAV (animée) ===================== */
+/* ===================== LINKEDIN (suivi hebdo Clément) ===================== */
+let LINKEDIN=[], _liMetric="abo";
+const LI_METRICS=[["abo","Abonnés"],["impr7","Impressions 7j"],["impr28","Impressions 28j"],["eng7","Engagement 7j"],["eng28","Engagement 28j"],["vues","Vues profil 90j"],["rech","Recherches"]];
+const LI_LBL={abo:"⭐ Total abonnés",impr7:"Impressions 7j",impr28:"Impressions 28j",eng7:"Engagement 7j",eng28:"Engagement 28j",vues:"Vues profil 90j",rech:"Apparitions recherches"};
+function setLiMetric(k){ _liMetric=k; renderLinkedin(); }
+function liChartSvg(ws,key){
+  if(!ws.length) return '<div class="sub2" style="text-align:center;padding:20px 0">Ajoute des semaines pour voir la courbe.</div>';
+  const vals=ws.map(w=>Number(w[key])||0), max=Math.max(...vals,1), min=Math.min(...vals,0);
+  const W=520,H=150,pad=28, n=ws.length;
+  const X=i=> n<=1?W/2 : pad+(W-2*pad)*i/(n-1);
+  const Y=v=> H-22-(H-22-pad)*((v-min)/((max-min)||1));
+  const nf=v=>Number(v).toLocaleString('fr-FR');
+  const pts=vals.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+  const area=`M${X(0).toFixed(1)},${(H-22).toFixed(1)} L`+pts.replace(/ /g," L")+` L${X(n-1).toFixed(1)},${(H-22).toFixed(1)} Z`;
+  const dots=vals.map((v,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.2" fill="#ff7a3d"/>`).join("");
+  const xl=ws.map((w,i)=>`<text x="${X(i).toFixed(1)}" y="${H-6}" fill="#9b9aa3" font-size="9" text-anchor="middle">${(w.date||'').slice(8,10)}/${(w.date||'').slice(5,7)}</text>`).join("");
+  const lastLbl=`<text x="${X(n-1).toFixed(1)}" y="${(Y(vals[n-1])-8).toFixed(1)}" fill="#f3f1ea" font-size="11" font-weight="700" text-anchor="${n>1?'end':'middle'}">${nf(vals[n-1])}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+    <defs><linearGradient id="ligl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7f5bc4"/><stop offset="1" stop-color="#ff7a3d"/></linearGradient>
+      <linearGradient id="liga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d" stop-opacity="0.25"/><stop offset="1" stop-color="#ff7a3d" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#liga)"/>
+    <polyline points="${pts}" fill="none" stroke="url(#ligl)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${dots}${xl}${lastLbl}
+  </svg>`;
+}
+async function loadLinkedin(){
+  if(!fbReady()){ $("liList").innerHTML='<div class="empty">Backend non connecté.</div>'; return; } initFirebase();
+  const byDate={};
+  const mk=x=>({date:x.date, abo:x.abo||0, impr7:(x.impr7!=null?x.impr7:x.impr)||0, impr28:x.impr28||0, eng7:x.eng7||0, eng28:(x.eng28!=null?x.eng28:x.eng)||0, vues:x.vues||0, rech:x.rech||0, note:x.note||""});
+  try{ const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
+    snap.docs.forEach(d=>{ const x=d.data();
+      if(Array.isArray(x.weeks)){ x.weeks.forEach(w=>{ if(w&&w.date) byDate[w.date]=mk(w); }); }
+      else if(x.date && !x.deleted){ byDate[x.date]=mk(x); }
+      else if(x.date && x.deleted){ delete byDate[x.date]; }
+    });
+  }catch(e){}
+  LINKEDIN=Object.values(byDate).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  renderLinkedin();
+}
+async function saveLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
+  const g=id=>{ const e=$(id); return e?(Number(e.value)||0):0; };
+  const date=($("li_date")&&$("li_date").value)||todayStr();
+  const w={isLinkedin:true, date, abo:g("li_abo"), impr7:g("li_impr7"), impr28:g("li_impr28"), eng7:g("li_eng7"), eng28:g("li_eng28"), vues:g("li_vues"), rech:g("li_rech"), note:(($("li_note")&&$("li_note").value)||"").trim()};
+  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
+  if(!w.abo&&!w.impr7&&!w.impr28&&!w.eng7&&!w.eng28&&!w.vues&&!w.rech){ setMsg("Remplis au moins un chiffre.","err"); return; }
+  setMsg("Enregistrement…");
+  try{ await db.collection("setter_stats").doc("liweek_"+date).set(w);
+    ["li_abo","li_impr7","li_impr28","li_eng7","li_eng28","li_vues","li_rech","li_note"].forEach(id=>{const e=$(id);if(e)e.value="";});
+    await loadLinkedin(); setMsg("Semaine enregistrée ✓","ok");
+  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
+}
+async function delLinkedin(date){ if(!isAdmin())return; if(!confirm("Supprimer cette semaine ?"))return; initFirebase();
+  try{ await db.collection("setter_stats").doc("liweek_"+date).set({isLinkedin:true, date, deleted:true}); await loadLinkedin(); }
+  catch(e){ alert("Erreur : "+e.message); } }
+function renderLinkedin(){
+  const box=$("liList"), kb=$("liKpis"); if(!box) return;
+  const ws=LINKEDIN.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const nf=n=>Number(n||0).toLocaleString('fr-FR');
+  const series=k=>ws.filter(w=>Number(w[k])>0);
+  const ch=$("liChart"); if(ch){ const btns=LI_METRICS.map(([k,l])=>`<button class="btn ghost sm" style="width:auto;margin:0;padding:5px 11px;font-size:12px;${k===_liMetric?'border-color:var(--gold);color:var(--gold)':''}" onclick="setLiMetric('${k}')">${l}</button>`).join(" ");
+    const cw=series(_liMetric);
+    ch.innerHTML = ws.length? `<div class="card" style="margin-top:2px"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${btns}</div>${cw.length?liChartSvg(cw,_liMetric):'<div class="sub2" style="text-align:center;padding:18px 0">Pas encore de donnée pour « '+(LI_LBL[_liMetric]||_liMetric)+' ».</div>'}</div>`:'<div class="sub2" style="padding:6px 2px">La courbe apparaît dès la 1re semaine enregistrée.</div>'; }
+  if($("li_date")&&!$("li_date").value){ $("li_date").value=todayStr(); }
+  if(kb){ const cards=LI_METRICS.map(([k,l])=>{ const s=series(k); if(!s.length) return ""; const cur=s[s.length-1], prev=s[s.length-2];
+      let delta=""; if(prev){ const dd=Number(cur[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(dd/Number(prev[k])*100):0, col=dd>=0?"#7ee2a3":"#ff6b6b"; delta=`<div style="font-size:11px;color:${col};margin-top:2px">${dd>=0?"▲":"▼"} ${nf(Math.abs(dd))} (${pct>=0?'+':''}${pct}%)</div>`; }
+      return `<div class="box"><div class="n grad-text">${nf(cur[k])}</div><div class="l">${l}</div>${delta}</div>`; }).filter(Boolean).join("");
+    kb.innerHTML=cards||'<div class="sub2" style="padding:6px 2px">Ajoute une semaine pour voir les indicateurs.</div>'; }
+  if(!ws.length){ box.innerHTML='<div class="empty">Aucune semaine encore. Saisis les chiffres de tes captures puis « Enregistrer la semaine ».</div>'; return; }
+  const desc=ws.slice().reverse();
+  box.innerHTML=desc.map(w=>{
+    const lines=LI_METRICS.map(([k,l])=>{ if(!(Number(w[k])>0)) return "";
+      const s=series(k); const idx=s.findIndex(x=>x.date===w.date); const prev=idx>0?s[idx-1]:null;
+      let d=""; if(prev){ const diff=Number(w[k])-Number(prev[k]), pct=Number(prev[k])?Math.round(diff/Number(prev[k])*100):0, col=diff>=0?"#7ee2a3":"#ff6b6b"; d=` <span style="color:${col};font-size:12px">${diff>=0?"▲":"▼"} ${nf(Math.abs(diff))} (${pct>=0?'+':''}${pct}%)</span>`; }
+      return `<div class="kv"><span class="k">${l}</span><span class="v">${nf(w[k])}${d}</span></div>`; }).filter(Boolean).join("");
+    return `<div class="card" style="margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>📅 ${dayLabel(w.date)}</b><span style="display:flex;gap:8px;align-items:center"><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="editLiWeek('${w.date}')">✎</button><button class="btn ghost sm" style="width:auto;margin:0;padding:4px 9px;font-size:12px" onclick="delLinkedin('${w.date}')">✕</button></span></div>${w.note?`<div class="sub2" style="margin:2px 0 4px">${escapeHtml(w.note)}</div>`:""}${lines}</div>`;
+  }).join("");
+}
+// Import des 3 semaines réelles des captures de Clément (chaque chiffre dans le bon champ / la bonne fenêtre).
+async function seedLinkedin(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
+  const m=$("liMsg"); const setMsg=(t,cls)=>{ if(m){m.className="msg "+(cls||"");m.style.display="block";m.textContent=t;} };
+  const weeks=[
+    {date:"2026-07-30", abo:7132, impr7:81231, vues:2506, rech:126, note:"Vue d'ensemble (7 j)"},
+    {date:"2026-08-07", abo:7453, impr28:145632, eng28:1914, note:"Stats contenu (28 j)"},
+    {date:"2026-08-14", abo:7707, impr7:14383, eng7:416, note:"Stats contenu 7 j (8→14 août)"}
+  ];
+  if(!confirm("Ça remplace toutes les données LinkedIn actuelles par les 3 semaines propres (30/07, 07/08, 14/08). OK ?")) return;
+  setMsg("Nettoyage des anciennes données…");
+  try{
+    // 1) on efface tout l'existant (ancien doc unique + semaines mal rangées) pour repartir propre
+    const snap=await db.collection("setter_stats").where("isLinkedin","==",true).get();
+    for(const doc of snap.docs){
+      if(doc.id==="linkedin"){ await doc.ref.set({isLinkedin:true, weeks:[]}); }         // vide l'ancien doc unique
+      else { const dt=(doc.data().date)||doc.id.replace("liweek_",""); await doc.ref.set({isLinkedin:true, date:dt, deleted:true}); } // marque supprimé
+    }
+    // 2) on écrit les 3 semaines aux bons endroits
+    setMsg("Import des 3 semaines…");
+    for(const w of weeks){ await db.collection("setter_stats").doc("liweek_"+w.date).set({isLinkedin:true, abo:0,impr7:0,impr28:0,eng7:0,eng28:0,vues:0,rech:0, ...w}); }
+    await loadLinkedin(); setMsg("3 semaines importées proprement ✓","ok");
+  }catch(e){ setMsg("Erreur : "+e.message,"err"); }
+}
+function editLiWeek(date){ const w=LINKEDIN.find(x=>x.date===date); if(!w) return;
+  const s=(id,v)=>{const e=$(id);if(e)e.value=(v?v:"");};
+  s("li_date",w.date); s("li_abo",w.abo); s("li_impr7",w.impr7); s("li_impr28",w.impr28); s("li_eng7",w.eng7); s("li_eng28",w.eng28); s("li_vues",w.vues); s("li_rech",w.rech); s("li_note",w.note);
+  const m=$("liMsg"); if(m){m.className="msg";m.style.display="block";m.textContent="Semaine chargée — modifie les chiffres puis « Enregistrer ».";}
+  const f=$("li_date"); if(f) f.scrollIntoView({behavior:"smooth",block:"center"});
+}
 function show(v){
-  // Sécurité accès : Finance = admin/manager ; Comptes (banque Dubai) & Réglages = Léa uniquement (full admin).
-  if(v==="finance" && !isAdmin()) v="form";
-  if((v==="settings"||v==="accounts") && !isFullAdmin()) v="form";
-  if(!canView(v)) v=accessTabs()[0]||"form"; // le rôle n'a pas droit à cet onglet → on le renvoie sur son 1er onglet autorisé
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  // Sécurité accès : Finance & Réglages & Comptes & LinkedIn = admin uniquement ; Clients = admin ou accès clients
+  if((v==="finance"||v==="settings"||v==="accounts") && !isAdmin()) v="form";
+  if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
+  if(v==="clients" && !canClients()) v="form";
+  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","goals","coaching","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="goals") loadGoals();
@@ -2190,340 +2214,7 @@ function show(v){
   if(v==="accounts") loadAccounts();
   if(v==="settings") renderSettings();
   if(v==="immersive") loadImmersive();
-  if(v==="unpaid") loadUnpaid();
 }
-/* ===================== IMPAYÉS (suivi recouvrement, visible par toute l'équipe) ===================== */
-// Process de recouvrement, dans l'ordre à suivre.
-const UNPAID_STATUS=[
-  {v:"relance_closer", l:"📣 Relance closer"},
-  {v:"relance_coach",  l:"🎓 Relance coach"},
-  {v:"pause",          l:"⏸️ Warning / pause"},
-  {v:"recouv",         l:"⚖️ Recouvrement"},
-  {v:"resolu",         l:"✅ Réglé / payé"},
-];
-const UNPAID_STEPS=UNPAID_STATUS.filter(s=>s.v!=="resolu"); // les étapes cliquables du process (pas l'état final)
-function unpaidLabel(v){ const o=UNPAID_STATUS.find(x=>x.v===v); return o?o.l:UNPAID_STEPS[0].l; }
-function unpaidStepIdx(v){ return UNPAID_STEPS.findIndex(s=>s.v===v); }
-// Petit process cliquable en haut de chaque fiche impayé.
-function unpaidPipelineHtml(c){ const cur=unpaidStepIdx(c.impaye_status);
-  return `<div style="display:flex;gap:5px;flex-wrap:wrap;margin:8px 0">`+UNPAID_STEPS.map((s,i)=>{ const active=s.v===c.impaye_status, done=cur>=0&&i<cur;
-    const bg=active?'var(--red)':(done?'rgba(52,199,89,.15)':'var(--card2)'), col=active?'#fff':(done?'#7ee2a3':'var(--muted)'), bd=active?'var(--red)':(done?'rgba(52,199,89,.45)':'var(--line)');
-    return `<button type="button" onclick="quickUnpaidStatus('${c.id}','${s.v}')" style="flex:1;min-width:96px;background:${bg};color:${col};border:1px solid ${bd};border-radius:9px;padding:6px 6px;font-size:11.5px;font-weight:700;cursor:pointer">${done?'✓ ':''}${escapeHtml(s.l)}</button>`;
-  }).join("")+`</div>`; }
-// Impayé depuis = date de la PLUS VIEILLE échéance non payée (auto). Repli : champ manuel impaye_since.
-function unpaidSinceAuto(c){ const sc=(c&&c.schedule)||[]; const un=sc.filter(s=>!s.paid&&s.month).map(s=>String(s.month).slice(0,7)).sort(); if(un.length) return un[0]+"-01"; return (c&&c.impaye_since)?String(c.impaye_since).slice(0,10):""; }
-function unpaidDurLabel(dateStr){ if(!dateStr) return ""; const d=daysDiff(String(dateStr).slice(0,10), todayStr()); if(d==null||d<0) return ""; const mois=Math.floor(d/30); return d<30?`${d} j`:(mois<2?`1 mois (${d} j)`:`${mois} mois`); }
-// Menu déroulant de mois (24 derniers) pour « impayé depuis » — plus simple qu'un champ date.
-function sinceSelectHtml(id, sel){ const cur=String(sel||"").slice(0,7); const d=new Date(); d.setDate(1); let opts='<option value="">— choisir le mois —</option>';
-  for(let i=0;i<24;i++){ const val=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-01"; const lbl=d.toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); opts+=`<option value="${val}" ${val.slice(0,7)===cur?'selected':''}>${lbl}</option>`; d.setMonth(d.getMonth()-1); }
-  return `<select class="upSince" onchange="saveUnpaidSince('${id}',this.value)">${opts}</select>`; }
-// Date de bascule recouvrement = début de pause + 2 mois (règle : point mensuel, recouvrement si pas de retour après 2 mois).
-function unpaidRecouvDate(c){ const start=(c&&c.impaye_pause_date)||(c&&c.impaye_date)||""; return start?addMonthsISO(String(start).slice(0,10),2):""; }
-function unpaidPauseOverdue(c){ if(!c||c.impaye_status!=="pause") return false; const d=unpaidRecouvDate(c); return d && d<todayStr(); }
-
-/* ===================== NOUVEAU FLOW DÉCROCHAGE / IMPAYÉ (5 étapes) =====================
-   Principe : silence d'un client = début d'impayé. Décrochage et impayé partagent le MÊME flow court.
-   Le coach porte tout ; Léa n'agit que sur 2 pings explicites (étape 4 = envoyer un message, étape 5 = couper les accès) ; Loïc n'apparaît pas ; PAS de recouvrement (fin = accès coupés, le client peut revenir).
-   Champs client ajoutés (aucune donnée supprimée) : flow_step (1..5), flow_date (début de l'étape), flow_ping_msg, flow_ping_cut, flow_cut_done. L'ancien impaye_status est migré VIRTUELLEMENT (aucune écriture tant que personne ne clique). */
-const FLOW_STEPS=[
-  {n:1, key:"detection", jour:"J0",  resp:"Coach", deadlineDays:0, status:"arisque",
-    label:"Détection",
-    action:"Le client vient de passer en « À risque » (silence 48 h, absence à un audit ou paiement raté). Confirme le décrochage pour lancer le process.",
-    nextLabel:"🚨 Silence confirmé → lancer le process"},
-  {n:2, key:"message", jour:"J+1", resp:"Coach", deadlineDays:1, status:"relance",
-    label:"Message perso + groupe",
-    action:"Envoie un message dans le GROUPE + un 1-to-1 : « On te sent moins présent, tout va bien ? »",
-    nextLabel:"Silence → Appel inopiné (étape 3)"},
-  {n:3, key:"appel", jour:"J+2", resp:"Coach", deadlineDays:1, status:"relance",
-    label:"Appel inopiné",
-    action:"Appelle DIRECT, sans prévenir. ⚠️ JAMAIS « on peut se caller ? » — appel direct, jamais de RDV.",
-    nextLabel:"Silence → ping Léa (étape 4)"},
-  {n:4, key:"lea_msg", jour:"J+3", resp:"Léa", deadlineDays:1, status:"escalade",
-    label:"Léa envoie un message",
-    action:"Léa envoie un rappel formel écrit (WhatsApp + email) : rappel du montant dû + proposition d'arrangement (report, étalement).",
-    nextLabel:"Silence → ping Léa pour couper (étape 5)"},
-  {n:5, key:"lea_cut", jour:"J+7", resp:"Léa", deadlineDays:0, status:"escalade",
-    label:"Léa coupe les accès",
-    action:"Léa retire les accès dans l'ordre : Skool → groupe WhatsApp → calls. « Tes accès sont suspendus. Contacte-nous quand tu veux reprendre. »",
-    nextLabel:"⛔ Accès coupés"},
-];
-const FLOW_STATUS={
-  ok:      {v:"ok",      l:"🟢 OK",           cl:"#7ee2a3"},
-  arisque: {v:"arisque", l:"🟠 À risque",     cl:"#ffcf7a"},
-  relance: {v:"relance", l:"🔴 En relance",   cl:"#ff9a9a"},
-  standby: {v:"standby", l:"⏳ En attente",   cl:"#c9a0ff"},
-  escalade:{v:"escalade",l:"🚨 Escalade Léa", cl:"#ff6b6b"},
-  coupes:  {v:"coupes",  l:"⛔ Accès coupés", cl:"#9aa0a6"},
-};
-function flowStepDef(n){ return FLOW_STEPS.find(s=>s.n===Number(n))||null; }
-// Étape effective d'un client. Migration VIRTUELLE de l'ancien impaye_status si le nouveau flow n'a jamais été touché (aucune écriture).
-function effStep(c){ if(!c) return 0;
-  if(c.flow_cut_done) return 5;
-  if(c.flow_step!=null && c.flow_step!=="") return Number(c.flow_step)||0;
-  if(c.impaye){ const map={relance_closer:2, relance_coach:3, pause:4, recouv:5, resolu:0}; return map[c.impaye_status]!=null?map[c.impaye_status]:1; }
-  return 0;
-}
-// Ancien statut « réglé / payé » posé via l'ancien pipeline sans avoir retiré l'étiquette impayé → considéré comme résolu.
-function flowLegacyResolved(c){ return !!(c && c.impaye_status==="resolu" && (c.flow_step==null||c.flow_step==="") && !c.flow_cut_done); }
-function flowStatus(c){ if(!c) return "ok"; if(c.flow_cut_done) return "coupes"; if(flowLegacyResolved(c)) return "ok"; const s=effStep(c);
-  if(c.flow_standby && s>=1) return "standby"; // action faite, en attente de la réponse du client
-  if(s>=4) return "escalade"; if(s>=2) return "relance"; if(s===1) return "arisque";
-  return c.impaye?"arisque":"ok"; }
-function flowStatusDef(c){ return FLOW_STATUS[flowStatus(c)]||FLOW_STATUS.ok; }
-// Un client apparaît dans l'onglet Impayés s'il est dans le flow (décrochage OU impayé) ou si ses accès sont coupés. Un « résolu » legacy est masqué.
-function flowListed(c){ if(!c) return false; if(c.flow_cut_done) return true; if(flowLegacyResolved(c)) return false; return !!(c.impaye || effStep(c)>=1); }
-// Date de début de l'étape en cours (repli : date impayé / aujourd'hui) et deadline = début + deadlineDays.
-function flowStepStart(c){ return (c&&c.flow_date)||(c&&c.impaye_date)||todayStr(); }
-function flowDeadline(c){ const d=flowStepDef(effStep(c)); if(!d) return ""; return addDaysISO(flowStepStart(c), d.deadlineDays); }
-function flowOverdue(c){ const dl=flowDeadline(c); return dl && dl<todayStr() && effStep(c)>=1 && !c.flow_cut_done; }
-function addDaysISO(ds,days){ const d=new Date(String(ds||todayStr()).slice(0,10)+"T12:00:00"); d.setDate(d.getDate()+Number(days||0)); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-// Détection auto « À risque » (paiement raté) : une échéance non payée dont le mois est passé/en cours. Purement calculé (aucune écriture).
-function flowMissedPay(c){ const m=todayStr().slice(0,7); return (c&&c.schedule||[]).some(s=>!s.paid && s.month && String(s.month).slice(0,7)<=m); }
-// « À risque » détecté automatiquement (paiement raté) alors que le client n'est PAS encore dans le flow → on le propose au coach, sans rien écrire.
-function flowAtRiskAuto(c){ return c && !c.flow_cut_done && !c.flow_dismissed && effStep(c)===0 && !c.impaye && flowMissedPay(c); }
-
-async function loadUnpaid(){
-  const box=$("unpaidList"); if(!box) return;
-  if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
-  initFirebase(); box.innerHTML='<div class="empty">Chargement…</div>';
-  try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
-  renderUnpaid();
-}
-function unpaidCount(){ return (CLIENTS||[]).filter(c=>c.impaye).length; }
-function updUnpaidNav(){ const b=$("nav-unpaid"); if(!b) return; const n=unpaidCount(); b.innerHTML='<span class="ic">⚠️</span>Impayés'+(n?` <span style="background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;font-weight:800">${n}</span>`:""); }
-function unpaidOverdue(){ const t=todayStr(); return (CLIENTS||[]).filter(c=>c.impaye && c.impaye_status!=="resolu" && c.impaye_date && c.impaye_date<t); }
-// Bandeau visuel des 5 étapes (lecture seule ; les actions sont dans le panneau de l'étape en cours).
-function flowPipelineHtml(c){ const cur=effStep(c); const cut=!!c.flow_cut_done;
-  return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0">`+FLOW_STEPS.map(s=>{ const active=(s.n===cur)&&!cut, done=(cut&&s.n<=5)||(s.n<cur);
-    const bg=active?'var(--red)':(done?'rgba(52,199,89,.15)':'var(--card2)'), col=active?'#fff':(done?'#7ee2a3':'var(--muted)'), bd=active?'var(--red)':(done?'rgba(52,199,89,.45)':'var(--line)');
-    return `<div style="flex:1;min-width:74px;background:${bg};color:${col};border:1px solid ${bd};border-radius:9px;padding:5px 5px;font-size:10.5px;font-weight:700;text-align:center" title="${escapeHtml(s.jour+' · '+s.resp)}">${done?'✓ ':''}${s.n}. ${escapeHtml(s.label)}</div>`;
-  }).join("")+`</div>`; }
-// Panneau de l'étape en cours : responsable, deadline, script d'action, et les 2 sorties (Répond→OK / Silence→étape suivante).
-function flowStepPanel(c){ if(c.flow_cut_done) return `<div class="sub2" style="margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2)">⛔ <b>Accès coupés</b> — fin du flow. Le client peut revenir librement (aucun recouvrement).</div>`;
-  const s=flowStepDef(effStep(c));
-  if(!s){ // client listé (impayé) mais process pas (ou plus) lancé → proposer de le lancer
-    return `<div style="margin:6px 0;padding:9px 11px;border:1px solid rgba(255,207,122,.5);border-radius:12px;background:rgba(255,207,122,.06)">
-      <div class="sub2">🟠 <b>À risque</b> — process non lancé. Lance-le si le client décroche / ne paie pas.</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <button type="button" class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✓ Réglé → retirer</button>
-        <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowStart('${c.id}')">🚨 Lancer le process</button>
-      </div></div>`;
-  }
-  const dl=flowDeadline(c), over=flowOverdue(c);
-  const respCol=s.resp==="Léa"?'#ff9a9a':'#8fc4ff';
-  const last=s.n>=5;
-  const midBtns = s.n===1
-    ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Répond → OK</button>
-       <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
-    : last
-    ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button>
-       <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowCut('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
-    : `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ ${s.n>=4?'Régularise':'Répond'} → OK</button>
-       <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`;
-  return `<div style="margin:6px 0;padding:9px 11px;border:1px solid ${over?'var(--red)':'var(--line)'};border-radius:12px;background:${over?'rgba(255,107,107,.07)':'var(--card2)'}">
-    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-      <div style="font-weight:800;font-size:13px">Étape ${s.n} · ${escapeHtml(s.label)} <span class="sub2" style="font-weight:600">· ${escapeHtml(s.jour)}</span></div>
-      <span class="gbadge" style="border-color:${respCol};color:${respCol}">${s.resp==="Léa"?'👑 Léa':'🎓 Coach'}</span>
-    </div>
-    <div class="sub2" style="margin-top:4px">${escapeHtml(s.action)}</div>
-    ${dl?`<div class="sub2" style="margin-top:3px">⏳ Deadline : <b style="color:${over?'#ff9a9a':'#ffcf7a'}">${frDate(dl)}</b>${over?' ⚠️ dépassée':''}</div>`:""}
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${midBtns}</div>
-  </div>`; }
-// Dashboard Léa : UNIQUEMENT les 2 pings du coach (envoyer un message / couper les accès). Aucune autre notification, aucun tracking.
-function flowLeaDashboard(){ if(!isFullAdmin()) return "";
-  const msg=CLIENTS.filter(c=>!c.flow_cut_done && c.flow_ping_msg && effStep(c)===4);
-  const cut=CLIENTS.filter(c=>!c.flow_cut_done && c.flow_ping_cut && effStep(c)===5);
-  const nm=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
-  const money=canSeeMoney();
-  const row=(c,kind)=>{ const reste=clientReste(c);
-    return `<div style="border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:6px;background:var(--card2)">
-      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-        <b>${nm(c)}</b>${money&&reste>0?`<span class="v" style="color:#ffcf7a;font-weight:800">reste ${eur(reste)}</span>`:""}
-      </div>
-      <div class="sub2" style="margin-top:4px">${kind==='msg'
-        ? '✉️ <b>Rappel formel à envoyer</b> (WhatsApp + email) : rappel du montant dû + proposition d\'arrangement (report, étalement).'
-        : '⛔ <b>Couper les accès</b> dans l\'ordre : Skool → groupe WhatsApp → calls. « Tes accès sont suspendus. Contacte-nous quand tu veux reprendre. »'}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        ${kind==='msg'
-          ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button>
-             <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">Silence → ping pour couper</button>`
-          : `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button>
-             <button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowCut('${c.id}')">⛔ Accès coupés</button>`}
-      </div></div>`; };
-  return `<div class="card" style="border-color:rgba(255,107,107,.5)">
-    <div style="font-weight:800">👑 À toi de jouer, Léa <span class="sub2" style="font-weight:600">— tes seules actions sur les impayés</span></div>
-    <div class="section-title" style="margin:10px 2px 2px">✉️ Messages à envoyer (${msg.length})</div>
-    ${msg.length?msg.map(c=>row(c,'msg')).join(""):'<div class="sub2" style="margin-top:4px">Rien à envoyer. 🎉</div>'}
-    <div class="section-title" style="margin:12px 2px 2px">⛔ Accès à couper (${cut.length})</div>
-    ${cut.length?cut.map(c=>row(c,'cut')).join(""):'<div class="sub2" style="margin-top:4px">Rien à couper. 🎉</div>'}
-  </div>`; }
-// Rappel du SOP (les 5 étapes), toujours visible en haut de l'onglet — pour que les coachs retrouvent le process.
-function flowSopCard(){
-  const stepLine=s=>`<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line)">
-     <div style="font-weight:800;color:#ff9a9a;min-width:22px">${s.n}</div>
-     <div style="flex:1">
-       <div style="font-weight:700;font-size:13px">${escapeHtml(s.label)} <span class="sub2" style="font-weight:600">· ${escapeHtml(s.jour)} · ${s.resp==='Léa'?'👑 Léa':'🎓 Coach'}</span></div>
-       <div class="sub2" style="margin-top:2px">${escapeHtml(s.action)}</div>
-       <div class="sub2" style="margin-top:2px;opacity:.7">↳ ${s.n>=5?'fin → ⛔ accès coupés (pas de recouvrement, le client peut revenir librement)':'✓ répond → retour au cycle normal · ✗ silence → étape '+(s.n+1)}</div>
-     </div></div>`;
-  return `<details class="cdet" open style="margin-bottom:10px"><summary style="font-weight:800">📋 SOP — Décrochage &amp; impayés <span class="sub2" style="font-weight:600">(silence = impayé qui vient · le coach porte tout · Léa agit sur 2 pings · Loïc n'intervient pas · pas de recouvrement)</span></summary>
-    <div class="card" style="margin-top:6px">${FLOW_STEPS.map(stepLine).join("")}</div></details>`;
-}
-// Checklist des 5 étapes pour un client : étapes faites cochées ✅, étape en cours active (script + 2 sorties), étapes à venir ☐.
-function flowChecklistHtml(c){ const cur=effStep(c), cut=!!c.flow_cut_done;
-  if(cur===0 && !cut){ // client mis en impayé mais process pas encore lancé
-    return `<div style="margin:6px 0;padding:9px 11px;border:1px solid rgba(255,207,122,.5);border-radius:12px;background:rgba(255,207,122,.06)">
-      <div class="sub2">🟠 <b>À risque</b> — process pas encore lancé.</div>
-      <button type="button" class="btn sm" style="width:auto;margin-top:8px;background:var(--red);border-color:var(--red)" onclick="flowStart('${c.id}')">🚨 Lancer le process (le client décroche / ne paie pas)</button>
-    </div>`;
-  }
-  const rows=FLOW_STEPS.map(s=>{ const done=cut?true:(s.n<cur); const active=!cut && s.n===cur;
-    const mark=done?'✅':(active?(c.flow_standby?'⏳':'🔻'):'☐'); const respCol=s.resp==='Léa'?'#ff9a9a':'#8fc4ff';
-    let body="";
-    if(active){ const dl=flowDeadline(c), over=flowOverdue(c);
-      const btns = s.n===1
-        ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Répond → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
-        : s.n>=5
-        ? `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ Régularise → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowCut('${c.id}')">${escapeHtml(s.nextLabel)}</button>`
-        : `<button type="button" class="btn ghost sm" style="width:auto" onclick="flowRespond('${c.id}')">✓ ${s.n>=4?'Régularise':'Répond'} → OK</button><button type="button" class="btn sm" style="width:auto;background:var(--red);border-color:var(--red)" onclick="flowAdvance('${c.id}')">${escapeHtml(s.nextLabel)}</button>`;
-      const sb=!!c.flow_standby;
-      const sbLine=sb?`<div class="sub2" style="margin-top:4px;color:#c9a0ff">⏳ <b>En attente de réponse</b>${c.flow_standby_date?` depuis le ${frDate(c.flow_standby_date)}`:""} — action faite, on attend le client.</div>`:"";
-      const sbBtn=`<button type="button" class="btn ghost sm" style="width:auto;border-color:#c9a0ff;color:#c9a0ff" onclick="flowStandby('${c.id}')">${sb?'↩️ Lever l\'attente':'⏳ Action faite → en attente'}</button>`;
-      body=`<div class="sub2" style="margin-top:3px">${escapeHtml(s.action)}</div>${dl?`<div class="sub2" style="margin-top:3px">⏳ Deadline : <b style="color:${over?'#ff9a9a':'#ffcf7a'}">${frDate(dl)}</b>${over?' ⚠️ dépassée':''}</div>`:""}${sbLine}<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${sbBtn}${btns}</div>`;
-    }
-    const bg=active?'rgba(255,107,107,.06)':'transparent', bd=active?'var(--red)':'var(--line)', opa=(!done&&!active)?'opacity:.5':'';
-    return `<div style="border:1px solid ${bd};border-radius:10px;padding:8px 10px;margin-top:6px;background:${bg};${opa}">
-       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-         <div style="font-weight:${active?'800':'600'};font-size:13px">${mark} Étape ${s.n} · ${escapeHtml(s.label)}</div>
-         <span class="sub2" style="font-weight:600">${escapeHtml(s.jour)} · <span style="color:${respCol}">${s.resp==='Léa'?'👑 Léa':'🎓 Coach'}</span></span>
-       </div>${body}</div>`;
-  }).join("");
-  const tail=cut?`<div class="sub2" style="margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card2)">⛔ <b>Accès coupés</b> — fin du flow. Le client peut revenir librement (aucun recouvrement).</div>`:"";
-  return rows+tail;
-}
-function renderUnpaid(){
-  const box=$("unpaidList"); if(!box) return; updUnpaidNav();
-  const money=canSeeMoney(); const today=todayStr();
-  // UNIQUEMENT ce que Léa (ou le coach) a mis manuellement en impayé/décrochage — aucune détection auto, pas d'archivés.
-  const inflow=CLIENTS.filter(c=>flowListed(c)&&!c.flow_cut_done&&!c.archived);
-  const cutlist=CLIENTS.filter(c=>c.flow_cut_done&&!c.archived);
-  const order={escalade:0,relance:1,arisque:2,ok:3,coupes:4};
-  inflow.sort((a,b)=>(order[flowStatus(a)]-order[flowStatus(b)])||String(a.impaye_date||"9999").localeCompare(String(b.impaye_date||"9999")));
-  const lea=flowLeaDashboard();
-  const head=lea+flowSopCard();
-  if(!inflow.length && !cutlist.length){ box.innerHTML=head+'<div class="card"><div class="empty">Aucun client en décrochage / impayé pour le moment. <br><span class="sub2">Pour en ajouter : coche « ⚠️ Impayé » sur une fiche client (onglet Clients), ou clique « 🚨 Signaler un décrochage » sur sa carte Coaching.</span></div></div>'; return; }
-  const cardOf=(c)=>{
-    const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
-    const reste=clientReste(c); const st=flowStatusDef(c);
-    const sinceManual=c.impaye_since||"", sinceEff=sinceManual||unpaidSinceAuto(c), sinceDur=unpaidDurLabel(sinceEff);
-    return `<div class="card" data-id="${escapeHtml(c.id)}" style="margin-top:10px">
-      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-        <div style="font-weight:800;font-size:15px">${escapeHtml(nm)} <span class="sub2" style="font-weight:500">· ${escapeHtml(c.programme||"")}</span></div>
-        <span class="gbadge" style="border-color:${st.cl};color:${st.cl};font-weight:800">${st.l}</span>
-      </div>
-      ${money&&reste>0?`<div class="sub2" style="margin-top:2px">💰 Reste dû : <b style="color:#ffcf7a">${eur(reste)}</b></div>`:""}
-      ${flowChecklistHtml(c)}
-      <div class="payin" style="margin-top:8px">
-        <div><label>🕒 Silence / impayé depuis (mois)</label>${sinceSelectHtml(c.id, sinceManual)}${sinceEff&&sinceDur?`<div class="sub2" style="margin-top:2px">ça fait <b style="color:#ff9a9a">${sinceDur}</b>${!sinceManual?' <span style="opacity:.6">(auto)</span>':''}</div>`:""}</div>
-        <div><label>📅 Prochain point (rappel)</label>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:2px">
-            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',7)">+1 sem</button>
-            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',14)">+2 sem</button>
-            <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:5px 9px;font-size:12px" onclick="setUnpaidNext('${c.id}',30)">+1 mois</button>
-            ${c.impaye_date?`<span class="sub2" style="white-space:nowrap">→ <b style="color:${c.impaye_date<today?'#ff9a9a':'#ffcf7a'}">${frDate(c.impaye_date)}</b>${c.impaye_date<today?' ⚠️':''} <button type="button" title="Effacer" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px" onclick="setUnpaidNext('${c.id}',null)">✕</button></span>`:'<span class="sub2">— aucun</span>'}
-          </div>
-        </div>
-      </div>
-      ${c.tel?`<div class="sub2" style="margin-top:2px">📞 ${escapeHtml(c.tel)}</div>`:""}
-      <div style="margin-top:8px">
-        <button class="btn ghost sm" style="width:auto" onclick="resolveUnpaid('${c.id}')">✅ Réglé / résolu — retirer de la liste</button>
-      </div>
-      <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
-        <div class="sub2" style="font-weight:700;font-size:11.5px;margin-bottom:3px">📝 Historique (relances & étapes)</div>
-        ${unpaidLogHtml(c)}
-        <div class="payin" style="margin-top:6px"><div style="flex:2"><input class="upNewNote" type="text" placeholder="Nouvelle note (datée automatiquement)…"></div><div style="flex:0"><button class="btn ghost sm" style="width:auto;white-space:nowrap" onclick="addUnpaidNote('${c.id}')">+ Ajouter</button></div></div>
-      </div>
-      <div class="upMsg msg"></div>
-    </div>`;
-  };
-  let html=head;
-  html+=`<div class="card" style="border-color:var(--red)"><div class="sub2"><b style="color:#ff9a9a">${inflow.length}</b> client${inflow.length>1?"s":""} en cours de suivi</div></div>`;
-  html+=inflow.map(cardOf).join("");
-  if(cutlist.length) html+=`<details class="cdet" style="margin-top:12px"><summary style="font-weight:800">⛔ Accès coupés — historique (${cutlist.length})</summary>${cutlist.map(cardOf).join("")}</details>`;
-  box.innerHTML=html;
-}
-// ---- Transitions du flow (le coach porte tout ; Léa n'agit que sur les 2 pings) ----
-function flowRefresh(){ if($("unpaidList")) renderUnpaid(); if($("coachingList")&&!$("view-coaching").classList.contains("hide")) renderCoachingTab(); updUnpaidNav(); }
-function flowLogPush(c, text){ const log=unpaidLog(c); log.push({date:todayStr(), text, by:(LOGIN_NAME||"")}); return log; }
-async function flowStart(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:1, flow_date:todayStr(), flow_ping_msg:false, flow_ping_cut:false, flow_cut_done:false, flow_dismissed:false, flow_standby:false, impaye_log:flowLogPush(c,"🚦 Étape 1 · Détection — décrochage/silence signalé")};
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-async function flowAdvance(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const cur=effStep(c); const next=Math.min(5, (cur||1)+1); const s=flowStepDef(next);
-  const upd={flow_step:next, flow_date:todayStr(), flow_standby:false};
-  if(next===4){ upd.flow_ping_msg=true; upd.flow_ping_cut=false; }
-  if(next===5){ upd.flow_ping_cut=true; upd.flow_ping_msg=false; }
-  upd.impaye_log=flowLogPush(c, "➡️ Passage étape "+next+" · "+(s?s.label:"")+(next>=4?" — ping Léa":""));
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-// Standby : le coach a fait l'action de l'étape (message envoyé, appel passé) et attend la réponse du client. On peut l'activer/désactiver.
-async function flowStandby(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const now=!c.flow_standby; const s=flowStepDef(effStep(c));
-  const upd={flow_standby:now, flow_standby_date:now?todayStr():"", impaye_log:flowLogPush(c, now?("⏳ En attente de réponse — "+(s?s.label:"")):"↩️ Attente levée")};
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-async function flowRespond(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:0, flow_ping_msg:false, flow_ping_cut:false, flow_standby:false, impaye_log:flowLogPush(c,"✓ A répondu / régularisé → retour au cycle normal")};
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-async function flowCut(id){ if(!isFullAdmin()){ alert("Seule Léa coupe les accès."); return; } if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_cut_done:true, flow_ping_cut:false, flow_ping_msg:false, flow_standby:false, flow_step:5, impaye_log:flowLogPush(c,"⛔ Accès coupés (Skool → WhatsApp → calls) — fin du flow, pas de recouvrement")};
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-async function flowDismiss(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={flow_step:0, flow_dismissed:true, flow_standby:false, impaye_log:flowLogPush(c,"✓ Détection ignorée (tout va bien)")};
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); flowRefresh(); }catch(e){ alert("Erreur : "+e.message); } }
-function unpaidLog(c){ const l=(c&&Array.isArray(c.impaye_log))?c.impaye_log.slice():[]; if(!l.length && c&&c.impaye_note){ l.push({date:(c.impaye_date||todayStr()), text:c.impaye_note}); } return l; }
-function unpaidLogHtml(c){ const l=unpaidLog(c);
-  if(!l.length) return '<div class="sub2">Aucune note pour l\'instant.</div>';
-  // notes en lecture (petit) ; petit ✏️ pour éditer, ✕ pour supprimer.
-  return l.map((e,i)=>`<div class="drow" data-i="${i}" style="display:flex;gap:5px;align-items:center;margin:2px 0;font-size:12px">
-    <span class="sub2" style="white-space:nowrap;font-size:11px">${frDate(e.date)}</span>
-    <span class="upView" data-i="${i}" style="flex:1;color:var(--muted)">${escapeHtml(e.text||'')}</span>
-    <input class="upEdit hide" data-i="${i}" value="${escapeHtml(e.text||'')}" onchange="saveUnpaidNotes('${c.id}')" onblur="saveUnpaidNotes('${c.id}')" style="flex:1;font-size:12px;padding:3px 6px">
-    <button type="button" title="Modifier" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:.6;padding:0 3px" onclick="var r=this.closest('.drow'),v=r.querySelector('.upView'),ip=r.querySelector('.upEdit');v.classList.toggle('hide');ip.classList.toggle('hide');if(!ip.classList.contains('hide'))ip.focus();">✏️</button>
-    <button type="button" title="Supprimer" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:.5;padding:0 3px" onclick="delUnpaidNote('${c.id}',${i})">✕</button>
-  </div>`).join(""); }
-async function saveUnpaidNotes(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
-  const base=unpaidLog(c);
-  const log=[...card.querySelectorAll('.upEdit')].map(inp=>{ const i=Number(inp.getAttribute('data-i')); const e=base[i]||{date:todayStr()}; return {date:e.date||todayStr(), text:(inp.value||'').trim(), by:e.by||''}; }).filter(x=>x.text);
-  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; renderUnpaid(); }catch(e){}
-}
-async function delUnpaidNote(id,i){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const log=unpaidLog(c).filter((_,j)=>j!==i);
-  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; renderUnpaid(); }catch(e){}
-}
-function unpaidCard(id){ const root=$("unpaidList")||document; return [...root.querySelectorAll('.card[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; }
-async function saveUnpaid(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
-  const de=card.querySelector('.upDate'); const date=(de&&de.value)||"";
-  try{ await db.collection("clients").doc(id).update({impaye_date:date}); c.impaye_date=date; renderUnpaid(); }catch(e){} }
-async function saveUnpaidSince(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  try{ await db.collection("clients").doc(id).update({impaye_since:val||""}); c.impaye_since=val||""; renderUnpaid(); }catch(e){} }
-// Prochaine action : boutons rapides (+X jours) au lieu du champ date natif (buggé). days=null → efface.
-async function setUnpaidNext(id,days){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  let val=""; if(days!=null){ const d=new Date(); d.setDate(d.getDate()+Number(days)); val=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-  try{ await db.collection("clients").doc(id).update({impaye_date:val}); c.impaye_date=val; renderUnpaid(); }catch(e){} }
-// Changement de statut immédiat (fluide). Passe en pause → on note la date de mise en pause (pour la règle des 2 mois).
-async function quickUnpaidStatus(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  const upd={impaye_status:val};
-  if(val==="pause" && !c.impaye_pause_date) upd.impaye_pause_date=todayStr();
-  if(val!=="pause") upd.impaye_pause_date="";
-  try{ await db.collection("clients").doc(id).update(upd); Object.assign(c,upd); renderUnpaid(); }catch(e){} }
-async function saveUnpaidCoachOk(id,val){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  try{ await db.collection("clients").doc(id).update({impaye_coach_ok:!!val}); c.impaye_coach_ok=!!val; }catch(e){} }
-async function addUnpaidNote(id){ if(!fbReady())return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const card=unpaidCard(id); if(!c||!card) return;
-  const inp=card.querySelector('.upNewNote'); const txt=(inp&&inp.value||"").trim(); if(!txt){ return; }
-  const log=unpaidLog(c); log.push({date:todayStr(), text:txt, by:(LOGIN_NAME||"")});
-  const m=card.querySelector('.upMsg'); m.className="msg"; m.style.display="block"; m.textContent="Ajout…";
-  try{ await db.collection("clients").doc(id).update({impaye_log:log, impaye_note:''}); c.impaye_log=log; c.impaye_note=''; m.className="msg ok"; m.textContent="Note ajoutée ✓"; renderUnpaid(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-async function resolveUnpaid(id){ if(!fbReady())return; if(!confirm("Retirer ce client de la liste des impayés ? (l'étiquette Impayé sera enlevée)")) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); if(!c) return;
-  try{ await db.collection("clients").doc(id).update({impaye:false, impaye_status:"resolu"}); c.impaye=false; c.impaye_status="resolu"; renderUnpaid(); }catch(e){ alert("Erreur : "+e.message); } }
 async function loadImmersive(){
   const box=$("immersiveList"); if(!box) return;
   if(!fbReady()){ box.innerHTML='<div class="empty">Backend non connecté.</div>'; return; }
@@ -2609,17 +2300,12 @@ function renderTeam(){
       <div class="mlevel">🔥 ${streak} j · ${pts} pts</div></div>`;
   }).join("");
   renderTeamManage();
-  // Accès Équipe (closers/setters/coachs) : ils revoient les EOD (grille + membres) mais PAS le « Résumé des EOD par jour » ni les « Warnings clients ». Léa (admin) & Gestion (manager) voient tout.
-  const dc=$("digestCard"); if(dc) dc.classList.toggle("hide", !isAdmin());
-  const wc=$("warnCard"); if(wc && !isAdmin()) wc.classList.add("hide");
 }
 function prevMonth(M){ const p=(M||monthStr()).split("-").map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
 // SOURCE UNIQUE des closés du mois = tags EOD « Closé » + clients signés ce mois (dédup insensible ordre/accents). Utilisée par Conversions ET « Closés du mois » pour être cohérent.
 // Mois du CLOSING d'un client = le plus tôt entre la création de sa fiche (≈ signature) et sa date de début de contrat.
 // → un client signé en juillet mais dont le contrat démarre en août/septembre compte bien en JUILLET, pas au démarrage.
-// Vrai closé du mois = fiche avec un closer OU un montant. Les fiches créées par le coach pour un client existant/upsell (ni closer ni montant) ne comptent pas comme un close. Elles pèsent 0€ donc le CA signé ne change pas — seul le décompte se corrige.
-function isRealClose(c){ return (String((c&&c.closer)||"").trim()!=="") || (clientMontant(c)>0); }
 function closeMonth(c){
   const dd=(c&&c.date_debut||"").slice(0,7);
   let cr=""; const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ cr=ca.toDate().toISOString().slice(0,7); }catch(e){} }
@@ -2646,7 +2332,7 @@ function sameProspect(a,b){
 // Plus AUCune devinette de nom dans le compte → doublon impossible (fini "Betty H" vs "Haury Betty").
 function monthCloses(M){
   const list=[];
-  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return; if(!isRealClose(c)) return;
+  (CLIENTS||[]).forEach(c=>{ if((c.statut||"")==="Annulé / Litige") return; if(closeMonth(c)!==M) return;
     const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); if(!nm) return;
     list.push({prospect:nm, closer:(c.closer||"").trim()||"—", src:c.programme||"", date:c.date_debut||"", from:"client", id:c.id}); });
   return list;
@@ -2674,9 +2360,9 @@ function closerConv(name,M){
   const closed=monthCloses(M).filter(l=>l.closer===name).length;
   return {calls,closed,show,no};
 }
-function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0,messages=0,replies=0,qualif=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; messages+=Number(p.messages)||0; replies+=Number(p.replies)||0; qualif+=Number(p.calls_qualif)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
+function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
   const booked=Math.max(bookedNum, bookedList); // RDV pris : que le setter les saisisse en nombre OU en liste
-  return {contacted,inContact,booked,verified,messages,replies,qualif}; }
+  return {contacted,inContact,booked,verified}; }
 // Ventilation par source (mini-chats, ADS, commentaires…) sur le mois : contacts saisis par source + RDV pris rattachés à cette source. Sert à voir ce qui convertit le mieux sur Insta.
 function setterSrcStats(name,M){ const map={};
   const get=s=>{ const k=s||"(sans source)"; return map[k]||(map[k]={src:k,contacts:0,rdv:0,verif:0}); };
@@ -2695,11 +2381,6 @@ function renderConversions(M){
     return `<div class="convrow"><div class="convh"><span class="convn">💼 ${escapeHtml(m.name)}</span><span class="convbig">${cv}</span></div>
       <div class="sub2">${c.calls} appels → ${c.closed} closés <span style="opacity:.6">(soit ${c.closed}/${c.calls})</span> · ${c.show} show-up · ${c.no} no-show${p.calls?`<br><span style="opacity:.55">${monthShort(pm)} : ${pv} — ${p.closed}/${p.calls} appels</span>`:""}</div></div>`; }).join("");
   const sRows=setters.map(m=>{ const s=setterConv(m.name,M), p=setterConv(m.name,pm);
-    if(memberChannel(m)==="appel"){
-      const cvR=pctTxt(s.replies,s.messages), cvB=pctTxt(s.booked,s.replies), cvQ=pctTxt(s.qualif,s.booked), pvB=pctTxt(p.booked,p.replies);
-      return `<div class="convrow"><div class="convh"><span class="convn">📞 ${escapeHtml(m.name)}</span><span class="convbig">${cvB} <span class="sub2" style="font-weight:600">réponse→RDV</span></span></div>
-        <div class="sub2">${s.messages} messages → ${s.replies} réponses <span style="opacity:.6">(${cvR})</span> · ${s.booked} appels réservés · ${s.qualif} qualifiés${s.booked?` <span style="opacity:.6">(${cvQ} qualifiés/réservés)</span>`:""} · ${s.verified} vérifiés${p.replies?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvB} réponse→RDV — ${p.booked}/${p.replies}</span>`:""}</div>${setterSrcHtml(m.name,M)}</div>`;
-    }
     const cvC=pctTxt(s.booked,s.contacted), cvV=pctTxt(s.booked,s.inContact), pvC=pctTxt(p.booked,p.contacted);
     return `<div class="convrow"><div class="convh"><span class="convn">🎯 ${escapeHtml(m.name)}</span><span class="convbig">${cvC} <span class="sub2" style="font-weight:600">contact→RDV · ${cvV} conv→RDV</span></span></div>
       <div class="sub2">${s.contacted} contactés → ${s.booked} RDV pris <span style="opacity:.6">(${s.booked}/${s.contacted})</span> · ${s.inContact} conversations → ${s.booked} RDV <span style="opacity:.6">(${s.booked}/${s.inContact})</span> · ${s.verified} vérifiés${p.contacted?`<br><span style="opacity:.55">${monthShort(pm)} : ${pvC} contact→RDV — ${p.booked}/${p.contacted}</span>`:""}</div>${setterSrcHtml(m.name,M)}</div>`; }).join("");
@@ -2785,11 +2466,6 @@ async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFireba
   try{ await db.collection("setter_stats").doc("cfg_warns").set({isWarnCfg:true,map:WARNS},{merge:true}); renderTeamDigest(); }catch(e){ alert("Erreur : "+e.message); } }
 function renderInsights(selM, doneSet){
   const ins=[];
-  updUnpaidNav();
-  // Impayés dont la relance est dépassée → on remonte l'alerte pour que quelqu'un agisse.
-  unpaidOverdue().forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚠️",`Impayé <b>${escapeHtml(nm)}</b> — relance prévue le ${frDate(c.impaye_date)} (dépassée) · <span class="sub2">${escapeHtml(unpaidLabel(c.impaye_status))}</span>`]); });
-  // Pause > 2 mois sans retour → à basculer en recouvrement.
-  (CLIENTS||[]).filter(c=>c.impaye && unpaidPauseOverdue(c)).forEach(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim(); ins.push(["⚖️",`<b>${escapeHtml(nm)}</b> en pause depuis + de 2 mois sans retour — <b style="color:#ff9a9a">à passer en recouvrement</b>.`]); });
   const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
@@ -2831,7 +2507,7 @@ function openMember(name){
   }
   const today=todayStr(), didToday=list.some(x=>x.report_date===today);
   const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
-  const fields=eodFields(m.role,m.name);
+  const fields=FORMS[m.role];
   const monthList=month.sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date)));
   const history = monthList.length ? monthList.map(x=>{
     const dd=new Date((x.report_date||today)+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
@@ -2884,7 +2560,6 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
-  { key:"v2",label:"🔓 Version 2 — appels ILLIMITÉS (si décoché : Version 1, nombre d'appels selon l'offre). Tous les clients actuels = Version 1.",type:"check" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
@@ -2894,7 +2569,6 @@ const CLIENT_FIELDS=[
   { key:"setter",label:"Setter (qui a sourcé)",type:"select" },
   { key:"closer",label:"Closer",type:"select" },
   { key:"statut",label:"Statut",type:"select" },
-  { key:"impaye",label:"⚠️ Impayé — suivi recouvrement (apparaît dans l'onglet Impayés, visible par l'équipe)",type:"check" },
   { key:"adresse",label:"Adresse",type:"textarea" },
   { key:"paiement",label:"Note paiement (libre)",type:"textarea" },
 ];
@@ -2950,14 +2624,10 @@ function updateEncTotal(){ const box=$("encTotalLive"); if(!box) return;
   const reste=Math.max(0,montant-enc);
   box.innerHTML=`<span class="k">💰 Total encaissé (auto)</span><span class="v" style="color:#7ee2a3">${eur(enc)}${montant?` <span class="sub2">/ ${eur(montant)} · reste ${eur(reste)}</span>`:""}</span>`;
 }
-function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isFullAdmin())); }
+function toggleClientDelete(show){ const w=$("clientDeleteWrap"); if(w) w.classList.toggle("hide", !(show && isAdmin())); }
 function newClient(){ currentClientId=null; $("clientFormTitle").textContent="Nouveau client"; renderClientForm({statut:"Actif"}); toggleClientDelete(false); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
-async function editClient(id){ let c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id;
-  // SÉCURITÉ ANTI-DÉSYNCHRO : on recharge la toute dernière version de CE client avant d'éditer,
-  // pour ne jamais écraser un paiement/une échéance validé·e entre-temps (encaissé qui retombe à 0…).
-  if(fbReady()){ initFirebase(); try{ const d=await db.collection("clients").doc(id).get(); if(d.exists){ c={id:d.id,...d.data()}; const idx=CLIENTS.findIndex(x=>x.id===id); if(idx>=0) CLIENTS[idx]=c; } }catch(e){} }
-  $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
-async function deleteClient(){ if(!isFullAdmin()){ alert("Seule Léa (admin) peut supprimer un client."); return; }
+function editClient(id){ const c=CLIENTS.find(x=>x.id===id); if(!c)return; currentClientId=id; $("clientFormTitle").textContent="Modifier — "+(c.nom||""); renderClientForm(c); toggleClientDelete(true); $("clientFormCard").classList.remove("hide"); $("clientMsg").style.display="none"; $("clientFormCard").scrollIntoView({behavior:"smooth"}); }
+async function deleteClient(){ if(!isAdmin()){ alert("Seul ton accès admin peut supprimer un client."); return; }
   const id=currentClientId; if(!id){ alert("Aucun client sélectionné."); return; }
   const c=CLIENTS.find(x=>x.id===id); const nom=c?((c.nom||"")+" "+(c.prenom||"")).trim():"ce client";
   if(!confirm("Supprimer « "+nom+" » ?\n\nLe client disparaît de partout dans l'app. À n'utiliser qu'en cas d'erreur de saisie.")) return;
@@ -3046,69 +2716,43 @@ function payMonthCard(M){
     return !(c.schedule||[]).some(s=>!s.paid);
   }).map(c=>({c,reste:clientMontant(c)-clientEncaisse(c)}));
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
-  const lnInfo=c=>{ const p=[]; if(c.date_debut) p.push("📅 contrat "+frDate(c.date_debut)); if(c.mail) p.push("✉️ "+escapeHtml(c.mail)); return p.length?`<br><span class="sub2" style="font-size:10.5px">${p.join(" · ")}</span>`:""; };
-  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}${lnInfo(r.c)}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
+  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
   const due=mois.filter(r=>!r.s.paid);
   const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totOrph=orphans.reduce((a,o)=>a+o.reste,0);
   // DÉJÀ ENCAISSÉ ce mois = TOUS les clients avec paidInMonth>0 (y compris litige : l'argent est encaissé), pour coller aux totaux du haut
-  const okAll=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
-  const isArch=c=>(c.statut||"")==="Terminé" || ((c.statut||"")!=="Annulé / Litige" && clientMontant(c)>0 && clientReste(c)<=0); // contrat terminé ou entièrement soldé
-  const okCls=okAll.filter(c=>!isArch(c)); const okArch=okAll.filter(isArch);
-  const totOk=okAll.reduce((a,c)=>a+paidInMonth(c,M),0); // total du mois = actifs + archivés (le chiffre ne change pas)
+  const okCls=CLIENTS.filter(c=>paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
+  const totOk=okCls.reduce((a,c)=>a+paidInMonth(c,M),0);
   const okRow=c=>{ const amt=paidInMonth(c,M);
     const idx=(c.schedule||[]).findIndex(s=>s.paid && s.month===M);
     const g=(encGlobal(c)>0 && baseMonth(c)===M)?encGlobal(c):0;
     const lit=(c.statut||"")==="Annulé / Litige";
-    const tag=(idx>=0&&g>0)?("encaissé "+monthShort(M)):(idx>=0?("échéance "+monthShort(M)):("encaissé "+monthShort(M)+" · saisi fiche"));
+    const tag=(idx>=0&&g>0)?"échéance + encaissé global":(idx>=0?"échéance "+monthShort(M):"encaissé (montant global)");
     const btn=idx>=0?`<button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${c.id}',${idx})">↩︎ Annuler</button>`:`<span class="sub2" style="cursor:pointer;text-decoration:underline" onclick="editClient('${c.id}')">modifier</span>`;
     return `<div class="kv" style="align-items:center"><span class="k">✅ ${offerEmoji(c.programme)} ${nom(c)} ${lit?'<span class="pill warn" style="font-size:10px;padding:1px 6px">litige</span> ':''}<span class="sub2">· ${tag}</span></span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b style="color:#7ee2a3">${eur(amt)}</b>${btn}</span></div>`; };
   const enAttente=due.length+late.length+orphans.length;
   return `<div class="card" style="margin-top:14px;border-color:${enAttente?'rgba(255,180,71,.45)':'rgba(52,199,89,.35)'}">
     <h2 style="margin:0 0 4px">💰 Paiements — ${monthLabel(M)}</h2>
-    <p class="sub2" style="margin:0 0 6px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okAll.length})</p>
-    <input type="text" id="paySearch" placeholder="🔎 Chercher un client…" oninput="filterPayCard(this.value)" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px;margin:0 0 6px">
-    <details class="cdet" id="payDetails"><summary>Voir le détail des paiements</summary>
-    <div id="payCardRows">
-    ${late.length?`<div class="section-title paysec" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
-    ${due.length?`<div class="section-title paysec" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
-    ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span>${lnInfo(o.c)}</span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
-    ${(!late.length&&!due.length&&!orphans.length)?'<div class="sub2" style="margin-top:10px">✅ Rien en attente ce mois — tout est encaissé.</div>':""}
-    </div></details>
+    <p class="sub2" style="margin:0 0 6px">${enAttente?`<span style="color:#ffcf7a"><b>${enAttente}</b> en attente ⏳ · ${eur(totDue+totLate+totOrph)} à encaisser</span>`:"Tout est rentré ✅"} · <b style="color:#7ee2a3">${eur(totOk)}</b> encaissé ce mois (${okCls.length})</p>
+    <details class="cdet"><summary>Voir le détail des paiements</summary>
+    ${late.length?`<div class="section-title" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
+    ${due.length?`<div class="section-title" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
+    ${orphans.length?`<div class="section-title" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span></span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
+    ${okCls.length?`<div class="section-title" style="margin:12px 2px 2px;color:var(--green)">✅ Déjà encaissés ce mois (${okCls.length}) — ${eur(totOk)}</div>${okCls.map(okRow).join("")}`:'<div class="sub2" style="margin-top:10px">Rien encaissé ce mois pour l\'instant.</div>'}
+    </details>
   </div>`;
 }
-// Recherche client dans le tableau des paiements (Finance). Filtre les lignes + masque les titres de section vides.
-function filterPayCard(q){ const box=$("payCardRows"); if(!box) return; q=(q||"").toLowerCase().trim();
-  const det=$("payDetails"); if(det && q) det.open=true; // ouvre le détail dès qu'on cherche
-  box.querySelectorAll(".kv").forEach(r=>{ r.style.display=(!q||r.textContent.toLowerCase().includes(q))?"":"none"; });
-  // titres de section : masqués si aucune ligne visible en dessous
-  box.querySelectorAll(".section-title.paysec").forEach(t=>{ let n=t.nextElementSibling, vis=false; while(n && !(n.classList&&n.classList.contains("paysec")) && n.tagName!=="DETAILS"){ if(n.classList&&n.classList.contains("kv") && n.style.display!=="none"){ vis=true; break; } n=n.nextElementSibling; } t.style.display=(!q||vis)?"":"none"; });
-  // sous-liste « Archivés » : on l'ouvre et on la garde visible seulement si un client y correspond
-  box.querySelectorAll("details.payarch").forEach(d=>{ const anyVis=[...d.querySelectorAll(".kv")].some(r=>r.style.display!=="none"); if(q){ d.style.display=anyVis?"":"none"; if(anyVis) d.open=true; } else { d.style.display=""; d.open=false; } });
-}
 async function toggleSched(id,i){
-  if(!canSeeMoney()){ alert("Réservé à l'admin, la gestion et les closers."); return; }
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()) return; initFirebase();
   const c=CLIENTS.find(x=>x.id===id); if(!c||!Array.isArray(c.schedule)||!c.schedule[i]) return;
-  const s=c.schedule[i]; let sch, warn="";
-  if(!s.paid){
-    // On encaisse : possibilité de corriger le montant réellement reçu.
-    const prev=Number(s.amount)||0;
-    const inp=prompt("Montant réellement encaissé ? (prévu : "+eur(prev)+")\n\nLaisse tel quel si c'est le bon montant.", prev);
-    if(inp===null) return; // annulé
-    const amt=Math.round((Number(String(inp).replace(",",".").replace(/[^0-9.]/g,""))||0));
-    sch=c.schedule.map((x,j)=> j===i?{...x,paid:true,amount:amt}:x);
-    if(amt!==prev) warn="⚠️ Montant modifié : "+eur(amt)+" encaissé (au lieu de "+eur(prev)+" prévu).\n\nPense à vérifier le MONTANT TOTAL du contrat sur la fiche client si besoin (pour que le « reste à encaisser » reste juste).";
-  } else {
-    sch=c.schedule.map((x,j)=> j===i?{...x,paid:false}:x); // on décoche : on ne touche pas au montant
-  }
-  try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); if($("finMonth")) renderFinance(); if(warn) alert(warn); }
+  const sch=c.schedule.map((s,j)=> j===i?{...s,paid:!s.paid}:s);
+  try{ await db.collection("clients").doc(id).update({schedule:sch}); c.schedule=sch; renderClients(); if($("finMonth")) renderFinance(); }
   catch(e){ alert("Erreur : "+e.message); }
 }
 function sameProg(cp, fp){ if(!fp) return true; if(cp===fp) return true; const oc=offerFor(cp), of=offerFor(fp); if(oc&&of&&oc.name===of.name) return true; return normOffer(cp)===normOffer(fp); }
 function renderClients(){
-  updUnpaidNav();
   // Le filtre programmes liste TOUS les programmes présents (réglages + fiches réelles), pour ne perdre aucun client
   const cfp=$("cfProg"); if(cfp){ const cur=cfp.value; const opts=[...new Set([...(SETTINGS.programmes||[]), ...CLIENTS.map(c=>c.programme).filter(Boolean)])];
     cfp.innerHTML='<option value="">Tous les programmes</option>'+opts.map(p=>`<option ${p===cur?'selected':''}>${escapeHtml(p)}</option>`).join(""); }
@@ -3155,7 +2799,7 @@ function renderClients(){
     const line=(k,v)=> v?`<div class="kv"><span class="k">${k}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     const encC=clientEncaisse(c), reste=Math.max(0,clientMontant(c)-encC);
     const stCls=c.statut==="Annulé / Litige"?"warn":(c.statut==="Terminé"?"setter":"coach");
-    const money=canSeeMoney(); const clk=canSeeMoney();
+    const money=canSeeMoney(); const clk=isAdmin();
     const sched=money?(c.schedule||[]).map((s,i)=>({s,i})).sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month)))
       .map(({s,i})=>`<div class="mm ${s.paid?'paid':'due'}"${clk?` onclick="toggleSched('${c.id}',${i})" style="cursor:pointer" title="Cocher / décocher payé"`:''}><div class="mmm">${monthShort(s.month)}</div><div class="mma">${eur(s.amount)}</div><div style="font-size:11px">${s.paid?'✅ payé':(clk?'⏳ cocher':'⏳')}</div></div>`).join(""):"";
     const shd=d=>d&&d.length>=10?d.slice(8,10)+"/"+d.slice(5,7):"—";
@@ -3163,7 +2807,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${isV2(c)?' <span title="Version 2 — appels illimités" style="color:#c9a0ff;font-weight:800">🔓</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
@@ -3185,7 +2829,7 @@ function renderClients(){
       ${line("CGV",c.cgv)}${line("Adresse",c.adresse)}
       ${line("Note paiement",c.paiement)}
       ${inImmersive(c.id)?line("🎟️ Journée immersive",immDaysFor(c.id)):""}
-      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${isV2(c)?`${coachDone(c)} séances · 🔓 illimité`:`${coachDone(c)} / ${coachTotal(c)} séances`}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
+      ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">Coaching</span><span class="v">${coachDone(c)} / ${coachTotal(c)} séances${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</span></div>${(c.coaching&&c.coaching.log&&c.coaching.log.length)?`<details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>`:coachLogHtml(c,false)}`:""}
       ${(c.statut||"Actif")==="Actif"?`<div class="kv"><span class="k">🗓 Calendriers éditoriaux</span><span class="v">${editoDone(c)} / ${editoNb(c)} envoyés <span class="sub2">(quinzaines)</span></span></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 6px">${(()=>{const em=c.edito||{};const months=editoMonthsCount(c);let s="";for(let m=1;m<=months;m++){for(let q=1;q<=2;q++){const i=(m-1)*2+q;const e=em[i]||{};s+=`<span class="pill ${e.sent?'ok':''}" style="font-size:11px">${e.sent?'✅':'⬜'} M${m}·Q${q}${e.sent&&e.date?' '+escapeHtml(dayLabel(e.date)):''}</span>`;}}return s;})()}</div>`:""}
       ${c.coaching&&c.coaching.note?line("Note coaching",c.coaching.note):""}
       <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
@@ -3229,7 +2873,6 @@ async function saveVerifyNote(id){
 /* ===================== FINANCE & PAIE ===================== */
 let SSTATS={}; // key member|month -> {rdv,closes,posts}
 let COO={};    // key month -> {ca, soft, lines} pour la commission COO de Léa
-let ANTHO={};  // key month -> {fixe, ca, varOn, baseRef, force, facture} pour la rému d'Anthony (Head of Sales)
 let PRESTA={}; // key month -> [ {id,name,amount,cat,note,paid,fileUrl,fileName} ] prestataires hors équipe
 let LOGI={};   // key month -> [ {id,name,amount,note,paid,fileUrl,fileName} ] logiciels (déduits de la marge COO)
 let CALLTRK={}; // month -> [ {prospect,setter,closer,date,show,verified} ]
@@ -3284,19 +2927,10 @@ async function loadFinance(){
   // On recharge TOUJOURS clients + EOD frais → les nouveaux clients / paiements validés remontent en temps réel (fini les chiffres périmés)
   try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){}
   try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){}
-  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; ANTHO={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isAntho){ ANTHO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isLinkedin) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
+  try{ const s=await db.collection("setter_stats").get(); SSTATS={}; CALLTRK={}; COO={}; PRESTA={}; LOGI={}; s.docs.forEach(d=>{ const x=d.data(); if(x.isCalls){ CALLTRK[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isCoo){ COO[x.month]=x; return; } if(x.isPresta){ PRESTA[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isLogi){ LOGI[x.month]=Array.isArray(x.list)?x.list:[]; return; } if(x.isTeamConfig||x.isSettings||x.isFollowups||x.isAcctTx||x.isAcctCfg||x.isWarnCfg||x.isAckCfg||x.isLinkedin) return; SSTATS[(x.member||"")+"|"+(x.month||"")]=x; }); }catch(e){ SSTATS={}; }
   // Récupère les anciens logiciels saisis dans la carte COO (coo.lines) → section Logiciels, si pas encore de section pour ce mois
   Object.keys(COO).forEach(mo=>{ const old=COO[mo]&&COO[mo].lines; if(Array.isArray(old)&&old.length && !(LOGI[mo]&&LOGI[mo].length)){ LOGI[mo]=old.map((l,i)=>({id:"g"+mo.replace(/-/g,"")+i, name:l.l||l.name||"", amount:Number(l.a!=null?l.a:l.amount)||0})); } });
   renderFinance();
-}
-// FIGE le mois d'archivage des personnes déjà archivées sans date (ex. la RH archivée avant ce correctif).
-// Sans ça, la date de coupure « bougeait » chaque mois et la personne réapparaissait dans un mois déjà passé.
-// Résultat garanti : archivé = retiré à partir de ce mois-ci et pour les suivants, JAMAIS des mois déjà faits.
-async function migrateArchivedFrom(){
-  if(!isAdmin() || !Array.isArray(SETTINGS.payList)) return;
-  let changed=false; const cur=monthStr();
-  SETTINGS.payList.forEach(p=>{ if(p && p.archived && !p.archivedFrom){ p.archivedFrom=cur; changed=true; } });
-  if(changed && fbReady()){ initFirebase(); try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, payList:SETTINGS.payList},{merge:true}); }catch(e){} }
 }
 function palier(n,table){ for(const [seuil,prime] of table){ if(n>=seuil) return prime; } return 0; }
 // Prime d'équipe par palier d'encaissé du mois (versée à CHAQUE closer et CHAQUE setter)
@@ -3337,10 +2971,10 @@ function renderFinance(){
   const dueTot=dueTotal; // (compat) total = même chiffre que le tableau
   // Récap du mois : new cash (client démarré ce mois) vs recurring (échéance d'un client plus ancien) + généré
   let newCash=0, recCash=0;
-  CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(isNewClientMonth(c,M)) newCash+=e; else recCash+=e; } });
+  CLIENTS.forEach(c=>{ const e=paidInMonth(c,M); if(e>0){ if(baseMonth(c)===M) newCash+=e; else recCash+=e; } });
   const monthEods=EODS.filter(x=>(x.report_date||"").slice(0,7)===M);
   // « Généré » = CA signé ce mois = somme des montants des clients signés ce mois (rattachable à chaque client, vérifiable).
-  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c));
+  const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M);
   const genMonth=closedThisMonth.reduce((s,c)=>s+clientMontant(c),0);
   const agg=aggCalls(monthEods);
   function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
@@ -3372,19 +3006,7 @@ function renderFinance(){
     if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
       cls.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig, eur(paidInMonth(c,M))]); }); }
     if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
-    if(!fixe && !pct){
-      // Paiement manuel : on ne calcule pas de commission, mais on AFFICHE qui il a closé / setté ce mois (avec l'encaissé) pour t'aider à fixer le montant.
-      const closedBy=CLIENTS.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
-      const setBy=CLIENTS.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0).sort((a,b)=>paidInMonth(b,M)-paidInMonth(a,M));
-      rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
-      if(closedBy.length){ const caC=closedBy.reduce((s,c)=>s+paidInMonth(c,M),0);
-        rows.push(["💼 Clients qu'il a closés — encaissé ce mois", closedBy.length+" · "+eur(caC)]);
-        closedBy.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig+" <span class='sub2'>· contrat "+eur(clientMontant(c))+"</span>", eur(paidInMonth(c,M))+" encaissé"]); }); }
-      if(setBy.length){ const caS=setBy.reduce((s,c)=>s+paidInMonth(c,M),0);
-        rows.push(["🎯 Clients venant de ses leads — encaissé ce mois", setBy.length+" · "+eur(caS)]);
-        setBy.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); rows.push(["↳ "+escapeHtml(nmC), eur(paidInMonth(c,M))+" encaissé"]); }); }
-      if(!closedBy.length && !setBy.length) rows.push(["Clients rattachés ce mois","aucun (vérifie le champ Closer/Setter sur les fiches)"]);
-    }
+    if(!fixe && !pct && !prime) rows.push(["Paiement","Manuel — mets le montant ci-dessous"]);
     return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, primeOn:!!it.prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
@@ -3399,11 +3021,10 @@ function renderFinance(){
   const paiePlusPresta=totalPaie+prestaTot;
   const logiTot=logiTotal(M);
   // Commissions "équipe opérationnelle" (déductibles de ta marge COO) : closers/setters/coachs — pas toi
-  const teamComm=pay.filter(p=>["closer","setter","coach","ads"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
+  const teamComm=pay.filter(p=>["closer","setter","coach"].includes(p.role)).reduce((s,p)=>s+p.eff,0);
   renderCoo(M, encTot, teamComm);
-  renderAntho(M, encTot);
   $("finStats").innerHTML=`
-    <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">🆕 <b style="color:#7ee2a3">${eur(newCash)}</b> new · 🔁 <b style="color:#8fb4ff">${eur(recCash)}</b> récurrent</div></div>
+    <div class="box clic" onclick="$('encBreak').classList.toggle('hide')" title="Voir le détail"><div class="n grad-text">${eur(encTot)}</div><div class="l">💰 Encaissé ${monthShort(M)}</div></div>
     <div class="box clic" onclick="$('dueBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#ffcf7a">${eur(dueMonth)}</div><div class="l">⏳ À encaisser en ${monthShort(M)}</div><div class="sub2" style="margin-top:2px">total contrats : ${eur(dueTotal)}</div></div>
     <div class="box clic" onclick="$('genBreak').classList.toggle('hide')" title="Voir le détail"><div class="n" style="color:#7ee2a3">${eur(genMonth)}</div><div class="l">📈 CA signé ${monthShort(M)}</div></div>
     <div class="box"><div class="n" style="color:#d39be6">${eur(paiePlusPresta)}</div><div class="l">💸 Paie totale <span style="opacity:.7">(équipe + prestas)</span></div></div>
@@ -3438,14 +3059,11 @@ function renderFinance(){
   const dueCls=CLIENTS.filter(c=>dueInMonth(c,M)>0).sort((a,b)=>dueInMonth(b,M)-dueInMonth(a,M));
   // Détail cliquable du 💰 Encaissé : uniquement ce qui est compté ce mois
   (function(){ const eb=$("encBreak"); if(!eb) return;
-    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" ("+monthShort(M)+")"); return parts.join(" + "); };
-    const rowC=c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`;
-    const newList=encCls.filter(c=>isNewClientMonth(c,M)), recList=encCls.filter(c=>!isNewClientMonth(c,M));
-    const sec=(title,list,col)=> list.length?`<div class="section-title" style="margin:10px 2px 2px;color:${col}">${title} (${list.length}) — ${eur(list.reduce((s,c)=>s+paidInMonth(c,M),0))}</div>${list.map(rowC).join("")}`:"";
+    const why=c=>{ const parts=(c.schedule||[]).filter(s=>s.paid&&s.month===M).map(s=>eur(s.amount)+" ("+monthShort(M)+")"); const g=encGlobal(c); if(g>0&&baseMonth(c)===M) parts.push(eur(g)+" (acompte)"); return parts.join(" + "); };
+    const counted=encCls.map(c=>`<div class="kv"><span class="k">${offerEmoji(c.programme)} ${nomC(c)}</span><span class="v" style="color:#7ee2a3">${eur(paidInMonth(c,M))} <span class="sub2">· ${why(c)}</span></span></div>`).join("")||'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>';
     eb.innerHTML=`<div class="card" style="border-color:rgba(52,199,89,.3);margin:0">
-      <div style="font-weight:800;margin-bottom:2px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
-      <div class="sub2" style="margin-bottom:4px">🆕 <b style="color:#7ee2a3">${eur(newCash)}</b> new · 🔁 <b style="color:#8fb4ff">${eur(recCash)}</b> récurrent</div>
-      ${(newList.length||recList.length)?sec("🆕 Nouveaux clients ce mois",newList,"#7ee2a3")+sec("🔁 Récurrent (clients déjà là)",recList,"#8fb4ff"):'<div class="sub2" style="margin:6px 0">Rien encaissé sur ce mois.</div>'}
+      <div style="font-weight:800;margin-bottom:6px">💰 Encaissé ${monthLabel(M)} — ${eur(encTot)}</div>
+      ${counted}
     </div>`;
   })();
   // Détail cliquable du ⏳ Reste à encaisser : partie CE MOIS (échéances planifiées) + partie TOTAL (reste dû sur les contrats)
@@ -3743,8 +3361,6 @@ async function saveAllFinance(M){ M=M||($("finMonth")&&$("finMonth").value)||mon
       const facture=($("coo_facture")&&$("coo_facture").value.trim())||"";
       COO[M]={ca:gv("coo_ca"),team:gv("coo_team"),presta:gv("coo_presta"),fixe:gv("coo_fixe"),soft:gv("coo_soft"),force:gv("coo_force"),facture};
       writes.push(db.collection("setter_stats").doc("coo_"+M).set({isCoo:true,month:M,ca:COO[M].ca,team:COO[M].team,presta:COO[M].presta,fixe:COO[M].fixe,soft:COO[M].soft,force:COO[M].force,facture})); }
-    // 5) Rému Anthony (Head of Sales)
-    if($("antho_ca")||$("antho_force")){ ANTHO[M]=anthoGather(M); writes.push(db.collection("setter_stats").doc("antho_"+M).set({isAntho:true,month:M,...ANTHO[M]})); }
     await Promise.all(writes);
     renderFinance();
     const m2=$("saveAllMsg"); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent="✅ Tout est enregistré ("+nFiches+" fiches de paie + logiciels + prestas + ta commission) — rien n'a été oublié."; }
@@ -3764,17 +3380,6 @@ function encGlobal(c){ return Math.max(0, (Number(c&&c.encaisse)||0) - schedPaid
 function baseMonth(c){ if(startMonth(c)) return startMonth(c);
   const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ return ca.toDate().toISOString().slice(0,7); }catch(e){} }
   return monthStr(); } // on NE rattache PAS à une échéance future : date de démarrage → création → mois courant
-/* Vrai 1er mois du client (le plus tôt de toutes les traces) : date de début, création de la fiche, OU la 1re échéance de son plan.
-   → un client est "nouveau ce mois" UNIQUEMENT si aucune de ces traces n'est antérieure. Sinon = récurrent (déjà là), même si la date de début est mal renseignée. */
-function clientFirstMonth(c){
-  const ms=[];
-  const dd=(c&&c.date_debut||"").slice(0,7); if(dd) ms.push(dd);
-  const ca=c&&c.created_at; if(ca&&ca.toDate){ try{ ms.push(ca.toDate().toISOString().slice(0,7)); }catch(e){} }
-  (c&&c.schedule||[]).forEach(s=>{ if(s.month) ms.push(s.month); });
-  if(!ms.length) return baseMonth(c);
-  ms.sort(); return ms[0];
-}
-function isNewClientMonth(c,M){ return clientFirstMonth(c)===M; }
 function paidInMonth(c,M){
   const s=(c&&c.schedule||[]).filter(x=>x.paid&&x.month===M).reduce((a,b)=>a+(Number(b.amount)||0),0);
   return s + (encGlobal(c)>0 && baseMonth(c)===M ? encGlobal(c) : 0);
@@ -3854,104 +3459,6 @@ async function saveCoo(M){ if(!isAdmin()){ alert("Réservé à l'admin."); retur
   try{ await db.collection("setter_stats").doc("coo_"+M).set({isCoo:true, month:M, ca:COO[M].ca, team:COO[M].team, presta:COO[M].presta, fixe:COO[M].fixe, soft:COO[M].soft, force:COO[M].force, facture}); if(m){ m.className="msg ok"; m.textContent="Commission COO enregistrée ✓"; } renderFinance(); }
   catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 }
-
-/* ===================== RÉMUNÉRATION ANTHONY (Head of Sales) ===================== */
-// Contrat Liberty Corp × Exodus du 14/09/2026.
-//  • Phase 1 (jusqu'au 31/10/2026) : fixe 4 000 € = 2 000 € sept. + 2 000 € oct. + (option) 8 % du CA encaissé INCRÉMENTAL au-dessus d'une base de référence.
-//  • Phase 2 (à partir du 01/11/2026) : pas de fixe, barème progressif par tranches sur le CA encaissé du mois (6 % / 7 % / 8 %).
-// Tout est modifiable à la main ; « Forcer le total » écrase le calcul. Bloc autonome (pas ré-injecté dans la marge COO → aucun risque de doublon).
-const ANTHO_PH2_START="2026-11"; // 1er novembre 2026
-function anthoIsPh2(M){ return String(M||"")>=ANTHO_PH2_START; }
-function anthoFixeDefault(M){ return (M==="2026-09"||M==="2026-10")?2000:0; } // fixe contractuel Phase 1
-// Barème progressif Phase 2 : 6 % de 0 à 50k, 7 % de 50k à 100k, 8 % au-delà — chaque taux sur SA tranche uniquement.
-function anthoTranches(ca){ ca=Math.max(0,Number(ca)||0); const parts=[];
-  const t1=Math.min(ca,50000); if(t1>0){ parts.push({base:t1,pct:6,montant:t1*0.06}); }
-  const t2=Math.min(Math.max(ca-50000,0),50000); if(t2>0){ parts.push({base:t2,pct:7,montant:t2*0.07}); }
-  const t3=Math.max(ca-100000,0); if(t3>0){ parts.push({base:t3,pct:8,montant:t3*0.08}); }
-  const total=parts.reduce((s,p)=>s+p.montant,0); return {total:Math.round(total),parts};
-}
-let _anthoAuto=0, _anthoMonth="";
-function renderAntho(M, caAuto){
-  const box=$("anthoCard"); if(!box) return;
-  if(!isAdmin()){ box.innerHTML=""; return; }
-  _anthoAuto=Math.round(Number(caAuto)||0); _anthoMonth=M;
-  const a=ANTHO[M]||{};
-  const vOr=v=>(v!=null&&v!=="")?v:'';
-  const ph2=anthoIsPh2(M);
-  const fixeDef=anthoFixeDefault(M);
-  const phaseTxt=ph2
-    ? `📈 <b>Phase 2</b> (à partir du 1<sup>er</sup> nov. 2026) — barème progressif par tranches, pas de fixe.`
-    : `🧱 <b>Phase 1</b> (jusqu'au 31 oct. 2026) — fixe ${eur(fixeDef)} ce mois${fixeDef?"":" (0 hors sept./oct.)"} + option part variable 8 % incrémentale.`;
-  box.innerHTML=`<details class="cdet"><summary style="font-weight:800;padding:10px 2px">💼 Détail rému Anthony — ${monthLabel(M)} <span class="sub2" style="font-weight:600">— clique pour déplier</span></summary><div class="card" style="margin-top:6px">
-    <div class="sub2" style="margin-bottom:8px">${phaseTxt}</div>
-    <label>CA encaissé effectif du mois (vide = auto : ${eur(_anthoAuto)})</label>
-    <input type="number" inputmode="numeric" id="antho_ca" value="${vOr(a.ca)}" placeholder="auto : ${_anthoAuto}" oninput="anthoRecalc()">
-    ${ph2?`
-      <div style="font-size:12px;color:var(--muted);margin:10px 0 2px">📊 Barème progressif (chaque taux sur sa tranche) :</div>
-      <div id="anthoGrid"></div>
-    `:`
-      <div class="payin" style="margin-top:8px">
-        <div><label>💶 Part fixe du mois (€)</label><input type="number" inputmode="numeric" id="antho_fixe" value="${vOr(a.fixe)}" placeholder="${fixeDef}" oninput="anthoRecalc()"></div>
-        <div><label>📐 Base de référence (€) — pour le variable</label><input type="number" inputmode="numeric" id="antho_baseref" value="${vOr(a.baseRef)}" placeholder="0" oninput="anthoRecalc()"></div>
-      </div>
-      <label class="ckline" style="margin-top:10px"><input type="checkbox" id="antho_varon" ${a.varOn?'checked':''} onchange="anthoRecalc()"> Activer la part variable : 8 % du CA encaissé au-dessus de la base de référence</label>
-    `}
-    <div class="kv" style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px"><span class="k">${ph2?'Rému variable (barème)':'Part fixe'}</span><span class="v" id="antho_l1"></span></div>
-    ${ph2?'':'<div class="kv"><span class="k">Part variable (8 % incrémental)</span><span class="v" style="color:#7ee2a3" id="antho_l2"></span></div>'}
-    <div class="sub2" id="antho_calc" style="text-align:right;opacity:.75;margin:-2px 0 4px"></div>
-    <div class="payin" style="margin-top:6px"><div><label>💰 Forcer le total à verser (optionnel)</label><input type="number" inputmode="numeric" id="antho_force" value="${vOr(a.force)}" placeholder="auto" oninput="anthoRecalc()"></div><div></div></div>
-    <label style="margin-top:8px">🔗 Lien de sa facture</label>
-    <input type="url" id="antho_facture" value="${escapeHtml(a.facture||'')}" placeholder="Colle le lien de la facture d'Anthony (Drive…) puis Enregistre">
-    ${a.facture?`<div style="margin-top:4px"><a href="${escapeHtml(a.facture)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline">📎 voir la facture</a></div>`:""}
-    <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">💰 Total à verser à Anthony</span><span class="v grad-text" style="font-weight:800;font-size:16px" id="antho_tot"></span></div>
-    <button class="btn ghost sm" style="margin-top:10px" onclick="saveAntho('${M}')">💾 Enregistrer ${M}</button>
-    <div id="anthoMsg" class="msg"></div>
-    <div class="hint">Rému d'Anthony (Head of Sales) selon son contrat. Ce bloc est <b>autonome</b> : il n'est pas déduit automatiquement de ta marge COO, donc pense à reporter ce montant dans tes déductions COO (ou sa fiche de paie) si tu veux qu'il pèse sur ta marge — pour éviter tout doublon, ne le compte qu'une seule fois. Tout est modifiable ; « Forcer le total » écrase le calcul.</div>
-  </div></details>`;
-  anthoRecalc();
-}
-function anthoRecalc(){ const box=$("anthoCard"); if(!box||!$("antho_ca")) return;
-  const M=_anthoMonth, ph2=anthoIsPh2(M);
-  const val=(id,dft)=>{ const e=$(id); if(!e||e.value==="") return dft; return Number(e.value)||0; };
-  const ca=val("antho_ca",_anthoAuto);
-  const fIn=$("antho_force")&&$("antho_force").value!==""?(Number($("antho_force").value)||0):null;
-  const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
-  let total=0, calc="";
-  if(ph2){
-    const tr=anthoTranches(ca);
-    set("antho_l1", eur(tr.total));
-    const g=$("anthoGrid"); if(g) g.innerHTML=anthoGridHtml(ca);
-    calc=tr.parts.length?tr.parts.map(p=>`${p.pct}% × ${eur(p.base)} = ${eur(Math.round(p.montant))}`).join(" + "):"0";
-    total=fIn!=null?fIn:tr.total;
-  } else {
-    const fixe=val("antho_fixe",anthoFixeDefault(M));
-    const varOn=$("antho_varon")&&$("antho_varon").checked;
-    const baseRef=val("antho_baseref",0);
-    const variable=varOn?Math.round(Math.max(0,ca-baseRef)*0.08):0;
-    set("antho_l1", eur(fixe));
-    set("antho_l2", eur(variable));
-    calc=varOn?`fixe ${eur(fixe)} + 8% × (${eur(ca)} − ${eur(baseRef)}) = ${eur(fixe)} + ${eur(variable)}`:`fixe ${eur(fixe)}`;
-    total=fIn!=null?fIn:fixe+variable;
-  }
-  set("antho_calc", calc);
-  set("antho_tot", eur(total)+(fIn!=null?" (forcé)":""));
-}
-function anthoGridHtml(ca){ ca=Math.max(0,Number(ca)||0);
-  const rows=[["0 à 50 000 €","6 %",ca>0],["50 000 € à 100 000 €","7 %",ca>50000],["Au-delà de 100 000 €","8 %",ca>100000]];
-  return `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:6px 0">
-    <div style="display:flex;background:var(--card2);font-size:11.5px;font-weight:700;color:var(--muted)"><div style="flex:1;padding:7px 10px">Tranche de CA encaissé du mois</div><div style="width:74px;padding:7px 10px;text-align:center">Taux</div></div>
-    ${rows.map(r=>`<div style="display:flex;border-top:1px solid var(--line);${r[2]?'background:rgba(52,199,89,.12)':''}"><div style="flex:1;padding:8px 10px;font-size:13px;${r[2]?'font-weight:700;color:#7ee2a3':''}">${r[2]?'➡️ ':''}${r[0]}</div><div style="width:74px;padding:8px 10px;text-align:center;font-size:14px;${r[2]?'font-weight:800;color:#7ee2a3':'font-weight:600'}">${r[1]}</div></div>`).join("")}
-  </div>`; }
-function anthoGather(M){ const gv=id=>{ const e=$(id); return (e&&e.value!=="")?Number(e.value):null; };
-  return { fixe:gv("antho_fixe"), ca:gv("antho_ca"), baseRef:gv("antho_baseref"),
-    varOn:!!($("antho_varon")&&$("antho_varon").checked), force:gv("antho_force"),
-    facture:($("antho_facture")&&$("antho_facture").value.trim())||"" }; }
-async function saveAntho(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } if(!fbReady()) return; initFirebase();
-  ANTHO[M]=anthoGather(M);
-  const m=$("anthoMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…"; }
-  try{ await db.collection("setter_stats").doc("antho_"+M).set({isAntho:true, month:M, ...ANTHO[M]}); if(m){ m.className="msg ok"; m.textContent="Rému Anthony enregistrée ✓"; } renderFinance(); }
-  catch(e){ if(m){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-}
 function renderFinTable(){
   const monthsSet=new Set();
   CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encGlobal(c)>0||clientReste(c)>0) monthsSet.add(baseMonth(c)); });
@@ -3959,7 +3466,6 @@ function renderFinTable(){
   if(!ms.length) ms=lastMonths(4).reverse();
   const rows=CLIENTS.slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
   if(!rows.length){ $("finTable").innerHTML=`<div class="empty">Aucun client pour l'instant.</div>`; return; }
-  const finArch=c=>(c.statut||"")==="Terminé" || ((c.statut||"")!=="Annulé / Litige" && clientMontant(c)>0 && clientReste(c)<=0); // contrat soldé/terminé
   const head=`<tr><th>Client</th>${ms.map(m=>`<th>${monthShort(m)}</th>`).join("")}<th>Encaissé</th><th>Reste</th></tr>`;
   const body=rows.map(c=>{
     const enc=clientEncaisse(c), reste=clientReste(c);
@@ -3974,27 +3480,12 @@ function renderFinTable(){
       if(Math.round(p)>=1) parts.push(`<span style="color:#7ee2a3">${eur(p)}</span>`);
       if(Math.round(d)>=1) parts.push(`<span style="color:#ffcf7a">${eur(d)} ⏳</span>`);
       return `<td>${parts.length?parts.join('<br>'):'<span style="color:var(--faint)">—</span>'}</td>`; }).join("");
-    return `<tr class="fitrow" data-name="${escapeHtml(nomP.toLowerCase())}" data-arch="${finArch(c)?'1':'0'}"><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
+    return `<tr><td><div style="font-weight:700">${offerEmoji(c.programme)} ${escapeHtml(nomP)}</div><div style="font-size:10px;color:var(--muted)">${escapeHtml(c.programme||"")} · ${eur(clientMontant(c))}</div></td>${tds}<td class="paid">${eur(enc)}</td><td style="color:${reste>0?'#ffcf7a':'var(--muted)'}">${eur(reste)}</td></tr>`;
   }).join("");
   const totByMonth=ms.map(m=>`<td>${eur(rows.reduce((s,c)=>s+paidInMonth(c,m),0))}</td>`).join("");
   const totEnc=rows.reduce((s,c)=>s+clientEncaisse(c),0);
   const totReste=rows.reduce((s,c)=>s+clientReste(c),0);
-  const nArch=rows.filter(finArch).length;
-  $("finTable").innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <input type="text" id="finTableSearch" placeholder="🔎 Chercher un client…" oninput="filterFinTable()" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px">
-      ${nArch?`<label class="ck" style="font-size:12px"><input type="checkbox" id="finTableArch" onchange="filterFinTable()"> 📦 voir les soldés/terminés (${nArch})</label>`:""}
-    </div>
-    <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
-  filterFinTable();
-}
-// Recherche + filtre archivés dans le tableau « Encaissements par client × mois ».
-function filterFinTable(){ const box=$("finTable"); if(!box) return;
-  const q=(($("finTableSearch")&&$("finTableSearch").value)||"").toLowerCase().trim();
-  const showArch=!!($("finTableArch")&&$("finTableArch").checked);
-  box.querySelectorAll("tr.fitrow").forEach(tr=>{ const nm=tr.getAttribute("data-name")||""; const arch=tr.getAttribute("data-arch")==="1";
-    let ok = (!q || nm.includes(q));
-    if(ok && arch && !showArch && !q) ok=false; // masque les soldés/terminés par défaut, sauf si on les demande ou qu'on recherche
-    tr.style.display=ok?"":"none"; });
+  $("finTable").innerHTML=`<div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
 }
 
 document.addEventListener("change",e=>{ if(e.target.id==="cfProg"||e.target.id==="cfStatut") renderClients(); });
