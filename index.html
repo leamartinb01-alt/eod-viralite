@@ -945,7 +945,9 @@ let ACCESS="team";
 const isAdmin=()=>ACCESS==="admin"||ACCESS==="manager"; // droits d'édition (finance, clients, impayés, équipe…)
 const isFullAdmin=()=>ACCESS==="admin"; // réservé Léa : Comptes bancaires + Réglages + sauvegarde
 const canClients=()=>true; // onglet Clients visible pour tous
-const canSeeMoney=()=>isAdmin(); // montants/finances visibles UNIQUEMENT pour Léa (admin) et la Gestion (manager) ; masqués pour l'équipe ET pour Anthony (accès Clients)
+// Argent sur les FICHES CLIENTS (montant, encaissé, échéancier) : Léa (admin), la Gestion (manager), ET les closers (pour qu'ils remplissent leurs ventes) — PAS les setters/coachs, PAS Anthony (accès Clients). L'onglet Finance/paie/comptes reste réservé à l'admin/gestion via la nav + le garde-fou dans show().
+function isCloserUser(){ return ACCESS!=="client" && ((member(LOGIN_NAME||"")||{}).role==="closer"); }
+const canSeeMoney=()=>isAdmin()||isCloserUser();
 
 /* ===================== FIREBASE ===================== */
 let db=null;
@@ -2138,6 +2140,8 @@ function show(v){
   if(v==="finance" && !isAdmin()) v="form";
   if((v==="settings"||v==="accounts") && !isFullAdmin()) v="form";
   if(v==="team" && ACCESS==="client") v="clients"; // accès clients (Anthony) ne voit pas l'Équipe
+  if(v==="finance" && !isAdmin()) v="clients"; // Finance/paie = Léa + Gestion uniquement (même si un closer voit les montants clients)
+  if((v==="accounts"||v==="settings") && !isFullAdmin()) v="clients"; // Comptes bancaires & Réglages = Léa uniquement
   if(v==="clients" && !canClients()) v="form";
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
