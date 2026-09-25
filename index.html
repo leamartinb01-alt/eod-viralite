@@ -598,7 +598,8 @@
       <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
         <p class="sub2" style="margin:0 0 8px">♻️ <b>Restaurer</b> — en cas de perte de données, recharge une sauvegarde .json (ça réécrit tout).</p>
         <input id="restoreFile" type="file" accept=".json,application/json" style="font-size:13px">
-        <button class="btn ghost" style="margin-top:8px" onclick="restoreBackup()">♻️ Restaurer depuis un fichier .json</button>
+        <button class="btn ghost" style="margin-top:8px" onclick="restoreBackup()">♻️ Restaurer depuis un fichier .json (réécrit tout)</button>
+        <button class="btn ghost" style="margin-top:8px" onclick="restoreLoginsOnly()">🔑 Restaurer UNIQUEMENT les identifiants (ne touche à rien d'autre)</button>
         <div id="restoreMsg" class="msg"></div>
       </div>
     </div>
@@ -1236,7 +1237,10 @@ async function saveSettings(){
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
   SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({who:r.querySelector('.glWho').value, label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
-  SETTINGS.logins=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
+  const _gl=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
+  // 🛡️ ANTI-ÉCRASEMENT : on ne remplace la liste d'identifiants QUE s'il y a au moins une ligne. Une liste vide (Firebase pas encore chargé, ou tout supprimé par erreur) ne peut PLUS écraser les identifiants existants.
+  const _loginsEmpty=(_gl.length===0);
+  if(!_loginsEmpty) SETTINGS.logins=_gl;
   SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
     name:r.querySelector('.pyName').value.trim(),
     label:(r.querySelector('.pyLabel').value||"").trim(),
@@ -1249,8 +1253,10 @@ async function saveSettings(){
   })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
-  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, ...SETTINGS},{merge:true});
-    m.className="msg ok"; m.textContent="Réglages enregistrés ✓ — visibles par toute l'équipe."; renderSettings(); }
+  const _payload={isSettings:true, ...SETTINGS};
+  if(_loginsEmpty) delete _payload.logins; // liste vide → on NE touche PAS aux identifiants déjà en base (merge les conserve)
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set(_payload,{merge:true});
+    m.className="msg ok"; m.textContent="Réglages enregistrés ✓"+(_loginsEmpty?" (identifiants existants conservés)":"")+" — visibles par toute l'équipe."; renderSettings(); }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 
