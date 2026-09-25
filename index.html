@@ -1161,8 +1161,8 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
     <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
-    <input class="pyPct" type="text" inputmode="decimal" placeholder="% ex 10" title="% de commission sur l'encaissé de ses clients (closer 10, setter 5)" value="${it.pct?it.pct:''}" style="width:90px;min-width:90px">
-    <input class="pyFixe" type="text" inputmode="numeric" placeholder="fixe € (vide)" title="Salaire fixe mensuel en € — souvent vide pour un closer/setter" value="${it.fixe?it.fixe:''}" style="width:100px;min-width:100px">
+    <input class="pyPct" type="text" inputmode="decimal" placeholder="%" title="% de commission sur l'encaissé de ses clients (closer 10, setter 5)" value="${it.pct?it.pct:''}" style="width:56px">
+    <input class="pyFixe" type="text" inputmode="numeric" placeholder="fixe €" title="Salaire fixe mensuel en € — souvent vide pour un closer/setter" value="${it.fixe?it.fixe:''}" style="width:70px">
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
     <label class="ck" title="Archivé = plus payé À PARTIR du mois choisi. Les mois d'avant gardent son historique/ses commissions." style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 archivé dès</label>
     <input class="pyArchFrom" type="month" title="Archivé à partir de ce mois (les mois précédents restent payés)" value="${escapeHtml(it.archivedFrom||'')}" style="width:130px">
@@ -1209,8 +1209,8 @@ function renderSettings(){
     <div style="flex:2;min-width:100px">Nom</div>
     <div style="flex:1.6;min-width:110px">Poste affiché</div>
     <div style="flex:1.2;min-width:100px">Rôle</div>
-    <div style="width:90px">% commission</div>
-    <div style="width:100px">Fixe €/mois</div>
+    <div style="width:56px">%</div>
+    <div style="width:70px">Fixe €</div>
     <div style="white-space:nowrap">🎁 paliers</div>
     <div style="white-space:nowrap">📦 archivé</div>
   </div>`;
