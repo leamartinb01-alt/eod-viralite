@@ -1758,6 +1758,23 @@ async function restoreBackup(){
     m.className="msg ok"; m.textContent="Restauration terminée ✓ ("+n+" éléments). Recharge la page (Cmd+Shift+R).";
   }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
+// Restaure UNIQUEMENT les identifiants depuis une sauvegarde .json — ne touche à RIEN d'autre (ni clients, ni finance, ni le reste).
+async function restoreLoginsOnly(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const inp=$("restoreFile"); const f=inp&&inp.files&&inp.files[0]; const m=$("restoreMsg");
+  if(!f){ m.className="msg err"; m.style.display="block"; m.textContent="Choisis d'abord ta sauvegarde .json ci-dessus."; return; }
+  let data; try{ data=JSON.parse(await f.text()); }catch(e){ m.className="msg err"; m.style.display="block"; m.textContent="Fichier JSON invalide."; return; }
+  const ss=Array.isArray(data.setter_stats)?data.setter_stats:[];
+  const cfg=ss.find(x=>x && (x.id===SETTINGS_DOC || x.isSettings) && Array.isArray(x.logins));
+  const logins=(cfg&&Array.isArray(cfg.logins))?cfg.logins.filter(l=>l&&l.email&&l.code):[];
+  if(!logins.length){ m.className="msg err"; m.style.display="block"; m.textContent="Aucun identifiant trouvé dans cette sauvegarde."; return; }
+  if(!confirm(`Restaurer UNIQUEMENT les ${logins.length} identifiant(s) ?\n\nÇa ne touche PAS aux clients, à la finance, ni au reste. Continuer ?`)) return;
+  if(!fbReady()){ m.className="msg err"; m.textContent="Backend non connecté."; return; } initFirebase();
+  m.className="msg"; m.style.display="block"; m.textContent="Restauration des identifiants…";
+  try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, logins},{merge:true}); SETTINGS.logins=logins; renderSettings();
+    m.className="msg ok"; m.textContent=logins.length+" identifiant(s) restauré(s) ✓ — rien d'autre n'a été touché."; }
+  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
+}
 // MÊME logique que l'onglet Finance (role/pct/fixe) pour que le rapport exporté concorde au centime.
 function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
