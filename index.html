@@ -1131,7 +1131,12 @@ function fieldOptions(key){
   const map={programme:'programmes',statut:'statuts',cgv:'cgvTypes',setter:'setters',closer:'closers'};
   const k=map[key]; if(!k) return null;
   let arr=(SETTINGS[k]||[]).slice();
-  if(key==='programme'){ const offNames=(SETTINGS.offers||[]).map(o=>o.name).filter(Boolean); arr=offNames.concat(arr.filter(p=>p&&!offNames.includes(p))); if(!arr.some(p=>String(p).toLowerCase()==="autre")) arr.push("Autre"); }
+  if(key==='programme'){ const offNames=(SETTINGS.offers||[]).map(o=>o.name).filter(Boolean);
+    // Dédoublonnage INSENSIBLE À LA CASSE : les noms d'offres priment, on ne rajoute pas « VIRAL PRO » si « Viral Pro » existe déjà.
+    const seen=new Set(offNames.map(n=>String(n).trim().toLowerCase()));
+    const extra=arr.filter(p=>{ const key2=String(p||"").trim().toLowerCase(); if(!key2||seen.has(key2)) return false; seen.add(key2); return true; });
+    arr=offNames.concat(extra);
+    if(!seen.has("autre")) arr.push("Autre"); }
   if(key==='setter'||key==='closer') arr=[""].concat(arr);
   return arr;
 }
