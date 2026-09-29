@@ -443,6 +443,7 @@
       <button class="btn ghost hide" id="eodCancelEdit" onclick="cancelEdit()">Annuler la modification</button>
       <div id="formMsg" class="msg"></div>
     </div>
+    <div id="myEods" style="margin-top:14px"></div>
   </div>
 
   <!-- ÉQUIPE -->
@@ -1939,6 +1940,8 @@ function initApp(){
   Promise.all([loadTeamCfg(), loadSettings()]).then(()=>{ rebuildMemberSelect();
     // pré-sélectionne la personne connectée dans l'EOD si son nom matche un membre
     if(LOGIN_NAME){ const sel=$("member"); if(sel){ const opt=[...sel.options].find(o=>o.value===LOGIN_NAME); if(opt){ sel.value=LOGIN_NAME; onMember(); } } }
+    lockMemberSelect(); // re-verrouille sur soi (setter/closer/coach) après reconstruction de la liste
+    if(!$("view-form").classList.contains("hide")) loadMyEods();
   });
 }
 
@@ -1989,6 +1992,30 @@ function fillEodForm(x){
     else { const el=$("f_"+f.key); if(el) el.value=v||""; }
   });
 }
+// Seuls Head of Sales et Admin peuvent remplir l'EOD de quelqu'un d'autre. Setter/Closer/Coach = verrouillé sur eux-mêmes.
+function canPickAnyMember(){ return isAdmin()||ACCESS==="hos"; }
+function lockMemberSelect(){ const sel=$("member"); if(!sel) return;
+  const me=(LOGIN_NAME||"").trim();
+  if(!canPickAnyMember() && me){
+    [...sel.options].forEach(o=>{ if(o.value!==me) o.remove(); });
+    if(![...sel.options].some(o=>o.value===me)) sel.insertAdjacentHTML("beforeend",`<option value="${escapeHtml(me)}">${escapeHtml(me)}</option>`);
+    sel.value=me; sel.disabled=true;
+  } else { sel.disabled=false; }
+}
+// Liste des EOD de la personne connectée UNIQUEMENT (elle peut les rouvrir et les corriger). Ne montre jamais ceux des autres.
+function renderMyEods(){ const box=$("myEods"); if(!box) return;
+  const me=(LOGIN_NAME||"").trim();
+  if(!me){ box.innerHTML=""; return; } // connexion par code maître admin (sans nom) → pas de liste perso
+  const mine=(EODS||[]).filter(x=>String(x.member||"")===me).sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
+  if(!mine.length){ box.innerHTML=`<div class="card"><div class="sub2">🗂 Tes EOD apparaîtront ici une fois envoyés — tu pourras les rouvrir et les corriger.</div></div>`; return; }
+  const row=x=>{ const d=x.report_date?frDate(x.report_date):"—"; const ok=(x.report_date||"")===todayStr(); return `<div class="kv" style="align-items:center"><span class="k">📅 ${escapeHtml(d)}${ok?' <span class="sub2">· aujourd’hui</span>':''}</span><span class="v"><button class="btn ghost sm" style="width:auto" onclick="editEod('${x.id}')">✎ Modifier</button></span></div>`; };
+  box.innerHTML=`<div class="card"><div style="font-weight:800;margin-bottom:6px">🗂 Mes EOD envoyés <span class="sub2" style="font-weight:600">— clique « Modifier » pour corriger le tien</span></div>${mine.slice(0,90).map(row).join("")}</div>`;
+}
+async function loadMyEods(){ const box=$("myEods"); if(!box) return;
+  if(!(LOGIN_NAME||"").trim()){ box.innerHTML=""; return; }
+  if(fbReady()){ initFirebase(); try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  renderMyEods();
+}
 function editEod(id){
   const x=EODS.find(e=>e.id===id); if(!x) return;
   editingEodId=id; show("form");
@@ -2028,8 +2055,8 @@ async function submitEod(){
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
-    // Rafraîchir les objectifs du setter avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(name); }catch(e){} }
+    // Rafraîchir les objectifs du setter + la liste « Mes EOD » avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
+    try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); if($("setterGoalsWrap")) renderSetterGoals(name); renderMyEods(); }catch(e){}
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
@@ -2187,6 +2214,7 @@ function show(v){
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
+  if(v==="form"){ lockMemberSelect(); loadMyEods(); }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="goals") loadGoals();
   if(v==="coaching") loadCoaching();
