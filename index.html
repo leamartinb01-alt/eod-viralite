@@ -2002,22 +2002,50 @@ function lockMemberSelect(){ const sel=$("member"); if(!sel) return;
     sel.value=me; sel.disabled=true;
   } else { sel.disabled=false; }
 }
-// Liste des EOD de la personne connectée UNIQUEMENT (elle peut les rouvrir et les corriger). Ne montre jamais ceux des autres.
+let MY_EODS=null; // tout l'historique EOD de la personne connectée (chargé à part, sans limite globale)
+// Résumé lisible d'un EOD (mêmes règles que le rapport exporté) → liste de lignes « Label : valeur ».
+function eodSummaryList(x){ const role=x.role||""; const flds=eodFields(role,x.member); const esc=escapeHtml; const parts=[];
+  flds.forEach(f=>{
+    if(f.type==="calls"){ const cl=callsArr(x); if(cl.length) parts.push("📞 Calls : "+cl.map(c=>esc(c.p||'?')+" ("+esc(c.res||'')+")").join(", ")); return; }
+    if(f.type==="srccount"){ const a=srcArr(x); if(a.length){ const tot=a.reduce((s,z)=>s+(Number(z.n)||0),0); parts.push("👥 Contactés ("+tot+") : "+a.map(z=>esc(z.src||'?')+" "+(z.n||0)).join(", ")); } return; }
+    if(f.type==="booked"){ const b=bookedArr(x); if(b.length) parts.push("📋 RDV pris : "+b.map(z=>esc(z.name||'?')+(z.src?" ["+esc(z.src)+"]":"")+(z.verified?" ✓":"")).join(", ")); return; }
+    if(f.type==="coaching"){ const co=x.payload&&x.payload.coaching; if(Array.isArray(co)&&co.length){ const p2=co.map(o=>{ const d=(o.sess&&o.sess.length)?o.sess.map(s=>esc(s.coach||'?')+" ×"+(s.n||1)).join("/"):(o.done!=null?o.done+"/"+o.total:""); return d?esc(o.name)+": "+d:""; }).filter(Boolean); if(p2.length) parts.push("🎓 Coaching : "+p2.join(" · ")); } return; }
+    if(f.type==="clientlog"){ const cl=x.payload&&x.payload.clientlog; if(Array.isArray(cl)&&cl.length){ const p2=cl.map(a=>{ const bits=[]; if(a.mood)bits.push(a.mood); if(a.ras)bits.push("RAS"); if(a.warning)bits.push("⚠️ "+(a.warnReason||"warning")); return esc(a.name||"?")+(bits.length?" ("+esc(bits.join(", "))+")":""); }); if(p2.length) parts.push("📋 Suivi clients : "+p2.join(" · ")); } return; }
+    if(f.type==="check"){ if(x.payload&&x.payload[f.key]) parts.push(esc(f.label)+" ✓"); return; }
+    const v=x.payload&&x.payload[f.key]; if(v!=null&&v!=="" && typeof v!=="object") parts.push("<b>"+esc(f.label)+" :</b> "+esc(v));
+  });
+  return parts;
+}
+// Liste des EOD de la personne connectée UNIQUEMENT (résumé lisible + dépliable + bouton Modifier). Ne montre jamais ceux des autres.
 function renderMyEods(){ const box=$("myEods"); if(!box) return;
   const me=(LOGIN_NAME||"").trim();
   if(!me){ box.innerHTML=""; return; } // connexion par code maître admin (sans nom) → pas de liste perso
-  const mine=(EODS||[]).filter(x=>String(x.member||"")===me).sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
+  const src=Array.isArray(MY_EODS)?MY_EODS:(EODS||[]).filter(x=>String(x.member||"")===me);
+  const mine=src.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
   if(!mine.length){ box.innerHTML=`<div class="card"><div class="sub2">🗂 Tes EOD apparaîtront ici une fois envoyés — tu pourras les rouvrir et les corriger.</div></div>`; return; }
-  const row=x=>{ const d=x.report_date?frDate(x.report_date):"—"; const ok=(x.report_date||"")===todayStr(); return `<div class="kv" style="align-items:center"><span class="k">📅 ${escapeHtml(d)}${ok?' <span class="sub2">· aujourd’hui</span>':''}</span><span class="v"><button class="btn ghost sm" style="width:auto" onclick="editEod('${x.id}')">✎ Modifier</button></span></div>`; };
-  box.innerHTML=`<div class="card"><div style="font-weight:800;margin-bottom:6px">🗂 Mes EOD envoyés <span class="sub2" style="font-weight:600">— clique « Modifier » pour corriger le tien</span></div>${mine.slice(0,90).map(row).join("")}</div>`;
+  const row=x=>{ const d=x.report_date?frDate(x.report_date):"—"; const ok=(x.report_date||"")===todayStr();
+    const parts=eodSummaryList(x);
+    const detail=parts.length?parts.map(p=>`<div style="padding:4px 0;font-size:13px;line-height:1.5;border-top:1px dashed var(--line)">${p}</div>`).join(""):'<div class="sub2" style="padding:4px 0">EOD vide.</div>';
+    const mood=(x.payload&&x.payload.mood)?String(x.payload.mood).trim().split(" ")[0]:"";
+    return `<details class="cdet" style="border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;background:var(--card2)">
+      <summary style="display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none">
+        <span style="font-weight:800;font-size:14px">📅 ${escapeHtml(d)}${ok?' <span class="sub2" style="font-weight:600">· aujourd’hui</span>':''} ${mood}</span>
+        <span style="display:flex;align-items:center;gap:8px"><span class="sub2">déplier ▾</span><button type="button" class="btn ghost sm" style="width:auto" onclick="event.preventDefault();event.stopPropagation();editEod('${x.id}')">✎ Modifier</button></span>
+      </summary>
+      <div style="margin-top:8px">${detail}</div>
+    </details>`; };
+  box.innerHTML=`<div class="card"><div style="font-weight:800;margin-bottom:8px">🗂 Mes EOD envoyés <span class="sub2" style="font-weight:600">(${mine.length}) — clique un EOD pour voir le détail, « Modifier » pour le corriger</span></div>${mine.map(row).join("")}</div>`;
 }
 async function loadMyEods(){ const box=$("myEods"); if(!box) return;
-  if(!(LOGIN_NAME||"").trim()){ box.innerHTML=""; return; }
-  if(fbReady()){ initFirebase(); try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){} }
+  const me=(LOGIN_NAME||"").trim(); if(!me){ box.innerHTML=""; return; }
+  if(fbReady()){ initFirebase();
+    // TOUT l'historique de la personne (pas de limite globale) — filtré côté serveur sur son nom, trié côté client.
+    try{ const s=await db.collection("eod_reports").where("member","==",me).get(); MY_EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ MY_EODS=null; }
+  }
   renderMyEods();
 }
 function editEod(id){
-  const x=EODS.find(e=>e.id===id); if(!x) return;
+  const x=(EODS||[]).find(e=>e.id===id)||(MY_EODS||[]).find(e=>e.id===id); if(!x) return;
   editingEodId=id; show("form");
   $("member").value=x.member; onMember(); fillEodForm(x);
   $("rdate").value=x.report_date||todayStr();
@@ -2056,7 +2084,8 @@ async function submitEod(){
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
     if($("srcRows")){ seedSrcRows(null); }
     // Rafraîchir les objectifs du setter + la liste « Mes EOD » avec l'EOD qu'on vient d'envoyer (recharge la liste des EOD)
-    try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); if($("setterGoalsWrap")) renderSetterGoals(name); renderMyEods(); }catch(e){}
+    try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); if($("setterGoalsWrap")) renderSetterGoals(name); }catch(e){}
+    loadMyEods(); // recharge tout l'historique perso + réaffiche la liste
   }catch(err){ msg.className="msg err"; msg.textContent="Erreur : "+err.message; }
 }
 
