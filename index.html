@@ -1947,12 +1947,24 @@ function initApp(){
 
 /* ===================== MON EOD ===================== */
 let editingEodId=null;
+let _coachPick=""; // coach choisi manuellement dans l'EOD coach (pour afficher SES élèves, indépendamment du nom de connexion)
+// Quel coach afficher dans l'EOD « Suivi clients » : le choix manuel, sinon le coach qui correspond au nom, sinon le 1er de la liste.
+function coachWho(){ const coachs=(SETTINGS.coachs||[]).filter(Boolean);
+  if(_coachPick && coachs.indexOf(_coachPick)>=0) return _coachPick;
+  const base=((($("member")&&$("member").value)||LOGIN_NAME||"").trim());
+  const match=coachs.find(c=>sameCoachName(c,base));
+  if(match) return match;
+  return coachs[0]||base;
+}
+function coachLogBox(who){ const cs=coachClientsFor(who); const box=$("clientLog"); if(!box) return;
+  box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun élève pour « ${escapeHtml(who)} » — choisis le bon coach ci-dessus, ou assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; }
+function pickCoach(val){ _coachPick=val||""; coachLogBox(coachWho()); }
 // Type d'EOD à afficher : pour une personne verrouillée sur elle-même (setter/closer/coach), l'EOD suit son RÔLE D'ACCÈS (fiable, réglé dans Identifiants). HoS/Admin choisissent un membre → rôle de la roster.
 function eodRoleFor(){ const nm=($("member")&&$("member").value)||"";
   if(!canPickAnyMember()){ if(ACCESS==="coach") return "coach"; if(ACCESS==="closer") return "closer"; if(ACCESS==="setter") return "setter"; }
   return member(nm).role; }
 function onMember(){
-  const role=eodRoleFor(), box=$("fields"); box.innerHTML="";
+  const role=eodRoleFor(), box=$("fields"); box.innerHTML=""; _coachPick="";
   if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   eodFields(role,$("member").value).forEach(f=>{
     let inp;
@@ -1967,8 +1979,10 @@ function onMember(){
     } else if(f.type==="srccount"){
       inp=`<div id="srcRows"></div><button type="button" class="addrow" onclick="addSrcRow()">+ Ajouter une source</button><div class="hint">Mets combien de personnes tu as contactées via chaque source aujourd'hui (mini-chats, ADS, commentaires…). Laisse à 0 si rien.</div>`;
     } else if(f.type==="clientlog"){
-      const who=$("member").value; const cs=coachClientsFor(who);
-      inp=`<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`}</div>`;
+      const coachs=(SETTINGS.coachs||[]).filter(Boolean); const who=coachWho();
+      const picker = coachs.length? `<div style="margin:2px 0 10px"><label>👤 Coach (affiche SES élèves)</label><select id="coachPick" onchange="pickCoach(this.value)">${coachs.map(c=>`<option ${c===who?'selected':''}>${escapeHtml(c)}</option>`).join("")}</select><div class="hint">Choisis-toi ici si ton nom de connexion diffère du nom coché sur les fiches clients.</div></div>`:"";
+      const cs=coachClientsFor(who);
+      inp=`${picker}<div id="clientLog">${cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun élève pour « ${escapeHtml(who)} » — choisis le bon coach ci-dessus, ou assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`}</div>`;
     } else if(f.type==="textarea"){ inp=`<textarea id="f_${f.key}" placeholder="..."></textarea>`; }
     else { inp=`<input id="f_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" placeholder="${f.type==='number'?'0':'...'}" />`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
@@ -1980,8 +1994,8 @@ function onMember(){
   if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
   // Le suivi clients du coach : on recharge TOUJOURS la liste complète à l'ouverture (fini les "clients manquants" à cause d'un cache)
-  if(role==="coach" && $("clientLog") && fbReady()){ initFirebase(); const who=$("member").value;
-    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); const box=$("clientLog"); if(box){ const cs=coachClientsFor(who); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; } }).catch(()=>{}); }
+  if(role==="coach" && $("clientLog") && fbReady()){ initFirebase();
+    db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); coachLogBox(coachWho()); }).catch(()=>{}); }
 }
 function fillEodForm(x){
   const role=x.role||member(x.member).role; // on remplit selon le rôle RÉEL de l'EOD enregistré (coach/closer/setter)
