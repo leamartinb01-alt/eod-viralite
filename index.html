@@ -1947,8 +1947,12 @@ function initApp(){
 
 /* ===================== MON EOD ===================== */
 let editingEodId=null;
+// Type d'EOD à afficher : pour une personne verrouillée sur elle-même (setter/closer/coach), l'EOD suit son RÔLE D'ACCÈS (fiable, réglé dans Identifiants). HoS/Admin choisissent un membre → rôle de la roster.
+function eodRoleFor(){ const nm=($("member")&&$("member").value)||"";
+  if(!canPickAnyMember()){ if(ACCESS==="coach") return "coach"; if(ACCESS==="closer") return "closer"; if(ACCESS==="setter") return "setter"; }
+  return member(nm).role; }
 function onMember(){
-  const role=member($("member").value).role, box=$("fields"); box.innerHTML="";
+  const role=eodRoleFor(), box=$("fields"); box.innerHTML="";
   if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   eodFields(role,$("member").value).forEach(f=>{
     let inp;
@@ -1980,7 +1984,7 @@ function onMember(){
     db.collection("clients").get().then(s=>{ CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); const box=$("clientLog"); if(box){ const cs=coachClientsFor(who); box.innerHTML=cs.length?cs.map(c=>clientLogRow(c)).join(""):`<div class="sub2" style="margin:8px 0">Aucun client assigné à ${escapeHtml(who)} — assigne-lui des clients dans l'onglet Clients (champ « Coach »).</div>`; } }).catch(()=>{}); }
 }
 function fillEodForm(x){
-  const role=member(x.member).role;
+  const role=x.role||member(x.member).role; // on remplit selon le rôle RÉEL de l'EOD enregistré (coach/closer/setter)
   eodFields(role,x.member).forEach(f=>{
     const v=(x.payload&&x.payload[f.key]!=null)?x.payload[f.key]:"";
     if(f.type==="calls"){ const box=$("callRows"); if(box){ box.innerHTML=""; callsArr(x).forEach(addCallRow); if(!box.children.length) addCallRow(); } }
@@ -2054,7 +2058,7 @@ function editEod(id){
 }
 function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
 async function submitEod(){
-  const name=$("member").value, role=member(name).role, rdate=$("rdate").value, msg=$("formMsg");
+  const name=$("member").value, role=eodRoleFor(), rdate=$("rdate").value, msg=$("formMsg");
   const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
