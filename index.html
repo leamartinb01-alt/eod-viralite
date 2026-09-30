@@ -2001,9 +2001,11 @@ function canPickAnyMember(){ return isAdmin()||ACCESS==="hos"; }
 function lockMemberSelect(){ const sel=$("member"); if(!sel) return;
   const me=(LOGIN_NAME||"").trim();
   if(!canPickAnyMember() && me){
+    const changed=(sel.value!==me);
     [...sel.options].forEach(o=>{ if(o.value!==me) o.remove(); });
     if(![...sel.options].some(o=>o.value===me)) sel.insertAdjacentHTML("beforeend",`<option value="${escapeHtml(me)}">${escapeHtml(me)}</option>`);
     sel.value=me; sel.disabled=true;
+    if(changed && !editingEodId) onMember(); // le membre a changé → on reconstruit le formulaire pour la bonne personne (fini le « clients d'Anthony » chez Jonathan)
   } else { sel.disabled=false; }
 }
 let MY_EODS=null; // tout l'historique EOD de la personne connectée (chargé à part, sans limite globale)
