@@ -1247,7 +1247,44 @@ function renderSettings(){
       • <b>Head of Sales</b> → tout sauf Finance / Comptes / Réglages.<br>
       • <b>Admin (Léa)</b> → tout.<br>
       Finance, Comptes (Dubai) et Réglages restent réservés à toi (Admin) uniquement. Quand quelqu'un part, supprime sa ligne. Le code maître admin reste en secours.</div></div>`;
+  html+=`<div class="setblock"><h3>🩹 Réparer une attribution Setter / Closer</h3>
+    <div class="payin">
+      <div><label>Champ à corriger</label><select id="rpField"><option value="setter">Setter</option><option value="closer">Closer</option></select></div>
+      <div><label>Nom à assigner (ex : Ilyas)</label><input id="rpName" type="text" placeholder="Ilyas"></div>
+    </div>
+    <input id="rpSearch" class="srch" placeholder="🔎 Filtrer les clients par nom…" oninput="renderRepairList()" style="margin-top:8px">
+    <div id="rpList" style="max-height:340px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:6px 10px"></div>
+    <button type="button" class="btn ghost" style="margin-top:8px" onclick="applyRepair()">✅ Assigner aux clients cochés</button>
+    <div id="rpMsg" class="msg"></div>
+    <div class="hint">Coche les clients, choisis le champ (Setter/Closer) et le nom (ex. « Ilyas »), puis clique. Ça ré-écrit juste ce champ sur les fiches cochées — rien d'autre ne bouge. Pratique si une attribution a sauté (ses commissions reviennent aussitôt).</div></div>`;
   box.innerHTML=html;
+  renderRepairList();
+}
+// Liste des clients avec case à cocher pour réassigner un setter/closer en masse (réparation).
+async function renderRepairList(){ const wrap=$("rpList"); if(!wrap) return;
+  if((!CLIENTS||!CLIENTS.length) && fbReady()){ initFirebase(); try{ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); }catch(e){} }
+  const fld=($("rpField")&&$("rpField").value)||"setter";
+  const q=(($("rpSearch")&&$("rpSearch").value)||"").toLowerCase().trim();
+  const list=(CLIENTS||[]).filter(c=>!c.deleted).map(c=>({c,nm:((c.nom||"")+" "+(c.prenom||"")).trim()}))
+    .filter(o=>!q||o.nm.toLowerCase().includes(q))
+    .sort((a,b)=>a.nm.localeCompare(b.nm));
+  wrap.innerHTML = list.length? list.map(o=>{ const cur=(o.c[fld]||"").trim();
+    return `<label class="ck" style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--line)"><input type="checkbox" class="rpChk" value="${escapeHtml(o.c.id)}" style="width:auto"> <span style="flex:1">${escapeHtml(o.nm)}</span><span class="sub2">${fld} : <b style="color:${cur?'#8fc4ff':'var(--muted)'}">${cur?escapeHtml(cur):'(vide)'}</b></span></label>`; }).join("")
+    : '<div class="sub2" style="padding:8px">Aucun client.</div>';
+}
+async function applyRepair(){ if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const fld=($("rpField")&&$("rpField").value)||"setter";
+  const name=(($("rpName")&&$("rpName").value)||"").trim();
+  const m=$("rpMsg");
+  const ids=[...document.querySelectorAll('#rpList .rpChk:checked')].map(c=>c.value);
+  if(!name){ m.className="msg err"; m.style.display="block"; m.textContent="Écris d'abord le nom à assigner (ex. Ilyas)."; return; }
+  if(!ids.length){ m.className="msg err"; m.style.display="block"; m.textContent="Coche au moins un client."; return; }
+  if(!confirm(`Mettre « ${name} » comme ${fld} sur ${ids.length} client(s) coché(s) ?\n\nRien d'autre ne change.`)) return;
+  if(!fbReady()){ m.className="msg err"; m.textContent="Backend non connecté."; return; } initFirebase();
+  m.className="msg"; m.style.display="block"; m.textContent="Réassignation…";
+  let n=0; try{ for(const id of ids){ const obj={}; obj[fld]=name; await db.collection("clients").doc(id).update(obj); const c=(CLIENTS||[]).find(x=>x.id===id); if(c) c[fld]=name; n++; }
+    m.className="msg ok"; m.textContent=`✅ ${n} client(s) réassigné(s) à « ${name} » (${fld}). Leurs commissions reviennent dans la Finance.`; renderRepairList(); if($("finMonth")) renderFinance(); }
+  catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
@@ -2987,7 +3024,7 @@ function renderClientForm(data){
     if((f.key==="montant"||f.key==="encaisse"||f.key==="upsell"||f.key==="upsell_montant") && !canSeeMoney()) return; // argent + upsell = admin + Anthony
     if(f.type==="check"){ const cc=f.key==="upsell"?' onchange="updateEncTotal()"':''; box.insertAdjacentHTML("beforeend", `<label class="ckline"><input type="checkbox" id="cf_${f.key}" ${data[f.key]?"checked":""}${cc}> ${f.label}</label>`); return; }
     const v=data[f.key]!=null?String(data[f.key]):""; let inp;
-    if(f.type==="select"){ const opts=fieldOptions(f.key)||f.options||[]; const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>o===""?`<option value="" ${v===""?"selected":""}>— aucun (laisser vide) —</option>`:`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${(f.key==="setter"||f.key==="closer")?'<div class="hint">Choisis « — aucun — » pour retirer '+(f.key==="setter"?"le setter":"le closer")+' de cette fiche (erreur de saisie).</div>':''}${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
+    if(f.type==="select"){ let opts=fieldOptions(f.key)||f.options||[]; if(v && !opts.includes(v)) opts=[v].concat(opts); /* 🛡️ garde la valeur existante même si elle n'est plus dans la liste (ex. setter « Ilyas » retiré des réglages) → ne s'efface plus toute seule à l'enregistrement */ const oc=f.key==="programme"?' onchange="onOfferPick()"':''; inp=`<select id="cf_${f.key}"${oc}>${opts.map(o=>o===""?`<option value="" ${v===""?"selected":""}>— aucun (laisser vide) —</option>`:`<option ${o===v?"selected":""}>${escapeHtml(o)}</option>`).join("")}</select>${(f.key==="setter"||f.key==="closer")?'<div class="hint">Choisis « — aucun — » pour retirer '+(f.key==="setter"?"le setter":"le closer")+' de cette fiche (erreur de saisie).</div>':''}${f.key==="programme"?'<div class="hint" id="offerHint"></div>':''}`; }
     else if(f.type==="textarea"){ inp=`<textarea id="cf_${f.key}">${escapeHtml(v)}</textarea>`; }
     else { let oc=""; if(f.key==="montant"||f.key==="encaisse"||f.key==="upsell_montant") oc=' oninput="updateEncTotal()"'; else if(f.key==="onboarding_date") oc=' onchange="recalcFin()"'; else if(f.key==="date_fin") oc=' onchange="markFinManual()"'; inp=`<input id="cf_${f.key}" type="${f.type}" inputmode="${f.type==='number'?'numeric':'text'}" value="${escapeHtml(v)}"${oc} />`; if(f.key==="date_fin") inp+=`<input type="hidden" id="cf_date_fin_manual" value="${data.date_fin_manual?'1':''}"><div class="hint" id="finHint"></div>`; }
     box.insertAdjacentHTML("beforeend",`<label>${f.label}</label>${inp}`);
