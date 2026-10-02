@@ -3664,6 +3664,7 @@ function renderLogiciel(M){
       <div class="sub2" style="margin:6px 0">Juste le nom + le montant (les montants viennent de tes comptes Wio). Ce total est <b>déduit automatiquement de ta marge COO</b>.</div>
       ${rows}
       <button type="button" class="addrow" style="margin-top:8px" onclick="addLogiLine('${M}')">+ Ajouter un logiciel</button>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="copyLogiFromPrev('${M}')">↩️ Reprendre le mois dernier (${monthShort(prevMonth(M))})</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="importLogiFromAccounts('${M}')">⬇ Importer depuis les comptes Wio (${monthShort(M)})</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="saveLogi('${M}')">💾 Enregistrer les logiciels</button>
       <div class="lgMsg msg" id="lgMsg_${M}"></div>
@@ -3676,6 +3677,13 @@ function gatherLogi(M, keepEmpty){ const box=$("logiCard"); if(!box) return logi
   });
   return keepEmpty ? arr : arr.filter(x=>x.name||x.amount); }
 function addLogiLine(M){ const list=gatherLogi(M,true); list.push({id:"g"+Date.now()+Math.floor(Math.random()*1000), name:"", amount:0}); LOGI[M]=list; renderLogiciel(M); }
+// Reprend les logiciels du mois précédent dans le mois courant (pour ajuster ensuite). N'écrase rien tant que tu n'as pas cliqué Enregistrer.
+function copyLogiFromPrev(M){ const pm=prevMonth(M); const prev=logiList(pm);
+  if(!prev.length){ alert("Aucun logiciel enregistré le mois dernier ("+monthLabel(pm)+")."); return; }
+  const cur=gatherLogi(M,true).filter(x=>x.name||x.amount);
+  if(cur.length && !confirm("Remplacer la liste actuelle par celle de "+monthLabel(pm)+" ("+prev.length+" logiciels) ? Tu pourras ajuster avant d'enregistrer.")) return;
+  LOGI[M]=prev.map(p=>({id:"g"+Date.now()+Math.floor(Math.random()*100000), name:p.name||"", amount:Number(p.amount)||0}));
+  renderLogiciel(M); const m=$("lgMsg_"+M); if(m){ m.className="msg ok"; m.style.display="block"; m.textContent="Repris de "+monthLabel(pm)+" — ajuste puis clique 💾 Enregistrer."; } }
 async function saveLogi(M){ if(!fbReady())return; initFirebase(); const list=gatherLogi(M); LOGI[M]=list; const m=$("lgMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("logi_"+M).set({isLogi:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Logiciels enregistrés ✓ ("+eur(logiTotal(M))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
@@ -3745,6 +3753,7 @@ function renderPresta(M){
       ${(!list.length)?`<button type="button" class="btn ghost sm" style="width:auto;margin:0 0 8px" onclick="carryPrestaNames('${M}')">⤵️ Reprendre les prestas du mois dernier (noms, sans montants)</button>`:""}
       ${rows||'<div class="sub2" style="margin:6px 0">Aucun presta ce mois.</div>'}
       <button type="button" class="addrow" style="margin-top:10px" onclick="addPrestaLine('${M}')">+ Ajouter un presta</button>
+      <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="copyPrestaFromPrev('${M}')">↩️ Reprendre le mois dernier (avec montants · ${monthShort(prevMonth(M))})</button>
       <button type="button" class="btn ghost sm" style="margin-top:8px" onclick="savePresta('${M}')">💾 Enregistrer les prestas</button>
       <div class="prMsg msg" id="prMsg_${M}"></div>
     </details>
@@ -3765,6 +3774,13 @@ function carryPrestaNames(M){ _prestaOpen=true; const prev=prestaList(prevMonth(
   const list=gatherPresta(M,true).filter(x=>x.name||x.amount);
   prev.forEach(p=>{ if(p.name && !list.some(x=>(x.name||"").toLowerCase()===p.name.toLowerCase())) list.push({id:"p"+Date.now()+Math.floor(Math.random()*10000), name:p.name, amount:0, cat:p.cat||PRESTA_CATS[0], note:"", paid:false, margeAmount:(p.margeAmount!=null?p.margeAmount:null), fileUrl:"", fileName:""}); });
   PRESTA[M]=list; renderPresta(M); }
+// Reprend TOUTE la liste des prestas du mois dernier (noms + montants + catégorie + note), pour ajuster ensuite. Rien n'est enregistré tant que tu ne cliques pas 💾.
+function copyPrestaFromPrev(M){ _prestaOpen=true; const pm=prevMonth(M); const prev=prestaList(pm);
+  if(!prev.length){ const m=$("prMsg_"+M); if(m){m.className="msg err";m.style.display="block";m.textContent="Aucun presta enregistré le mois dernier ("+monthLabel(pm)+").";} return; }
+  const cur=gatherPresta(M,true).filter(x=>x.name||x.amount);
+  if(cur.length && !confirm("Remplacer la liste actuelle par celle de "+monthLabel(pm)+" ("+prev.length+" prestas, avec montants) ? Tu pourras ajuster avant d'enregistrer.")) return;
+  PRESTA[M]=prev.map(p=>({id:"p"+Date.now()+Math.floor(Math.random()*100000), name:p.name||"", amount:Number(p.amount)||0, cat:p.cat||PRESTA_CATS[0], note:p.note||"", paid:false, margeAmount:(p.margeAmount!=null?p.margeAmount:null), fileUrl:"", fileName:""}));
+  renderPresta(M); const m=$("prMsg_"+M); if(m){ m.className="msg ok"; m.style.display="block"; m.textContent="Repris de "+monthLabel(pm)+" — ajuste les montants puis clique 💾 Enregistrer."; } }
 async function savePresta(M){ if(!fbReady())return; initFirebase(); const list=gatherPresta(M); PRESTA[M]=list; const m=$("prMsg_"+M); if(m){m.className="msg";m.style.display="block";m.textContent="Enregistrement…";}
   try{ await db.collection("setter_stats").doc("presta_"+M).set({isPresta:true,month:M,list}); if(m){m.className="msg ok";m.textContent="Prestas enregistrés ✓ ("+eur(list.reduce((a,p)=>a+(Number(p.amount)||0),0))+")";} renderFinance(); }
   catch(e){ if(m){m.className="msg err";m.textContent="Erreur : "+e.message;} } }
@@ -4102,9 +4118,25 @@ function renderFinTable(){
   $("finTable").innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <input type="text" id="finTableSearch" placeholder="🔎 Chercher un client…" oninput="filterFinTable()" style="width:auto;min-width:190px;max-width:260px;font-size:13px;padding:6px 10px">
       ${nArch?`<label class="ck" style="font-size:12px"><input type="checkbox" id="finTableArch" onchange="filterFinTable()"> 📦 voir les soldés/terminés (${nArch})</label>`:""}
+      <button type="button" class="btn ghost sm" style="width:auto;margin-left:auto" onclick="exportFinTableCSV()">⬇️ Exporter (Excel/CSV)</button>
     </div>
     <div class="tablewrap"><table class="mtab"><thead>${head}</thead><tbody>${body}<tr class="tot"><td>Total encaissé</td>${totByMonth}<td>${eur(totEnc)}</td><td>${eur(totReste)}</td></tr></tbody></table></div>`;
   filterFinTable();
+}
+// Export CSV (Excel) du tableau « Encaissements par client × mois » : encaissé par mois + encaissé total + reste.
+function exportFinTableCSV(){
+  const monthsSet=new Set();
+  CLIENTS.forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.month) monthsSet.add(s.month); }); if(startMonth(c)) monthsSet.add(startMonth(c)); if(encGlobal(c)>0||clientReste(c)>0) monthsSet.add(baseMonth(c)); });
+  let ms=[...monthsSet].filter(Boolean).sort(); if(!ms.length) ms=lastMonths(4).reverse();
+  const rows=CLIENTS.filter(c=>!c.deleted).slice().sort((a,b)=>String(a.date_debut||"").localeCompare(String(b.date_debut||"")));
+  const esc=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  const head=["Client","Programme","Montant contrat",...ms.map(monthLabel),"Encaissé total","Reste à encaisser"].map(esc).join(";");
+  const lines=rows.map(c=>{ const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
+    const cells=ms.map(m=>Math.round(paidInMonth(c,m))||"");
+    return [nm, c.programme||"", Math.round(clientMontant(c)), ...cells, Math.round(clientEncaisse(c)), Math.round(clientReste(c))].map(esc).join(";"); });
+  const totline=["TOTAL","","",...ms.map(m=>Math.round(rows.reduce((s,c)=>s+paidInMonth(c,m),0))), Math.round(rows.reduce((s,c)=>s+clientEncaisse(c),0)), Math.round(rows.reduce((s,c)=>s+clientReste(c),0))].map(esc).join(";");
+  const csv=[head,...lines,totline].join("\r\n");
+  dl("encaissements-par-client-"+todayStr()+".csv", "﻿"+csv, "text/csv;charset=utf-8");
 }
 // Recherche + filtre archivés dans le tableau « Encaissements par client × mois ».
 function filterFinTable(){ const box=$("finTable"); if(!box) return;
