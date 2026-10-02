@@ -121,6 +121,8 @@
   .center{min-height:82vh; display:flex; flex-direction:column; justify-content:center}
   .hide{display:none !important}
   .config-warn{background:rgba(255,180,71,.1); border:1px solid rgba(255,180,71,.35); color:#ffcf7a; font-size:13px; padding:12px 14px; border-radius:13px; margin:0 0 4px}
+  body.readonly #app>.wrap:not(.hide)::before{content:"👀 Mode lecture seule — tu peux tout consulter, mais rien modifier";display:block;background:rgba(143,196,255,.12);border:1px solid rgba(143,196,255,.35);color:#8fc4ff;font-weight:700;font-size:12.5px;text-align:center;padding:8px 10px;border-radius:12px;margin:0 0 12px}
+  body.readonly .pLink,body.readonly #coo_facture,body.readonly #antho_facture{display:none}
   .section-title{font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--faint); margin:18px 2px 8px; font-weight:700}
   .insight{display:flex; gap:9px; align-items:flex-start; font-size:13.5px; padding:7px 0; border-top:1px solid var(--line2)}
   .insight:first-child{border-top:none}
@@ -405,7 +407,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 25/09/2026 · accès par rôle (Setter/Closer/Coach/HoS/Admin)</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 02/10/2026 · HoS lecture seule + Mes EOD + export</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -967,7 +969,18 @@ const canSeeMoney=()=>true; // argent sur les FICHES CLIENTS (montant/encaissé/
 /* ===================== FIREBASE ===================== */
 let db=null;
 function fbReady(){ return !!(CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
-function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); }
+function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); guardDbForViewer(); }
+// 🔒 LECTURE SEULE pour le Head of Sales : un seul verrou central qui bloque TOUTES les écritures Firestore (set/update/delete/add). Les lectures (get/where/orderBy) marchent normalement → il voit tout, ne modifie rien.
+function isViewer(){ return ACCESS==="hos"; }
+function guardDbForViewer(){ if(!db || db.__guarded || !isViewer()) return;
+  const realCollection=db.collection.bind(db);
+  const block=()=>{ try{ alert("👀 Accès en lecture seule — tu peux tout consulter, mais pas modifier."); }catch(e){} return Promise.reject(new Error("lecture seule")); };
+  db.collection=function(name){ const col=realCollection(name); const realDoc=col.doc.bind(col);
+    col.add=block;
+    col.doc=function(id){ const d=realDoc(id); d.set=block; d.update=block; d.delete=block; return d; };
+    return col; };
+  db.__guarded=true;
+}
 
 /* ===================== ÉQUIPE — CONFIG PARTAGÉE ===================== */
 const TEAM_DOC="cfg_team";
@@ -1030,6 +1043,8 @@ function renderTeamManage(){
 let LOGIN_NAME=""; // nom de la personne connectée (via identifiant individuel)
 function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
+  guardDbForViewer(); // verrou lecture seule (Head of Sales) dès la connexion
+  document.body.classList.toggle("readonly", isViewer()); // bandeau + désactivation visuelle des champs
   // Chaque onglet de nav est visible seulement si le rôle y a droit.
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("hide", !canView(k)); });
   initApp();
@@ -1833,14 +1848,15 @@ async function restoreLoginsOnly(){
 function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
   const list=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
-  const arr=list.map(normPay).filter(it=>it&&it.name).map(it=>{
+  const arr=list.map(normPay).filter(it=>it&&it.name&&payActiveMonth(it,M)).map(it=>{ // même filtre que l'écran : on ignore les archivés sur ce mois
     const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
-    let mine=[];
-    if(role==="closer")      mine=cls.filter(c=>c.closer===n && paidInMonth(c,M)>0);
-    else if(role==="setter") mine=cls.filter(c=>c.setter===n && paidInMonth(c,M)>0);
+    let mine=[]; // MÊME logique que renderFinance : isPerson (accents/majuscules/multi-noms) + rôle « autre » avec %
+    if(role==="closer")      mine=cls.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0);
+    else if(role==="setter") mine=cls.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0);
     else if(role==="coach")  mine=pct?cls.filter(c=>paidInMonth(c,M)>0):[];
+    else if(pct)             mine=cls.filter(c=>(isPerson(c.closer,n)||isPerson(c.setter,n)) && paidInMonth(c,M)>0);
     const ca=mine.reduce((s,c)=>s+paidInMonth(c,M),0);
-    const pp=primePalier(ca); const prime=(role==="closer")?pp.closer:(role==="setter")?pp.setter:0;
+    const pp=primePalier(ca); const prime=it.prime?((role==="closer")?pp.closer:pp.setter):0;
     const auto=fixe+ca*pct+prime;
     const st=stOf(n), saved=st.lines, edited=Array.isArray(saved)&&saved.length>0;
     const amount=edited?saved.reduce((s,x)=>s+(Number(x.a)||0),0):auto;
@@ -3721,7 +3737,7 @@ function renderPresta(M){
   const paid=list.filter(p=>p.paid).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const rows=list.map(p=>{
     const catOpts=PRESTA_CATS.map(o=>`<option ${o===p.cat?"selected":""}>${o}</option>`).join("");
-    const viewLink=p.fileUrl ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline;white-space:nowrap">📎 voir la facture</a>` : "";
+    const viewLink=(p.fileUrl && !isViewer()) ? `<a href="${escapeHtml(p.fileUrl)}" target="_blank" rel="noopener" class="sub2" style="text-decoration:underline;white-space:nowrap">📎 voir la facture</a>` : "";
     return `<div class="prow" data-id="${p.id}" style="border-top:1px dashed var(--line);padding:8px 0">
       <div class="payin">
         <div><input class="pName" type="text" value="${escapeHtml(p.name||"")}" placeholder="Nom du presta"></div>
