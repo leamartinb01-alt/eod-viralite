@@ -127,6 +127,9 @@
   body.montants-only #view-finance>#finTableSection{display:block}
   /* HoS en lecture seule : voit la Finance (montants payés) mais pas la rému COO, la marge nette, ni le bouton d'enregistrement */
   body.readonly #view-finance #margeBox,body.readonly #view-finance #cooSection,body.readonly #view-finance #anthoSection,body.readonly #view-finance button[onclick^="saveAllFinance"]{display:none}
+  /* lecture seule : pas de boutons d'action ni de saisie dans logiciels/prestas/encaissements (il voit les montants, pas les contrôles) */
+  body.readonly #logiCard button,body.readonly #prestaCard button,body.readonly #finPay button,body.readonly #logiCard .addrow,body.readonly #prestaCard .addrow{display:none}
+  body.readonly #logiCard input,body.readonly #prestaCard input{pointer-events:none;opacity:.85}
   .section-title{font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--faint); margin:18px 2px 8px; font-weight:700}
   .insight{display:flex; gap:9px; align-items:flex-start; font-size:13.5px; padding:7px 0; border-top:1px solid var(--line2)}
   .insight:first-child{border-top:none}
@@ -3628,6 +3631,13 @@ function renderFinance(){
   const monthCard=`<div class="card" style="margin-top:2px;padding:12px 14px">
     <div class="sub2">📊 <b>${monthLabel(M)}</b> · 💰 <b style="color:#7ee2a3">${eur(newCash)}</b> new cash · 🔁 <b>${eur(recCash)}</b> recurring <span style="opacity:.6">(détail des encaissements ci-dessous)</span></div>
   </div>`;
+  if(isViewer()){ // Head of Sales en lecture seule : juste le MONTANT à verser par personne, sans le détail/éditable/factures
+    const vp=pay.filter(p=>noAcc(p.m).trim()!=="lea"); // on ne montre pas la paie de Léa
+    const rowsV=vp.map(p=>`<div class="kv" style="padding:7px 0;border-top:1px solid var(--line)"><span class="k">${escapeHtml(p.m)}${p.label?` <span class="sub2">· ${escapeHtml(p.label)}</span>`:""}</span><span class="v" style="color:#7ee2a3;font-weight:800;font-size:15px">${eur(p.eff)}</span></div>`).join("");
+    const totV=vp.reduce((s,p)=>s+p.eff,0);
+    $("finPay").innerHTML = monthCard + payMonthCard(M) + `<div class="card"><div style="font-weight:800;margin-bottom:2px">💸 Montants à verser — ${monthLabel(M)}</div>${rowsV||'<div class="sub2" style="margin-top:6px">Aucune paie ce mois.</div>'}<div class="kv" style="border-top:2px solid var(--gold);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">Total équipe</span><span class="v grad-text" style="font-weight:800;font-size:16px">${eur(totV)}</span></div></div>`;
+    renderFinTable(); renderPresta(M); renderLogiciel(M); return;
+  }
   $("finPay").innerHTML = monthCard + payMonthCard(M) + pay.map(p=>{
     const mb=member(p.m);
     const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
