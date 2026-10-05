@@ -123,6 +123,8 @@
   .config-warn{background:rgba(255,180,71,.1); border:1px solid rgba(255,180,71,.35); color:#ffcf7a; font-size:13px; padding:12px 14px; border-radius:13px; margin:0 0 4px}
   body.readonly #app>.wrap:not(.hide)::before{content:"👀 Mode lecture seule — tu peux tout consulter, mais rien modifier";display:block;background:rgba(143,196,255,.12);border:1px solid rgba(143,196,255,.35);color:#8fc4ff;font-weight:700;font-size:12.5px;text-align:center;padding:8px 10px;border-radius:12px;margin:0 0 12px}
   body.readonly .pLink,body.readonly #coo_facture,body.readonly #antho_facture{display:none}
+  body.montants-only #view-finance>*{display:none}
+  body.montants-only #view-finance>#finTableSection{display:block}
   .section-title{font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--faint); margin:18px 2px 8px; font-weight:700}
   .insight{display:flex; gap:9px; align-items:flex-start; font-size:13.5px; padding:7px 0; border-top:1px solid var(--line2)}
   .insight:first-child{border-top:none}
@@ -580,8 +582,10 @@
     <div id="prestaCard"></div>
     <div class="section-title">💻 Logiciels</div>
     <div id="logiCard"></div>
-    <div class="section-title">Encaissements par client × mois</div>
-    <div id="finTable"></div>
+    <div id="finTableSection">
+      <div class="section-title">Encaissements par client × mois</div>
+      <div id="finTable"></div>
+    </div>
     <div class="section-title" style="margin-top:22px">💎 Ma rémunération (Léa · COO)</div>
     <div id="cooCard"></div>
     <div class="section-title" style="margin-top:22px">💼 Rémunération Anthony (Head of Sales)</div>
@@ -955,9 +959,11 @@ const ACCESS_TABS={
   setter: ["form"],                                                           // EOD seulement
   closer: ["form","clients","unpaid","immersive"],                            // EOD + Clients + Impayés + Immersive
   coach:  ["form","clients","coaching","unpaid","immersive"],                 // EOD + Clients + Coaching + Impayés + Immersive
-  hos:    ["form","team","goals","coaching","unpaid","immersive","clients","finance"],  // Head of Sales : tout + Finance, SAUF Comptes (Dubai) & Réglages
+  hos:    ["form","team","goals","coaching","unpaid","immersive","clients"],  // Head of Sales : ops (sauf Finance/Comptes/Réglages)
+  finance:["finance"],  // « Montants » : UNIQUEMENT le tableau des encaissements clients, lecture seule, rien d'autre (pour Anthony)
   admin:  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout
 };
+function isMontantsOnly(){ return ACCESS==="finance"; } // accès « Montants » : voit seulement le tableau des encaissements
 // Compat anciens rôles : team→closer, client→hos (Anthony HoS), manager→hos.
 function normAccess(r){ if(ACCESS_TABS[r]) return r; if(r==="team") return "closer"; if(r==="client") return "hos"; if(r==="manager") return "hos"; return "setter"; }
 function accessTabs(){ return ACCESS_TABS[ACCESS]||ACCESS_TABS.setter; }
@@ -972,7 +978,7 @@ let db=null;
 function fbReady(){ return !!(CONFIG.FIREBASE.projectId && CONFIG.FIREBASE.apiKey); }
 function initFirebase(){ if(db||!fbReady())return; firebase.initializeApp(CONFIG.FIREBASE); db=firebase.firestore(); guardDbForViewer(); }
 // 🔒 LECTURE SEULE pour le Head of Sales : un seul verrou central qui bloque TOUTES les écritures Firestore (set/update/delete/add). Les lectures (get/where/orderBy) marchent normalement → il voit tout, ne modifie rien.
-function isViewer(){ return ACCESS==="hos"; }
+function isViewer(){ return ACCESS==="hos"||ACCESS==="finance"; } // lecture seule : HoS et accès Montants
 function guardDbForViewer(){ if(!db || db.__guarded || !isViewer()) return;
   const realCollection=db.collection.bind(db);
   const block=()=>{ try{ alert("👀 Accès en lecture seule — tu peux tout consulter, mais pas modifier."); }catch(e){} return Promise.reject(new Error("lecture seule")); };
@@ -1044,8 +1050,9 @@ function renderTeamManage(){
 let LOGIN_NAME=""; // nom de la personne connectée (via identifiant individuel)
 function applyNavAccess(){
   $("login").classList.add("hide"); $("app").classList.remove("hide"); $("nav").classList.remove("hide");
-  guardDbForViewer(); // verrou lecture seule (Head of Sales) dès la connexion
+  guardDbForViewer(); // verrou lecture seule (Head of Sales / Montants) dès la connexion
   document.body.classList.toggle("readonly", isViewer()); // bandeau + désactivation visuelle des champs
+  document.body.classList.toggle("montants-only", isMontantsOnly()); // accès Montants : n'affiche que le tableau des encaissements
   // Chaque onglet de nav est visible seulement si le rôle y a droit.
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("hide", !canView(k)); });
   initApp();
@@ -1215,7 +1222,7 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
-function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (EOD + Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales (Finance incluse · sauf Comptes & Réglages)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
+function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (EOD + Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales (ops · sauf Finance/Comptes/Réglages)"],["finance","Montants (lecture seule — juste les encaissements)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
   return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
     <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
     <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
@@ -1275,7 +1282,8 @@ function renderSettings(){
       • <b>Setter</b> → EOD seulement.<br>
       • <b>Closer</b> → EOD + Clients + Impayés + Immersive.<br>
       • <b>Coach</b> → EOD + Clients + Coaching + Impayés + Immersive.<br>
-      • <b>Head of Sales</b> → tout + <b>Finance</b>, sauf Comptes (Dubai) & Réglages.<br>
+      • <b>Head of Sales</b> → ops (EOD, Équipe, Objectifs, Coaching, Impayés, Immersive, Clients), sauf Finance/Comptes/Réglages.<br>
+      • <b>Montants</b> → UNIQUEMENT le tableau des encaissements clients, en lecture seule (pour Anthony).<br>
       • <b>Admin (Léa)</b> → tout.<br>
       Finance, Comptes (Dubai) et Réglages restent réservés à toi (Admin) uniquement. Quand quelqu'un part, supprime sa ligne. Le code maître admin reste en secours.</div></div>`;
   html+=`<div class="setblock"><h3>🩹 Réparer une attribution Setter / Closer</h3>
@@ -3472,6 +3480,7 @@ function isPerson(field, name){ if(!field||!name) return false;
 }
 function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBase[M]:(M>="2026-07"?CONFIG.COMM.lucasBase.default:0); }
 function renderFinance(){
+  if(isMontantsOnly()){ renderFinTable(); return; } // accès « Montants » : on ne calcule/affiche QUE le tableau des encaissements (aucune donnée paie/marge/COO n'est générée)
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
   // encaissements du mois
   let encTot=0, dueMonth=0, dueTotal=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
