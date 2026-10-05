@@ -428,6 +428,7 @@
   <header class="top">
     <svg class="logo-eco-sm"><use href="#logoV"/></svg>
     <div><h1>Écosystème Viral</h1><div class="sub" id="todayLabel"></div></div>
+    <button id="logoutBtn" onclick="logout()" title="Se déconnecter" style="margin-left:auto;background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:7px 11px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap">⎋ Déconnexion</button>
   </header>
 
   <!-- MON EOD -->
@@ -1050,24 +1051,39 @@ function applyNavAccess(){
   initApp();
   show(accessTabs()[0]||"form"); // atterrit sur le 1er onglet autorisé du rôle
 }
-async function login(){
-  const email=(($("loginEmail")&&$("loginEmail").value)||"").trim().toLowerCase();
-  const v=($("pw").value||"").trim();
+// ---- Session persistante : on retient la connexion pour ne pas re-saisir à chaque fois ----
+const AUTH_KEY="ev_auth_v1";
+function saveAuth(o){ try{ localStorage.setItem(AUTH_KEY, JSON.stringify(o)); }catch(e){} }
+function clearAuth(){ try{ localStorage.removeItem(AUTH_KEY); }catch(e){} }
+async function doLogin(email, v, silent){
+  email=(email||"").trim().toLowerCase(); v=(v||"").trim();
   const e=$("loginErr");
-  // 1) Code admin maître (secours réservé à Léa — les codes équipe/clients ne donnent plus accès)
-  if(v===CONFIG.PASSWORD_ADMIN){ ACCESS="admin"; LOGIN_NAME=""; return applyNavAccess(); }
-  // 2) Identifiants individuels (email + code perso) — gérés dans Réglages
-  e.className="msg"; e.style.display="block"; e.textContent="Vérification…";
+  // 1) Code admin maître (secours réservé à Léa)
+  if(v===CONFIG.PASSWORD_ADMIN){ ACCESS="admin"; LOGIN_NAME=""; saveAuth({admin:true}); applyNavAccess(); return true; }
+  // 2) Identifiants individuels (email + code perso)
+  if(!silent && e){ e.className="msg"; e.style.display="block"; e.textContent="Vérification…"; }
   try{ initFirebase(); let logins=[];
     if(db){ const d=await db.collection("setter_stats").doc(SETTINGS_DOC).get(); if(d.exists&&Array.isArray(d.data().logins)) logins=d.data().logins; }
     const m=logins.find(u=>u && email && String(u.email||"").trim().toLowerCase()===email && String(u.code||"")===v);
-    if(m){ ACCESS=normAccess(m.role); LOGIN_NAME=m.name||""; return applyNavAccess(); }
+    if(m){ ACCESS=normAccess(m.role); LOGIN_NAME=m.name||""; saveAuth({email, code:v}); applyNavAccess(); return true; }
   }catch(err){}
-  e.className="msg err"; e.style.display="block"; e.textContent="Email ou mot de passe incorrect.";
+  if(!silent && e){ e.className="msg err"; e.style.display="block"; e.textContent="Email ou mot de passe incorrect."; }
+  return false;
 }
+function login(){ return doLogin(($("loginEmail")&&$("loginEmail").value)||"", ($("pw")&&$("pw").value)||"", false); }
+// Reconnexion auto au chargement si une session a été mémorisée (on re-vérifie le code → si l'accès a été retiré, ça échoue proprement).
+async function tryAutoLogin(){ let a=null; try{ a=JSON.parse(localStorage.getItem(AUTH_KEY)||"null"); }catch(e){}
+  if(!a) return false;
+  if(a.admin) return doLogin("", CONFIG.PASSWORD_ADMIN, true);
+  if(a.email && a.code) return doLogin(a.email, a.code, true);
+  return false;
+}
+function logout(){ if(!confirm("Se déconnecter ?")) return; clearAuth(); location.reload(); }
 $("pw").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
 if($("loginEmail")) $("loginEmail").addEventListener("keydown",e=>{ if(e.key==="Enter") login(); });
 function togglePw(){ const i=$("pw"), b=$("eyeBtn"); if(!i) return; if(i.type==="password"){ i.type="text"; b.textContent="🙈"; } else { i.type="password"; b.textContent="👁️"; } }
+// Au chargement : si une session est mémorisée, on reconnecte automatiquement (sinon l'écran de connexion reste affiché).
+window.addEventListener("load", ()=>{ tryAutoLogin(); });
 
 /* ===================== RÉGLAGES (listes éditables partagées) ===================== */
 const SETTINGS_DEFAULT={
@@ -2309,9 +2325,7 @@ function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(
 
 /* ===================== NAV (animée) ===================== */
 function show(v){
-  // Sécurité accès : Finance = admin/manager ; Comptes (banque Dubai) & Réglages = Léa uniquement (full admin).
-  if(v==="finance" && !isAdmin()) v="form";
-  if((v==="settings"||v==="accounts") && !isFullAdmin()) v="form";
+  // Accès par rôle : Finance ouverte au Head of Sales (lecture seule) ET à l'admin ; Comptes (Dubai) & Réglages = Léa seule. Tout est géré par canView (ACCESS_TABS).
   if(!canView(v)) v=accessTabs()[0]||"form"; // le rôle n'a pas droit à cet onglet → on le renvoie sur son 1er onglet autorisé
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
   ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
@@ -2744,9 +2758,10 @@ function renderTeam(){
       <div class="mlevel">🔥 ${streak} j · ${pts} pts</div></div>`;
   }).join("");
   renderTeamManage();
-  // Accès Équipe (closers/setters/coachs) : ils revoient les EOD (grille + membres) mais PAS le « Résumé des EOD par jour » ni les « Warnings clients ». Léa (admin) & Gestion (manager) voient tout.
-  const dc=$("digestCard"); if(dc) dc.classList.toggle("hide", !isAdmin());
-  const wc=$("warnCard"); if(wc && !isAdmin()) wc.classList.add("hide");
+  // Accès Équipe (closers/setters/coachs) : ils revoient les EOD (grille + membres) mais PAS le « Résumé des EOD par jour » ni les « Warnings clients ». Léa (admin) ET le Head of Sales voient tout (pour relancer ceux qui n'ont pas rempli leur EOD).
+  const canOversee=isAdmin()||ACCESS==="hos";
+  const dc=$("digestCard"); if(dc) dc.classList.toggle("hide", !canOversee);
+  const wc=$("warnCard"); if(wc && !canOversee) wc.classList.add("hide");
 }
 function prevMonth(M){ const p=(M||monthStr()).split("-").map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function pctTxt(a,b){ return b>0?Math.round(a/b*100)+"%":"—"; }
