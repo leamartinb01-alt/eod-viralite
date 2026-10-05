@@ -3631,11 +3631,17 @@ function renderFinance(){
   const monthCard=`<div class="card" style="margin-top:2px;padding:12px 14px">
     <div class="sub2">📊 <b>${monthLabel(M)}</b> · 💰 <b style="color:#7ee2a3">${eur(newCash)}</b> new cash · 🔁 <b>${eur(recCash)}</b> recurring <span style="opacity:.6">(détail des encaissements ci-dessous)</span></div>
   </div>`;
-  if(isViewer()){ // Head of Sales en lecture seule : juste le MONTANT à verser par personne, sans le détail/éditable/factures
+  if(isViewer()){ // Head of Sales en lecture seule : montant par personne + détail des clients (closés/settés + encaissés), SANS modifiable/factures/notes ni la paie de Léa
     const vp=pay.filter(p=>noAcc(p.m).trim()!=="lea"); // on ne montre pas la paie de Léa
-    const rowsV=vp.map(p=>`<div class="kv" style="padding:7px 0;border-top:1px solid var(--line)"><span class="k">${escapeHtml(p.m)}${p.label?` <span class="sub2">· ${escapeHtml(p.label)}</span>`:""}</span><span class="v" style="color:#7ee2a3;font-weight:800;font-size:15px">${eur(p.eff)}</span></div>`).join("");
+    const cardV=p=>{ const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+      return `<details class="clcard paycard"><summary>
+        <div class="avatar sm ${avClass(p.role==="coach"?"coach":(p.role==="closer"?"closer":(p.role==="setter"?"setter":"")))}">${initials(p.m)}</div>
+        <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${escapeHtml(p.label||"")}</div></div>
+        <div style="text-align:right"><div style="font-size:18px;font-weight:800" class="grad-text">${eur(p.eff)}</div><div style="font-size:10px;color:var(--muted)">à verser</div></div>
+        <span class="chev">▸</span></summary>
+        <div class="clbody">${kvs||'<div class="sub2">Aucun détail.</div>'}</div></details>`; };
     const totV=vp.reduce((s,p)=>s+p.eff,0);
-    $("finPay").innerHTML = monthCard + payMonthCard(M) + `<div class="card"><div style="font-weight:800;margin-bottom:2px">💸 Montants à verser — ${monthLabel(M)}</div>${rowsV||'<div class="sub2" style="margin-top:6px">Aucune paie ce mois.</div>'}<div class="kv" style="border-top:2px solid var(--gold);margin-top:6px;padding-top:8px"><span class="k" style="font-weight:800">Total équipe</span><span class="v grad-text" style="font-weight:800;font-size:16px">${eur(totV)}</span></div></div>`;
+    $("finPay").innerHTML = monthCard + payMonthCard(M) + `<div class="section-title">💸 Montants à verser — ${monthLabel(M)} <span class="sub2">(clique un nom pour le détail des clients)</span></div>` + vp.map(cardV).join("") + `<div class="entry" style="text-align:center"><div style="font-size:12px;color:var(--muted)">Total équipe ${monthLabel(M)}</div><div style="font-size:24px;font-weight:800" class="grad-text">${eur(totV)}</div></div>`;
     renderFinTable(); renderPresta(M); renderLogiciel(M); return;
   }
   $("finPay").innerHTML = monthCard + payMonthCard(M) + pay.map(p=>{
