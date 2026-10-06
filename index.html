@@ -1301,8 +1301,27 @@ function renderSettings(){
     <button type="button" class="btn ghost" style="margin-top:8px" onclick="applyRepair()">✅ Assigner aux clients cochés</button>
     <div id="rpMsg" class="msg"></div>
     <div class="hint">Coche les clients, choisis le champ (Setter/Closer) et le nom (ex. « Ilyas »), puis clique. Ça ré-écrit juste ce champ sur les fiches cochées — rien d'autre ne bouge. Pratique si une attribution a sauté (ses commissions reviennent aussitôt).</div></div>`;
+  html+=`<div class="setblock"><h3>🔍 Contrôle de cohérence des noms</h3>
+    <div class="hint">Un EOD ne remonte que si le <b>nom de connexion</b> de la personne est identique à son nom dans l'<b>équipe</b>. Ce contrôle liste les écarts (ex. « Jonathan » connecté ≠ « John » dans l'équipe) — à corriger pour que tout remonte.</div>
+    <div id="nameCheckBox" style="margin-top:8px"></div></div>`;
   box.innerHTML=html;
   renderRepairList();
+  renderNameCheck();
+}
+// Contrôle de cohérence : compare le nom de connexion de chaque personne avec la liste d'équipe + repère les EOD dont le nom n'est dans aucun des deux.
+function renderNameCheck(){ const box=$("nameCheckBox"); if(!box) return;
+  const roster=(teamActive()||[]).map(m=>m.name).filter(Boolean);
+  const logins=(SETTINGS.logins||[]);
+  const rows=[];
+  logins.forEach(l=>{ const nm=(l.name||"").trim(); if(!nm) return; if(l.role==="hos"||l.role==="finance"||l.role==="admin") return; // ces rôles n'ont pas besoin d'être dans la roster EOD
+    const match=roster.find(r=>eqName(r,nm));
+    rows.push(`<div class="kv" style="padding:5px 0;border-top:1px solid var(--line)"><span class="k">🔑 ${escapeHtml(nm)} <span class="sub2">· ${escapeHtml(l.role||"")}</span></span><span class="v" style="color:${match?'#7ee2a3':'#ff9a9a'};text-align:right">${match?('✓ équipe « '+escapeHtml(match)+' »'):'⚠️ pas de membre « '+escapeHtml(nm)+' » dans l\'équipe'}</span></div>`); });
+  // membres de l'équipe sans identifiant (ne peuvent pas se connecter) — info
+  const noLogin=roster.filter(r=>!logins.some(l=>eqName(l.name,r)));
+  const warnCount=rows.filter(r=>r.includes("⚠️")).length;
+  box.innerHTML=(warnCount?`<div class="sub2" style="color:#ff9a9a;margin-bottom:4px"><b>${warnCount} écart(s)</b> à corriger : mets le même nom des deux côtés (Identifiants ci-dessus ↔ Gestion d'équipe).</div>`:`<div class="sub2" style="color:#7ee2a3;margin-bottom:4px">✅ Tous les noms de connexion correspondent à un membre de l'équipe.</div>`)
+    + (rows.join("")||'<div class="sub2">Aucun identifiant setter/closer/coach.</div>')
+    + (noLogin.length?`<div class="sub2" style="margin-top:8px;opacity:.8">ℹ️ Membres d'équipe sans identifiant de connexion : ${noLogin.map(escapeHtml).join(", ")}</div>`:"");
 }
 // Liste des clients avec case à cocher pour réassigner un setter/closer en masse (réparation).
 async function renderRepairList(){ const wrap=$("rpList"); if(!wrap) return;
