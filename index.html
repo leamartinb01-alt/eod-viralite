@@ -867,7 +867,7 @@ function sameCoachName(a,b){ a=noAcc(a||"").trim(); b=noAcc(b||"").trim(); if(!a
 // Clients assignés à CE coach uniquement (pour que John ne voie que ses clients dans son EOD).
 function coachClientsFor(name){ return coachClients().filter(c=>coachesOf(c).some(x=>sameCoachName(x,name))); }
 function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; const goals=(SETTINGS.setterGoals||[]).filter(g=>!g.who || g.who===name); if(!goals.length) return "";
-  const M=monthStr(); const mine=EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M);
+  const M=monthStr(); const mine=EODS.filter(x=>eqName(x.member,name) && (x.report_date||"").slice(0,7)===M);
   const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
     return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
   return `<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs — ${monthLabel(M)}</h2>${rows}<div class="hint">Se met à jour tout seul quand tu envoies tes EOD du mois.</div></div>`; }
@@ -943,7 +943,7 @@ function seedSrcRows(arr){ const box=$("srcRows"); if(!box) return; box.innerHTM
   if(arr&&arr.length){ arr.forEach(addSrcRow); } else { leadSourceList(currentSetterChannel()).forEach(s=>addSrcRow({src:s,n:''})); }
   if(!box.children.length) addSrcRow(); }
 function callsForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ if(SRC_SETTER[c.src]===setterName) out.push({p:c.p,res:c.res,by:e.member}); })); return out; }
-function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(e.member===setterName) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
+function bookedForSetter(eods,setterName){ const out=[]; (eods||[]).forEach(e=>{ if(eqName(e.member,setterName)) bookedArr(e).forEach(b=>out.push(b)); }); return out; }
 function callsArr(x){ return (x&&x.payload&&Array.isArray(x.payload.calls))?x.payload.calls:[]; }
 function lastMonthVal(eods,key){ const sorted=(eods||[]).slice().sort((a,b)=>String(b.report_date).localeCompare(String(a.report_date))); const f=sorted.find(x=>x.payload&&x.payload[key]!=null&&x.payload[key]!==""); return f?(Number(f.payload[key])||0):0; }
 /* Cash du mois : somme des saisies "du jour" ; si rien, on retombe sur l'ancien cumul mensuel (par membre) pour ne rien perdre. */
@@ -1705,6 +1705,8 @@ const COACH_SEED=[
   {k:"poirson", lc:"2026-07-23"}, {k:"loggan", onb:"2026-07-09"}, {k:"sarna", onb:"2026-07-14"}, {k:"tailleur", lc:"2026-07-21"}
 ];
 function noAcc(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+// Comparaison de noms tolérante (casse, accents, espaces) — pour matcher un EOD à un membre même si le nom a une petite variation.
+function eqName(a,b){ const n=s=>noAcc(String(s||"")).replace(/\s+/g," ").trim(); const x=n(a); return !!x && x===n(b); }
 async function seedCoachDates(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   if(!fbReady()){ alert("Backend non connecté."); return; } initFirebase();
@@ -2122,8 +2124,8 @@ function eodSummaryList(x){ const role=x.role||""; const flds=eodFields(role,x.m
 function renderMyEods(){ const box=$("myEods"); if(!box) return;
   const me=(LOGIN_NAME||"").trim();
   if(!me){ box.innerHTML=""; return; } // connexion par code maître admin (sans nom) → pas de liste perso
-  const src=Array.isArray(MY_EODS)?MY_EODS:(EODS||[]).filter(x=>String(x.member||"")===me);
-  const mine=src.slice().sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
+  const src=Array.isArray(MY_EODS)?MY_EODS:(EODS||[]);
+  const mine=src.filter(x=>eqName(x.member,me)).sort((a,b)=>String(b.report_date||"").localeCompare(String(a.report_date||"")));
   if(!mine.length){ box.innerHTML=`<div class="card"><div class="sub2">🗂 Tes EOD apparaîtront ici une fois envoyés — tu pourras les rouvrir et les corriger.</div></div>`; return; }
   const row=x=>{ const d=x.report_date?frDate(x.report_date):"—"; const ok=(x.report_date||"")===todayStr();
     const parts=eodSummaryList(x);
@@ -2141,8 +2143,9 @@ function renderMyEods(){ const box=$("myEods"); if(!box) return;
 async function loadMyEods(){ const box=$("myEods"); if(!box) return;
   const me=(LOGIN_NAME||"").trim(); if(!me){ box.innerHTML=""; return; }
   if(fbReady()){ initFirebase();
-    // TOUT l'historique de la personne (pas de limite globale) — filtré côté serveur sur son nom, trié côté client.
+    // TOUT l'historique de la personne (pas de limite globale). On récupère son nom exact ET on complète avec les variations (casse/accents/espaces) depuis les EOD déjà chargés.
     try{ const s=await db.collection("eod_reports").where("member","==",me).get(); MY_EODS=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ MY_EODS=null; }
+    try{ if(!Array.isArray(MY_EODS)) MY_EODS=[]; const ids=new Set(MY_EODS.map(x=>x.id)); (EODS||[]).forEach(x=>{ if(eqName(x.member,me) && !ids.has(x.id)){ MY_EODS.push(x); ids.add(x.id); } }); }catch(e){}
   }
   renderMyEods();
 }
@@ -2248,7 +2251,7 @@ function wkAuto(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=
   const days=weekDaysOf(wk); const ppl=poleMembers(p).map(m=>m.name);
   let s=0; EODS.forEach(e=>{ if(days.indexOf(e.report_date)<0) return; if(ppl.indexOf(e.member)<0) return; s+=dgVal(e,mk); }); return s; }
 function wkPerPerson(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(!p||p.src!=="auto") return [];
-  const days=weekDaysOf(wk); return poleMembers(p).map(m=>{ let s=0; EODS.forEach(e=>{ if(e.member===m.name&&days.indexOf(e.report_date)>=0) s+=dgVal(e,mk); }); return {name:m.name,v:s}; }).filter(x=>x.v>0); }
+  const days=weekDaysOf(wk); return poleMembers(p).map(m=>{ let s=0; EODS.forEach(e=>{ if(eqName(e.member,m.name)&&days.indexOf(e.report_date)>=0) s+=dgVal(e,mk); }); return {name:m.name,v:s}; }).filter(x=>x.v>0); }
 function wkReal(pole,mk,wk){ const p=POLES.find(x=>x.key===pole); if(p&&p.src==="auto") return wkAuto(pole,mk,wk); const v=wkManual(wk,pole,mk); return v==null?0:v; }
 function wkStatus(real,target){ if(target==null||target<=0) return ""; const r=real/target; return r>=1?"dgok":(r>=0.5?"dgmid":"dgbad"); }
 function roundNice(v){ v=Math.round(v); if(v>=100) return Math.round(v/10)*10; if(v>=20) return Math.round(v/5)*5; return v; }
@@ -2330,7 +2333,7 @@ async function wkAcceptAuto(){ [...document.querySelectorAll('.wkT')].forEach(i=
 /* Bloc « ma semaine » affiché en haut de l'EOD (setters + closers) */
 function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(!pk) return "";
   const p=POLES.find(x=>x.key===pk); if(!p) return ""; const wk=mondayOf(todayStr()), days=weekDaysOf(wk);
-  const rows=p.metrics.map(mt=>{ let v=0; EODS.forEach(e=>{ if(e.member===name&&days.indexOf(e.report_date)>=0) v+=dgVal(e,mt.key); });
+  const rows=p.metrics.map(mt=>{ let v=0; EODS.forEach(e=>{ if(eqName(e.member,name)&&days.indexOf(e.report_date)>=0) v+=dgVal(e,mt.key); });
     const tg=wkEffTarget(wk,pk,mt.key), st=wkStatus(v,tg);
     return '<div style="margin:7px 0"><div class="dgtop"><span>'+escapeHtml(mt.label)+'</span><span class="'+st+'"><b>'+v+'</b>'+(tg?' / '+tg:'')+'</span></div>'+(tg?'<div class="cwk-bar"><span style="width:'+Math.min(100,Math.round(v/tg*100))+'%"></span></div>':'')+'</div>'; }).join("");
   return '<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs de la semaine</h2>'+rows+
@@ -2762,7 +2765,7 @@ function renderTeam(){
   renderClosed(selM);
   renderTeamDigest();
   $("teamGrid").innerHTML=teamActive().map(m=>{
-    const on=doneSet.has(m.name); const list=EODS.filter(x=>x.member===m.name);
+    const on=doneSet.has(m.name); const list=EODS.filter(x=>eqName(x.member,m.name));
     const streak=streakOf(list.map(x=>x.report_date).filter(Boolean)), pts=list.length*10;
     return `<div class="member" onclick="openMember('${m.name.replace(/'/g,"\\'")}')">
       <span class="dot ${on?'on':'off'}"></span>
@@ -2831,19 +2834,19 @@ function closerConv(name,M){
   const pkey=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
   const rank=r=> r==="Closé"?3:(r==="Show-up"?2:(r==="No-show"?1:0));
   const seen=new Map();
-  EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=pkey(c.p); if(!k) return; const cur=seen.get(k); if(!cur || rank(c.res)>rank(cur)) seen.set(k, c.res); }); });
+  EODS.filter(x=>eqName(x.member,name) && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=pkey(c.p); if(!k) return; const cur=seen.get(k); if(!cur || rank(c.res)>rank(cur)) seen.set(k, c.res); }); });
   let calls=0,show=0,no=0;
   seen.forEach(res=>{ calls++; if(res==="No-show")no++; if(res==="Show-up"||res==="Closé")show++; });
-  const closed=monthCloses(M).filter(l=>l.closer===name).length;
+  const closed=monthCloses(M).filter(l=>isPerson(l.closer,name)).length;
   return {calls,closed,show,no};
 }
-function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0,messages=0,replies=0,qualif=0; EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; messages+=Number(p.messages)||0; replies+=Number(p.replies)||0; qualif+=Number(p.calls_qualif)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
+function setterConv(name,M){ let contacted=0,inContact=0,bookedNum=0,bookedList=0,verified=0,messages=0,replies=0,qualif=0; EODS.filter(x=>eqName(x.member,name) && (x.report_date||"").slice(0,7)===M).forEach(x=>{ const p=x.payload||{}; contacted+=Number(p.contacted)||0; inContact+=Number(p.in_contact)||0; bookedNum+=Number(p.calls_booked)||0; messages+=Number(p.messages)||0; replies+=Number(p.replies)||0; qualif+=Number(p.calls_qualif)||0; const bk=bookedArr(x); bookedList+=bk.length; bk.forEach(b=>{ if(b.verified)verified++; }); });
   const booked=Math.max(bookedNum, bookedList); // RDV pris : que le setter les saisisse en nombre OU en liste
   return {contacted,inContact,booked,verified,messages,replies,qualif}; }
 // Ventilation par source (mini-chats, ADS, commentaires…) sur le mois : contacts saisis par source + RDV pris rattachés à cette source. Sert à voir ce qui convertit le mieux sur Insta.
 function setterSrcStats(name,M){ const map={};
   const get=s=>{ const k=s||"(sans source)"; return map[k]||(map[k]={src:k,contacts:0,rdv:0,verif:0}); };
-  EODS.filter(x=>x.member===name && (x.report_date||"").slice(0,7)===M).forEach(x=>{
+  EODS.filter(x=>eqName(x.member,name) && (x.report_date||"").slice(0,7)===M).forEach(x=>{
     srcArr(x).forEach(z=>{ get(z.src).contacts+=Number(z.n)||0; });
     bookedArr(x).forEach(b=>{ const g=get(b.src); g.rdv++; if(b.verified) g.verif++; });
   });
@@ -2925,8 +2928,10 @@ function renderTeamDigest(){
   const days=[]; for(let i=0;i<6;i++){ days.push(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); }
   dl.innerHTML=days.map(d=>{
     const dayE=EODS.filter(x=>x.report_date===d); const isToday=d===todayStr();
-    const posted=[...new Set(dayE.map(x=>x.member))];
-    const missing=teamActive().filter(m=>!posted.includes(m.name)).map(m=>m.name);
+    // Match tolérant EOD ↔ membre (casse/accents/espaces) → fini les « manquant » alors que la personne a rempli.
+    const postedRoster=teamActive().filter(m=>dayE.some(x=>eqName(x.member,m.name)));
+    const posted=postedRoster.map(m=>m.name);
+    const missing=teamActive().filter(m=>!dayE.some(x=>eqName(x.member,m.name))).map(m=>m.name);
     if(!dayE.length){ const miss=(!isToday)?` · <span style="color:var(--red)">aucun EOD${missing.length<teamActive().length?"":""}</span>`:""; return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}</div><div class="sub2" style="margin-top:2px">Aucun EOD${!isToday?" — manquant : "+escapeHtml(teamActive().map(m=>m.name).join(", ")):""}</div></div>`; }
     const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
     const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0),0);
@@ -2956,14 +2961,14 @@ function renderInsights(selM, doneSet){
   const missing=teamActive().filter(m=>!doneSet.has(m.name)).map(m=>m.name);
   if(missing.length && missing.length<teamActive().length) ins.push(["⏰",`Pas encore d'EOD aujourd'hui : <b>${missing.join(", ")}</b>`]);
   const byCloser={};
-  teamActive().filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>x.member===m.name && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
+  teamActive().filter(m=>m.role==="closer").forEach(m=>{ const me=EODS.filter(x=>eqName(x.member,m.name) && (x.report_date||"").slice(0,7)===selM); const g=monthCashSum(me,"cash_gen_day","cash_gen_month"); if(g>0) byCloser[m.name]=g; });
   const top=Object.entries(byCloser).sort((a,b)=>b[1]-a[1])[0];
   if(top && top[1]>0 && canSeeMoney()) ins.push(["🏆",`Top cash généré (${monthLabel(selM)}) : <b>${escapeHtml(top[0])}</b> — ${eur(top[1])}`]);
-  let best=null; teamActive().forEach(m=>{ const s=streakOf(EODS.filter(x=>x.member===m.name).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
+  let best=null; teamActive().forEach(m=>{ const s=streakOf(EODS.filter(x=>eqName(x.member,m.name)).map(x=>x.report_date).filter(Boolean)); if(s>0 && (!best||s>best.s)) best={n:m.name,s}; });
   if(best) ins.push(["🔥",`Plus longue série : <b>${escapeHtml(best.n)}</b> (${best.s} j)`]);
   const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
   teamActive().filter(m=>m.role==="setter").forEach(m=>{
-    const recent=EODS.filter(x=>x.member===m.name && (x.report_date||"")>=weekAgo);
+    const recent=EODS.filter(x=>eqName(x.member,m.name) && (x.report_date||"")>=weekAgo);
     const booked=recent.reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
     if(recent.length>=2 && booked===0) ins.push(["📉",`<b>${escapeHtml(m.name)}</b> : 0 call pris sur 7 jours`]);
   });
@@ -2975,7 +2980,7 @@ function renderInsights(selM, doneSet){
 }
 function openMember(name){
   const m=member(name), selM=$("teamMonth").value||monthStr();
-  const list=EODS.filter(x=>x.member===name);
+  const list=EODS.filter(x=>eqName(x.member,name));
   const month=list.filter(x=>(x.report_date||"").slice(0,7)===selM);
   const metrics=(SUIVI[m.role]||SUIVI.setter).filter(mt=>!mt.money||canSeeMoney()); // cash = admin only
   let stats=metrics.map(mt=>{
@@ -3633,7 +3638,7 @@ function renderFinance(){
   </div>`;
   if(isViewer()){ // Head of Sales en lecture seule : montant par personne + détail des clients (closés/settés + encaissés), SANS modifiable/factures/notes ni la paie de Léa
     const vp=pay.filter(p=>noAcc(p.m).trim()!=="lea"); // on ne montre pas la paie de Léa
-    const cardV=p=>{ const kvs=p.rows.map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+    const cardV=p=>{ const kvs=p.rows.filter(r=>!String(r[1]).includes("Manuel — mets")).map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
       return `<details class="clcard paycard"><summary>
         <div class="avatar sm ${avClass(p.role==="coach"?"coach":(p.role==="closer"?"closer":(p.role==="setter"?"setter":"")))}">${initials(p.m)}</div>
         <div style="flex:1 1 auto"><div style="font-weight:700">${escapeHtml(p.m)}</div><div style="font-size:11.5px;color:var(--muted)">${escapeHtml(p.label||"")}</div></div>
