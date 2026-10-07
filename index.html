@@ -126,7 +126,7 @@
   body.montants-only #view-finance>*{display:none}
   body.montants-only #view-finance>#finTableSection{display:block}
   /* HoS en lecture seule : voit la Finance (montants payés) mais pas la rému COO, la marge nette, ni le bouton d'enregistrement */
-  body.readonly #view-finance #margeBox,body.readonly #view-finance #cooSection,body.readonly #view-finance #anthoSection,body.readonly #view-finance button[onclick^="saveAllFinance"]{display:none}
+  body.readonly #view-finance #margeBox,body.readonly #view-finance #cooSection,body.readonly #view-finance #anthoSection,body.readonly #view-finance button[onclick^="saveAllFinance"],body.readonly #view-finance #finLockRow{display:none}
   /* lecture seule : pas de boutons d'action ni de saisie dans logiciels/prestas/encaissements (il voit les montants, pas les contrôles) */
   body.readonly #logiCard button,body.readonly #prestaCard button,body.readonly #finPay button,body.readonly #logiCard .addrow,body.readonly #prestaCard .addrow{display:none}
   body.readonly #logiCard input,body.readonly #prestaCard input{pointer-events:none;opacity:.85}
@@ -575,6 +575,7 @@
       <button class="btn" style="margin-top:12px;width:100%;font-size:15px" onclick="saveAllFinance($('finMonth').value)">💾 TOUT enregistrer (paie, logiciels, prestas, ma commission)</button>
       <div id="saveAllMsg" class="msg"></div>
       <div class="hint" style="margin-top:4px">Un seul clic enregistre absolument tout ce qui est saisi sur ce mois — rien n'est oublié.</div>
+      <div id="finLockRow" style="margin-top:10px"></div>
       <div class="stat" id="finStats" style="margin-top:12px"></div>
       <div id="encBreak" class="hide" style="margin-top:12px"></div>
       <div id="dueBreak" class="hide" style="margin-top:12px"></div>
@@ -1133,7 +1134,7 @@ function normPay(it){
   if(it.role){ let pct=Number(it.pct)||0;
     // Repli standard si le % a été perdu (case vide) : closer → 10 %, setter → 5 % (mêmes valeurs que les défauts historiques). Coach/Autre/Ads restent à 0 (fixe).
     if(!pct){ if(it.role==="closer") pct=10; else if(it.role==="setter") pct=5; }
-    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||""}; }
+    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||"", from:it.from||it.activeFrom||"", rateFrom:it.rateFrom||"", prevPct:(it.prevPct!=null?it.prevPct:""), prevFixe:(it.prevFixe!=null?it.prevFixe:""), prevPrime:(it.prevPrime!=null?!!it.prevPrime:null)}; }
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1146,7 +1147,21 @@ function normPay(it){
   return {name:it.name, role:"autre", pct:0, fixe:0};
 }
 // Une personne archivée reste comptée pour les mois AVANT son archivage (historique/commissions préservés) ; elle disparaît seulement à partir du mois « archivé dès ». Sans mois précis → repli sur le mois en cours (figé à la prochaine sauvegarde).
-function payActiveMonth(it, M){ if(!it) return false; if(!it.archived) return true; const from=it.archivedFrom||monthStr(); return String(M) < String(from); }
+function payActiveMonth(it, M){ if(!it) return false;
+  // 🟢 Date d'entrée : la personne n'est PAS payée pour les mois AVANT son arrivée (évite qu'un nouvel arrivé apparaisse dans l'historique).
+  const joined=it.from||it.activeFrom||""; if(joined && String(M) < String(joined)) return false;
+  if(!it.archived) return true; const from=it.archivedFrom||monthStr(); return String(M) < String(from); }
+/* 💶 REM effective pour un mois donné. Si une « date de changement de REM » (rateFrom) est définie,
+   les mois AVANT ce mois gardent l'ANCIEN %/fixe (prevPct/prevFixe) ; à partir de ce mois → le nouveau (pct/fixe).
+   Les champs « ancien » laissés vides = inchangés (on reprend la valeur actuelle). Sans rateFrom → le % /fixe actuel s'applique à tous les mois (comportement d'avant). */
+function effRate(it, M){ it=it||{};
+  if(it.rateFrom && String(M) < String(it.rateFrom)){
+    const pp=(it.prevPct!=null&&it.prevPct!=="")?Number(it.prevPct):(Number(it.pct)||0);
+    const pf=(it.prevFixe!=null&&it.prevFixe!=="")?Number(it.prevFixe):(Number(it.fixe)||0);
+    return { pct:pp||0, fixe:pf||0, prime:(it.prevPrime!=null?!!it.prevPrime:!!it.prime) };
+  }
+  return { pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:!!it.prime };
+}
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
 const SETTINGS_DOC="cfg_settings";
@@ -1167,6 +1182,7 @@ async function loadSettings(){
       if(x.weekGoals&&typeof x.weekGoals==="object") SETTINGS.weekGoals=x.weekGoals;
       if(x.weekActuals&&typeof x.weekActuals==="object") SETTINGS.weekActuals=x.weekActuals;
       if(Array.isArray(x.logins)) SETTINGS.logins=x.logins;
+      if(Array.isArray(x.lockedMonths)) SETTINGS.lockedMonths=x.lockedMonths;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -1215,6 +1231,10 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
     <label class="ck" title="Archivé = plus payé À PARTIR du mois choisi. Les mois d'avant gardent son historique/ses commissions." style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 archivé dès</label>
     <input class="pyArchFrom" type="month" title="Archivé à partir de ce mois (les mois précédents restent payés)" value="${escapeHtml(it.archivedFrom||'')}" style="width:130px">
+    <label class="ck" title="La personne n'est payée QU'À PARTIR de ce mois — elle n'apparaît pas dans les mois d'avant (utile pour un nouvel arrivé)." style="white-space:nowrap">🟢 présent dès <input class="pyFrom" type="month" title="Dans l'équipe depuis ce mois — rien avant" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:130px"></label>
+    <label class="ck" title="Tu as changé sa REM ? Mets le mois à partir duquel le NOUVEAU %/fixe (ci-dessus) s'applique. Les mois d'avant gardent l'ancien (champs à droite). Laisse vide si pas de changement." style="white-space:nowrap">✏️ nouvelle REM dès <input class="pyRateFrom" type="month" title="Le %/fixe ci-dessus s'applique à partir de ce mois ; avant = l'ancien" value="${escapeHtml(it.rateFrom||'')}" style="width:130px"></label>
+    <label class="ck" title="L'ANCIEN % (avant le changement). Laisse vide si le % n'a pas changé." style="white-space:nowrap">ancien % <input class="pyPrevPct" type="text" inputmode="decimal" placeholder="—" value="${it.prevPct!=null&&it.prevPct!==''?escapeHtml(String(it.prevPct)):''}" style="width:50px"></label>
+    <label class="ck" title="L'ANCIEN fixe € (avant le changement). Laisse vide si le fixe n'a pas changé." style="white-space:nowrap">ancien fixe <input class="pyPrevFixe" type="text" inputmode="numeric" placeholder="—" value="${it.prevFixe!=null&&it.prevFixe!==''?escapeHtml(String(it.prevFixe)):''}" style="width:60px"></label>
 
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
@@ -1272,6 +1292,8 @@ function renderSettings(){
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
       <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
+      <b>🟢 présent dès</b> = la personne est payée <b>seulement à partir de ce mois</b> (sa date d'entrée). Elle <b>n'apparaît pas</b> dans les mois d'avant. À remplir pour tout nouvel arrivé (ex. un closer qui démarre en octobre → mets « 2026-10 »), sinon il remonterait dans l'historique où il n'existait pas.<br>
+      <b>✏️ nouvelle REM dès + ancien % / ancien fixe</b> = si tu <b>changes la REM</b> de quelqu'un : mets le nouveau %/fixe dans les cases habituelles, le <b>mois</b> du changement dans « nouvelle REM dès », et son <b>ancien</b> % et/ou fixe à droite. Résultat : les mois <b>à partir</b> de cette date prennent la nouvelle REM, les mois <b>d'avant gardent l'ancienne</b> — l'historique ne bouge pas. (Laisse « ancien » vide si seul le % OU seul le fixe a changé : l'autre reste identique.)<br>
       <b>📦 archivé dès</b> = la personne n'est plus payée <b>à partir du mois choisi</b>. Les mois <b>avant</b> ce mois gardent son historique et ses commissions intactes (ta marge des mois passés ne bouge pas). Décoche pour la réactiver. Rien n'est supprimé.<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
@@ -1366,7 +1388,11 @@ async function saveSettings(){
     fixe:Number(String(r.querySelector('.pyFixe').value||"").replace(",",".").replace(/[^0-9.]/g,""))||0,
     prime:!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked),
     archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked),
-    archivedFrom:(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })()
+    archivedFrom:(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })(),
+    from:(function(){ const f=r.querySelector('.pyFrom'); return (f&&f.value)?f.value:""; })(),
+    rateFrom:(function(){ const f=r.querySelector('.pyRateFrom'); return (f&&f.value)?f.value:""; })(),
+    prevPct:(function(){ const f=r.querySelector('.pyPrevPct'); const v=f?String(f.value||"").replace(",",".").replace(/[^0-9.]/g,""):""; return v===""?"":Number(v); })(),
+    prevFixe:(function(){ const f=r.querySelector('.pyPrevFixe'); const v=f?String(f.value||"").replace(",",".").replace(/[^0-9.]/g,""):""; return v===""?"":Number(v); })()
   })).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
@@ -1899,14 +1925,14 @@ function payForMonth(M, cls, eods, statMap){
   const stOf=n=>statMap[n+"|"+M]||{};
   const list=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   const arr=list.map(normPay).filter(it=>it&&it.name&&payActiveMonth(it,M)).map(it=>{ // même filtre que l'écran : on ignore les archivés sur ce mois
-    const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
+    const er=effRate(it,M); const n=it.name, role=it.role||"autre", pct=(Number(er.pct)||0)/100, fixe=Number(er.fixe)||0;
     let mine=[]; // MÊME logique que renderFinance : isPerson (accents/majuscules/multi-noms) + rôle « autre » avec %
     if(role==="closer")      mine=cls.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0);
     else if(role==="setter") mine=cls.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0);
     else if(role==="coach")  mine=pct?cls.filter(c=>paidInMonth(c,M)>0):[];
     else if(pct)             mine=cls.filter(c=>(isPerson(c.closer,n)||isPerson(c.setter,n)) && paidInMonth(c,M)>0);
     const ca=mine.reduce((s,c)=>s+paidInMonth(c,M),0);
-    const pp=primePalier(ca); const prime=it.prime?((role==="closer")?pp.closer:pp.setter):0;
+    const pp=primePalier(ca); const prime=er.prime?((role==="closer")?pp.closer:pp.setter):0;
     const auto=fixe+ca*pct+prime;
     const st=stOf(n), saved=st.lines, edited=Array.isArray(saved)&&saved.length>0;
     const amount=edited?saved.reduce((s,x)=>s+(Number(x.a)||0),0):auto;
@@ -3511,6 +3537,7 @@ function lucasBase(M){ return CONFIG.COMM.lucasBase[M]!=null?CONFIG.COMM.lucasBa
 function renderFinance(){
   if(isMontantsOnly()){ renderFinTable(); return; } // accès « Montants » : on ne calcule/affiche QUE le tableau des encaissements (aucune donnée paie/marge/COO n'est générée)
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
+  renderFinLockRow(M);
   // encaissements du mois
   let encTot=0, dueMonth=0, dueTotal=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
   CLIENTS.forEach(c=>{
@@ -3543,21 +3570,21 @@ function renderFinance(){
   const autoTag=k=>has(k)?"":" · auto";
   const payList=(SETTINGS.payList&&SETTINGS.payList.length)?SETTINGS.payList:PAYLIST_DEFAULT;
   /* CALCUL UNIQUE : rôle → quels clients sont "les siens" ; puis  fixe + % de l'encaissé de ces clients. */
-  const pay=payList.map(normPay).filter(it=>it&&it.name&&!it.archived).map(it=>{
-    const n=it.name, role=it.role||"autre", pct=(Number(it.pct)||0)/100, fixe=Number(it.fixe)||0;
+  const pay=payList.map(normPay).filter(it=>it&&it.name&&payActiveMonth(it,M)).map(it=>{
+    const er=effRate(it,M); const n=it.name, role=it.role||"autre", pct=(Number(er.pct)||0)/100, fixe=Number(er.fixe)||0;
     let cls=[];
     if(role==="closer")      cls=CLIENTS.filter(c=>isPerson(c.closer,n) && paidInMonth(c,M)>0);   // ses closings
     else if(role==="setter") cls=CLIENTS.filter(c=>isPerson(c.setter,n) && paidInMonth(c,M)>0);   // ses leads
     else if(role==="coach")  cls=pct?CLIENTS.filter(c=>paidInMonth(c,M)>0):[];                     // tous les clients encaissés (si %)
     else if(pct)             cls=CLIENTS.filter(c=>(isPerson(c.closer,n)||isPerson(c.setter,n)) && paidInMonth(c,M)>0); // rôle "autre" avec % → ses clients closés OU settés (ex. Célia)
     const ca=cls.reduce((s,c)=>s+paidInMonth(c,M),0);
-    const pp=primePalier(ca); const prime=it.prime?((role==="closer")?pp.closer:pp.setter):0; // prime palier sur SON encaissé (si l'option 🎁 paliers est cochée ; closer→grille closer, sinon grille setter comme Ilyas)
+    const pp=primePalier(ca); const prime=er.prime?((role==="closer")?pp.closer:pp.setter):0; // prime palier sur SON encaissé (si l'option 🎁 paliers est cochée ; closer→grille closer, sinon grille setter comme Ilyas)
     const dn=[]; if(fixe) dn.push({l:"Fixe mensuel", a:Math.round(fixe*100)/100});
     cls.forEach(c=>{ const e=paidInMonth(c,M); const a=Math.round(e*pct*100)/100; const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?" · 📸 "+String(c.instagram).replace(/^https?:\/\/(www\.)?instagram\.com\//i,"@").replace(/\/$/,""):""; if(a) dn.push({l:escapeHtml(nmC)+escapeHtml(ig)+" · "+eur(e)+" encaissé", a}); });
     if(prime) dn.push({l:"🎁 Prime palier "+(pp.seuil/1000)+"k encaissés", a:prime});
     const rows=[["Rôle", ROLE_LBL[role]||role]];
     if(fixe) rows.push(["Fixe mensuel", eur(fixe)]);
-    if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(it.pct)||0)+" %"]);
+    if(pct){ rows.push([role==="closer"?"💼 Clients qu'il a closés":(role==="setter"?"🎯 Clients venant de ses leads":"Clients encaissés"), cls.length], ["CA encaissé", eur(ca)], ["Commission", (Number(er.pct)||0)+" %"+(it.rateFrom&&String(M)<String(it.rateFrom)?" (ancienne REM)":"")]);
       cls.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); const ig=c.instagram?' <a href="'+escapeHtml(instaUrl(c.instagram))+'" target="_blank" rel="noopener" style="color:#ff8fd0">📸</a>':""; rows.push(["↳ "+escapeHtml(nmC)+ig, eur(paidInMonth(c,M))]); }); }
     if(prime) rows.push(["🎁 Prime palier ("+(pp.seuil/1000)+"k)", eur(prime)]);
     if(!fixe && !pct){
@@ -3573,7 +3600,7 @@ function renderFinance(){
         setBy.forEach(c=>{ const nmC=((c.nom||"")+" "+(c.prenom||"")).trim(); rows.push(["↳ "+escapeHtml(nmC), eur(paidInMonth(c,M))+" encaissé"]); }); }
       if(!closedBy.length && !setBy.length) rows.push(["Clients rattachés ce mois","aucun (vérifie le champ Closer/Setter sur les fiches)"]);
     }
-    return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, primeOn:!!it.prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
+    return {m:n, autoAmount: fixe + ca*pct + prime, caEnc:ca, prime, primeOn:!!er.prime, custom:(!fixe&&!pct), rows, detailNum:dn, callset:(role==="setter"?n:null), role, label:(it.label||ROLE_LBL[role]||role)};
   });
   // Détail ÉDITABLE : si tu as enregistré des lignes custom → elles font foi (total = leur somme). Sinon = détail auto (recalculé).
   pay.forEach(p=>{ const saved=statOf(p.m,M).lines; const isEd=Array.isArray(saved)&&saved.length>0;
@@ -3966,6 +3993,54 @@ async function saveAllFinance(M){ M=M||($("finMonth")&&$("finMonth").value)||mon
     renderFinance();
     const m2=$("saveAllMsg"); if(m2){ m2.className="msg ok"; m2.style.display="block"; m2.textContent="✅ Tout est enregistré ("+nFiches+" fiches de paie + logiciels + prestas + ta commission) — rien n'a été oublié."; }
   }catch(e){ setMsg("err","Erreur : "+e.message); }
+}
+/* ===================== CLÔTURE DE MOIS (figer la paie) =====================
+   Clôturer un mois = figer le montant actuel de chaque personne (override) pour que
+   changer un %/fixe ou ajouter quelqu'un plus tard ne modifie JAMAIS ce mois passé.
+   Rouvrir = enlève les montants figés posés par la clôture → le mois recalcule à nouveau. */
+function monthLabelFr(M){ try{ const d=new Date(M+"-01T00:00:00"); return d.toLocaleDateString("fr-FR",{month:"long",year:"numeric"}); }catch(e){ return M; } }
+function isMonthLocked(M){ return Array.isArray(SETTINGS.lockedMonths) && SETTINGS.lockedMonths.indexOf(M)>=0; }
+function renderFinLockRow(M){ const box=$("finLockRow"); if(!box) return; if(!isAdmin()){ box.innerHTML=""; return; }
+  if(isMonthLocked(M)){
+    box.innerHTML=`<div class="msg ok" style="display:block;margin:0"><b>🔒 ${escapeHtml(monthLabelFr(M))} est clôturé.</b> Les montants de ce mois sont figés : changer un %/fixe ou ajouter quelqu'un ne les modifiera plus.<br>
+      <button type="button" class="btn ghost" style="margin-top:8px" onclick="unlockMonth('${M}')">🔓 Rouvrir ce mois</button></div>`;
+  } else {
+    box.innerHTML=`<button type="button" class="btn ghost" style="width:100%" onclick="lockMonth('${M}')">🔒 Clôturer ${escapeHtml(monthLabelFr(M))} (figer la paie de ce mois)</button>
+      <div class="hint" style="margin-top:4px">Une fois clôturé, les montants de ce mois ne bougent plus — même si tu changes un %/fixe ou ajoutes quelqu'un plus tard. À faire quand le mois est payé.</div>`;
+  }
+}
+async function lockMonth(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } M=M||($("finMonth")&&$("finMonth").value)||monthStr();
+  const statMap={}; Object.keys(SSTATS||{}).forEach(k=>{ statMap[k]=SSTATS[k]; });
+  const arr=payForMonth(M, (CLIENTS||[]).filter(c=>!c.deleted), [], statMap);
+  if(!arr.length){ alert("Aucune personne à payer sur ce mois."); return; }
+  if(!confirm(`Clôturer ${monthLabelFr(M)} ?\n\nÇa fige les montants actuels de ${arr.length} personne(s) pour ce mois. Après ça, changer un %/fixe ou ajouter quelqu'un ne touchera plus ce mois.\n\nTu pourras toujours le rouvrir.`)) return;
+  if(!fbReady()){ alert("Backend non connecté."); return; } initFirebase();
+  const box=$("saveAllMsg"); if(box){ box.className="msg"; box.style.display="block"; box.textContent="Clôture en cours…"; }
+  try{
+    const writes=[];
+    arr.forEach(p=>{ const amt=Math.round((Number(p.eff)||0)*100)/100; const obj={member:p.n, month:M, override:amt, locked:true};
+      SSTATS[p.n+"|"+M]={...statOf(p.n,M),...obj};
+      writes.push(db.collection("setter_stats").doc(p.n+"_"+M).set(obj,{merge:true})); });
+    SETTINGS.lockedMonths=Array.isArray(SETTINGS.lockedMonths)?SETTINGS.lockedMonths.slice():[];
+    if(SETTINGS.lockedMonths.indexOf(M)<0) SETTINGS.lockedMonths.push(M);
+    writes.push(db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, lockedMonths:SETTINGS.lockedMonths},{merge:true}));
+    await Promise.all(writes);
+    renderFinance();
+    if(box){ box.className="msg ok"; box.textContent="🔒 "+monthLabelFr(M)+" clôturé — "+arr.length+" montant(s) figé(s). Ce mois ne bougera plus."; }
+  }catch(e){ if(box){ box.className="msg err"; box.textContent="Erreur : "+e.message; } }
+}
+async function unlockMonth(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } M=M||($("finMonth")&&$("finMonth").value)||monthStr();
+  if(!confirm(`Rouvrir ${monthLabelFr(M)} ?\n\nLes montants figés par la clôture seront enlevés → le mois recalculera à nouveau avec la config actuelle. Les ajustements que tu avais mis à la main, eux, restent.`)) return;
+  if(!fbReady()){ alert("Backend non connecté."); return; } initFirebase();
+  try{
+    const writes=[];
+    Object.keys(SSTATS||{}).forEach(k=>{ if(k.slice(-(("|"+M).length))==="|"+M){ const st=SSTATS[k]; if(st&&st.locked){ const name=k.slice(0, k.length-("|"+M).length); const obj={member:name, month:M, override:null, locked:false}; SSTATS[k]={...st,...obj}; writes.push(db.collection("setter_stats").doc(name+"_"+M).set(obj,{merge:true})); } } });
+    SETTINGS.lockedMonths=(Array.isArray(SETTINGS.lockedMonths)?SETTINGS.lockedMonths:[]).filter(x=>x!==M);
+    writes.push(db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, lockedMonths:SETTINGS.lockedMonths},{merge:true}));
+    await Promise.all(writes);
+    renderFinance();
+    const box=$("saveAllMsg"); if(box){ box.className="msg ok"; box.style.display="block"; box.textContent="🔓 "+monthLabelFr(M)+" rouvert — les montants recalculent à nouveau."; }
+  }catch(e){ alert("Erreur : "+e.message); }
 }
 function startMonth(c){ return (c.date_debut||"").slice(0,7); }
 /* RÈGLE UNIQUE (partout dans l'app) — ni double comptage, ni argent perdu :
