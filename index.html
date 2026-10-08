@@ -1134,7 +1134,7 @@ function normPay(it){
   if(it.role){ let pct=Number(it.pct)||0;
     // Repli standard si le % a été perdu (case vide) : closer → 10 %, setter → 5 % (mêmes valeurs que les défauts historiques). Coach/Autre/Ads restent à 0 (fixe).
     if(!pct){ if(it.role==="closer") pct=10; else if(it.role==="setter") pct=5; }
-    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||"", from:it.from||it.activeFrom||"", rateFrom:it.rateFrom||"", prevPct:(it.prevPct!=null?it.prevPct:""), prevFixe:(it.prevFixe!=null?it.prevFixe:""), prevPrime:(it.prevPrime!=null?!!it.prevPrime:null)}; }
+    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||"", from:it.from||it.activeFrom||"", rates:(Array.isArray(it.rates)?it.rates.filter(p=>p&&typeof p==="object").map(p=>({from:p.from||"", pct:Number(p.pct)||0, fixe:Number(p.fixe)||0, prime:!!p.prime})):undefined)}; }
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1151,16 +1151,25 @@ function payActiveMonth(it, M){ if(!it) return false;
   // 🟢 Date d'entrée : la personne n'est PAS payée pour les mois AVANT son arrivée (évite qu'un nouvel arrivé apparaisse dans l'historique).
   const joined=it.from||it.activeFrom||""; if(joined && String(M) < String(joined)) return false;
   if(!it.archived) return true; const from=it.archivedFrom||monthStr(); return String(M) < String(from); }
-/* 💶 REM effective pour un mois donné. Si une « date de changement de REM » (rateFrom) est définie,
-   les mois AVANT ce mois gardent l'ANCIEN %/fixe (prevPct/prevFixe) ; à partir de ce mois → le nouveau (pct/fixe).
-   Les champs « ancien » laissés vides = inchangés (on reprend la valeur actuelle). Sans rateFrom → le % /fixe actuel s'applique à tous les mois (comportement d'avant). */
+/* 💶 REM effective pour un mois donné, à partir de l'HISTORIQUE des REM (it.rates).
+   Chaque période = {from:"YYYY-MM", pct, fixe, prime}. On prend la période dont le mois de début est le plus récent ≤ M.
+   La 1re période a from="" (= depuis le début). Granularité = le MOIS entier (jamais de prorata).
+   Sans historique → le %/fixe/paliers actuels s'appliquent à tous les mois (comportement d'avant). */
 function effRate(it, M){ it=it||{};
-  if(it.rateFrom && String(M) < String(it.rateFrom)){
-    const pp=(it.prevPct!=null&&it.prevPct!=="")?Number(it.prevPct):(Number(it.pct)||0);
-    const pf=(it.prevFixe!=null&&it.prevFixe!=="")?Number(it.prevFixe):(Number(it.fixe)||0);
-    return { pct:pp||0, fixe:pf||0, prime:(it.prevPrime!=null?!!it.prevPrime:!!it.prime) };
+  const H=Array.isArray(it.rates)?it.rates.filter(p=>p&&typeof p==="object"):null;
+  if(H && H.length){
+    const sorted=H.slice().sort((a,b)=>String(a.from||"").localeCompare(String(b.from||"")));
+    let chosen=sorted[0];
+    for(const p of sorted){ if(String(p.from||"") <= String(M)) chosen=p; }
+    return { pct:Number(chosen.pct)||0, fixe:Number(chosen.fixe)||0, prime:!!chosen.prime };
   }
   return { pct:Number(it.pct)||0, fixe:Number(it.fixe)||0, prime:!!it.prime };
+}
+/* Résumé lisible de l'historique REM (pour l'affichage sous la personne). */
+function rateHistoryLabel(it){ const H=Array.isArray(it&&it.rates)?it.rates.filter(p=>p):null; if(!H||H.length<2) return "";
+  const sorted=H.slice().sort((a,b)=>String(a.from||"").localeCompare(String(b.from||"")));
+  return sorted.map((p,i)=>{ const when=p.from?("dès "+p.from):"au départ"; const pr=p.prime?" +🎁":""; const pct=(Number(p.pct)||0); const fx=(Number(p.fixe)||0);
+    return when+" : "+(pct?pct+"%":"")+(pct&&fx?" + ":"")+(fx?fx+"€":"")+(!pct&&!fx?"manuel":"")+pr; }).join("  ·  ");
 }
 const PAY_TYPES=[{v:"manual",l:"Manuel (tu mets le montant)"},{v:"fixe",l:"Fixe mensuel (base €)"},{v:"closer",l:"Closer — % de l'encaissé de ses clients"},{v:"setter_pct",l:"Setter — % de l'encaissé de ses clients"},{v:"coach",l:"Coach — € par client (prorata encaissé)"},{v:"lucas",l:"Lucas — base + 5 % (ancien)"},{v:"ilyas",l:"Ilyas — paliers leads/close (ancien)"}];
 let SETTINGS=JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); SETTINGS.payList=JSON.parse(JSON.stringify(PAYLIST_DEFAULT));
@@ -1222,23 +1231,34 @@ function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
-function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0,prime:false,archived:false}; return `<div class="drow pyrow" style="flex-wrap:wrap${it.archived?';opacity:.55':''}">
+function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0,prime:false,archived:false};
+  const _hasRates = Array.isArray(it.rates) && it.rates.length>1;
+  const hasAdv = !!(it.archived || it.archivedFrom || it.from || it.activeFrom || _hasRates);
+  const advBadge = _hasRates? "✏️" : (it.from||it.activeFrom? "🟢" : (it.archived? "📦" : "📅"));
+  return `<div class="drow pyrow" style="flex-wrap:wrap${it.archived?';opacity:.55':''}">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
     <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
     <input class="pyPct" type="text" inputmode="decimal" placeholder="%" title="% de commission sur l'encaissé de ses clients (closer 10, setter 5)" value="${it.pct?it.pct:''}" style="width:56px">
     <input class="pyFixe" type="text" inputmode="numeric" placeholder="fixe €" title="Salaire fixe mensuel en € — souvent vide pour un closer/setter" value="${it.fixe?it.fixe:''}" style="width:70px">
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
-    <label class="ck" title="Archivé = plus payé À PARTIR du mois choisi. Les mois d'avant gardent son historique/ses commissions." style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 archivé dès</label>
-    <input class="pyArchFrom" type="month" title="Archivé à partir de ce mois (les mois précédents restent payés)" value="${escapeHtml(it.archivedFrom||'')}" style="width:130px">
-    <label class="ck" title="La personne n'est payée QU'À PARTIR de ce mois — elle n'apparaît pas dans les mois d'avant (utile pour un nouvel arrivé)." style="white-space:nowrap">🟢 présent dès <input class="pyFrom" type="month" title="Dans l'équipe depuis ce mois — rien avant" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:130px"></label>
-    <label class="ck" title="Tu as changé sa REM ? Mets le mois à partir duquel le NOUVEAU %/fixe (ci-dessus) s'applique. Les mois d'avant gardent l'ancien (champs à droite). Laisse vide si pas de changement." style="white-space:nowrap">✏️ nouvelle REM dès <input class="pyRateFrom" type="month" title="Le %/fixe ci-dessus s'applique à partir de ce mois ; avant = l'ancien" value="${escapeHtml(it.rateFrom||'')}" style="width:130px"></label>
-    <label class="ck" title="L'ANCIEN % (avant le changement). Laisse vide si le % n'a pas changé." style="white-space:nowrap">ancien % <input class="pyPrevPct" type="text" inputmode="decimal" placeholder="—" value="${it.prevPct!=null&&it.prevPct!==''?escapeHtml(String(it.prevPct)):''}" style="width:50px"></label>
-    <label class="ck" title="L'ANCIEN fixe € (avant le changement). Laisse vide si le fixe n'a pas changé." style="white-space:nowrap">ancien fixe <input class="pyPrevFixe" type="text" inputmode="numeric" placeholder="—" value="${it.prevFixe!=null&&it.prevFixe!==''?escapeHtml(String(it.prevFixe)):''}" style="width:60px"></label>
-
+    <button type="button" class="xrow pyAdvBtn" title="Dates d'entrée / d'archivage / changement de REM" onclick="togglePyAdv(this)" style="width:auto;padding:0 8px">${advBadge} dates</button>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
+    <div class="pyAdv" style="flex-basis:100%;${hasAdv?'':'display:none;'}margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)">
+      <div class="drow" style="flex-wrap:wrap;align-items:center;gap:14px">
+        <label class="ck" style="white-space:nowrap" title="La personne n'apparaît QU'À PARTIR de ce mois — rien dans les mois d'avant. À remplir pour un nouvel arrivé.">🟢 Dans l'équipe depuis <input class="pyFrom" type="month" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:150px"></label>
+        <label class="ck" style="white-space:nowrap" title="Archivé = plus payé à partir de ce mois. Les mois d'avant restent intacts."><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 Archivé dès <input class="pyArchFrom" type="month" value="${escapeHtml(it.archivedFrom||'')}" style="width:150px"></label>
+      </div>
+      <div class="drow" style="flex-wrap:wrap;align-items:center;gap:14px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+        <label class="ck" style="white-space:nowrap;font-weight:700" title="Coche quand tu changes sa REM. En enregistrant, l'ancien montant (%, fixe ET paliers) est gardé automatiquement pour tous les mois d'avant. Le nouveau (en haut) s'applique à partir du mois choisi."><input class="pyRateChg" type="checkbox" onchange="var mf=this.closest('.pyrow').querySelector('.pyRateFrom'); if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">✏️ J'ai changé sa REM — à partir de</label>
+        <input class="pyRateFrom" type="month" title="Mois à partir duquel la nouvelle REM s'applique (mois entier, pas de prorata)" value="" style="width:150px">
+        <span class="sub2" style="flex-basis:100%;opacity:.8">Coche la case + mets le mois, puis <b>Enregistrer</b>. L'ancien montant (%, fixe <b>et</b> paliers) est gardé tout seul pour les mois d'avant — tu n'as rien à retaper. Le nouveau vaut pour le <b>mois entier</b> indiqué et les suivants (jamais de prorata).</span>
+        ${_hasRates?`<span class="sub2" style="flex-basis:100%;color:#8fc4ff">📜 Historique REM : ${escapeHtml(rateHistoryLabel(it))}</span>`:""}
+      </div>
+    </div>
   </div>`; }
+function togglePyAdv(btn){ const row=btn.closest('.pyrow'); const adv=row&&row.querySelector('.pyAdv'); if(adv) adv.style.display=(adv.style.display==='none'||!adv.style.display)?'block':'none'; }
 function movePy(btn,dir){ const row=btn.closest('.pyrow'), box=row.parentNode; if(dir<0 && row.previousElementSibling) box.insertBefore(row,row.previousElementSibling); else if(dir>0 && row.nextElementSibling) box.insertBefore(row.nextElementSibling,row); }
 function addPy(){ const box=$("payListBox"); if(box){ box.insertAdjacentHTML("afterbegin", payRow({name:"",type:"manual"})); const i=box.firstElementChild.querySelector(".pyName"); if(i) i.focus(); } }
 function slugKey(s){ return (String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,24))||("chk"+Date.now()); }
@@ -1281,7 +1301,7 @@ function renderSettings(){
     <div style="width:56px">%</div>
     <div style="width:70px">Fixe €</div>
     <div style="white-space:nowrap">🎁 paliers</div>
-    <div style="white-space:nowrap">📦 archivé</div>
+    <div style="white-space:nowrap">📅 dates</div>
   </div>`;
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     ${payHead}
@@ -1292,9 +1312,10 @@ function renderSettings(){
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
       <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
-      <b>🟢 présent dès</b> = la personne est payée <b>seulement à partir de ce mois</b> (sa date d'entrée). Elle <b>n'apparaît pas</b> dans les mois d'avant. À remplir pour tout nouvel arrivé (ex. un closer qui démarre en octobre → mets « 2026-10 »), sinon il remonterait dans l'historique où il n'existait pas.<br>
-      <b>✏️ nouvelle REM dès + ancien % / ancien fixe</b> = si tu <b>changes la REM</b> de quelqu'un : mets le nouveau %/fixe dans les cases habituelles, le <b>mois</b> du changement dans « nouvelle REM dès », et son <b>ancien</b> % et/ou fixe à droite. Résultat : les mois <b>à partir</b> de cette date prennent la nouvelle REM, les mois <b>d'avant gardent l'ancienne</b> — l'historique ne bouge pas. (Laisse « ancien » vide si seul le % OU seul le fixe a changé : l'autre reste identique.)<br>
-      <b>📦 archivé dès</b> = la personne n'est plus payée <b>à partir du mois choisi</b>. Les mois <b>avant</b> ce mois gardent son historique et ses commissions intactes (ta marge des mois passés ne bouge pas). Décoche pour la réactiver. Rien n'est supprimé.<br>
+      Le bouton <b>📅 dates</b> (à droite de chaque ligne) ouvre un petit panneau pour 3 cas, <b>seulement si besoin</b> :<br>
+      &nbsp;&nbsp;• <b>🟢 Dans l'équipe depuis</b> = un nouvel arrivé n'apparaît qu'à partir de ce mois (rien avant). Ex. un closer qui démarre en octobre → « 2026-10 ».<br>
+      &nbsp;&nbsp;• <b>✏️ Changement de REM</b> = tu as changé son %/fixe ? Mets le nouveau en haut, le <b>mois</b> du changement, et son <b>ancien</b> % et/ou fixe. Les mois d'avant gardent l'ancien, le passé ne bouge pas.<br>
+      &nbsp;&nbsp;• <b>📦 Archivé dès</b> = plus payé à partir de ce mois ; les mois d'avant restent intacts. Décoche pour réactiver. Rien n'est supprimé.<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
@@ -1380,20 +1401,34 @@ async function saveSettings(){
   // 🛡️ ANTI-ÉCRASEMENT : on ne remplace la liste d'identifiants QUE s'il y a au moins une ligne. Une liste vide (Firebase pas encore chargé, ou tout supprimé par erreur) ne peut PLUS écraser les identifiants existants.
   const _loginsEmpty=(_gl.length===0);
   if(!_loginsEmpty) SETTINGS.logins=_gl;
-  SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>({
-    name:r.querySelector('.pyName').value.trim(),
-    label:(r.querySelector('.pyLabel').value||"").trim(),
-    role:r.querySelector('.pyRole').value,
-    pct: Number(String(r.querySelector('.pyPct').value||"").replace(",",".").replace(/[^0-9.]/g,""))||0,
-    fixe:Number(String(r.querySelector('.pyFixe').value||"").replace(",",".").replace(/[^0-9.]/g,""))||0,
-    prime:!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked),
-    archived:!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked),
-    archivedFrom:(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })(),
-    from:(function(){ const f=r.querySelector('.pyFrom'); return (f&&f.value)?f.value:""; })(),
-    rateFrom:(function(){ const f=r.querySelector('.pyRateFrom'); return (f&&f.value)?f.value:""; })(),
-    prevPct:(function(){ const f=r.querySelector('.pyPrevPct'); const v=f?String(f.value||"").replace(",",".").replace(/[^0-9.]/g,""):""; return v===""?"":Number(v); })(),
-    prevFixe:(function(){ const f=r.querySelector('.pyPrevFixe'); const v=f?String(f.value||"").replace(",",".").replace(/[^0-9.]/g,""):""; return v===""?"":Number(v); })()
-  })).filter(x=>x.name);
+  // 📜 Snapshot de l'ANCIENNE config (avant écrasement) : sert à garder l'historique REM tout seul.
+  const _oldPay={}; (SETTINGS.payList||[]).map(normPay).forEach(p=>{ if(p&&p.name) _oldPay[p.name]=p; });
+  SETTINGS.payList=[...document.querySelectorAll('#payListBox .pyrow')].map(r=>{
+    const name=r.querySelector('.pyName').value.trim();
+    const num=el=>Number(String((el&&el.value)||"").replace(",",".").replace(/[^0-9.]/g,""))||0;
+    const pct=num(r.querySelector('.pyPct')), fixe=num(r.querySelector('.pyFixe'));
+    const prime=!!(r.querySelector('.pyPrime')&&r.querySelector('.pyPrime').checked);
+    const archived=!!(r.querySelector('.pyArch')&&r.querySelector('.pyArch').checked);
+    const archivedFrom=(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })();
+    const from=(function(){ const f=r.querySelector('.pyFrom'); return (f&&f.value)?f.value:""; })();
+    const out={name, label:(r.querySelector('.pyLabel').value||"").trim(), role:r.querySelector('.pyRole').value, pct, fixe, prime, archived, archivedFrom, from};
+    // Historique REM (périodes {from,pct,fixe,prime}) — repris de l'ancienne config
+    const old=_oldPay[name];
+    let rates=(old&&Array.isArray(old.rates))?old.rates.map(p=>({from:p.from||"",pct:Number(p.pct)||0,fixe:Number(p.fixe)||0,prime:!!p.prime})):null;
+    const rateChg=!!(r.querySelector('.pyRateChg')&&r.querySelector('.pyRateChg').checked);
+    const rateFrom=(function(){ const f=r.querySelector('.pyRateFrom'); return (f&&f.value)?f.value:""; })();
+    if(rateChg && rateFrom){
+      // on fige l'ANCIEN montant (celui d'avant cette modif) pour tous les mois d'avant, puis on applique le nouveau à partir du mois choisi
+      if(!rates||!rates.length){ const o=old||{pct,fixe,prime}; rates=[{from:"", pct:Number(o.pct)||0, fixe:Number(o.fixe)||0, prime:!!o.prime}]; }
+      const np={from:rateFrom, pct, fixe, prime}, last=rates[rates.length-1];
+      if(last && String(last.from)===String(rateFrom)) rates[rates.length-1]=np; else rates.push(np);
+    } else if(rates && rates.length){
+      // édition directe (sans cocher) → on met juste à jour la période en cours, sans toucher aux périodes passées
+      const last=rates[rates.length-1]; rates[rates.length-1]={from:last.from, pct, fixe, prime};
+    }
+    if(rates && rates.length){ rates=rates.filter(p=>p).sort((a,b)=>String(a.from||"").localeCompare(String(b.from||""))); if(rates.length>1) out.rates=rates; }
+    return out;
+  }).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   const _payload={isSettings:true, ...SETTINGS};
