@@ -1870,7 +1870,8 @@ async function addCoachWeek(btn,id){
   const motive=card.querySelector(".cgMot").value;
   const note=card.querySelector(".cgNote").value.trim();
   const fathom=(card.querySelector(".cgFathom")&&card.querySelector(".cgFathom").value.trim())||"";
-  const total=Math.max(0,Number(card.querySelector(".cgTot").value)||coachTotal(c));
+  const totEl=card.querySelector(".cgTot"); // ⚠️ absent en V2 (illimité) → on reprend le total calculé sans planter
+  const total=totEl?Math.max(0,Number(totEl.value)||coachTotal(c)):coachTotal(c);
   const prev=c.coaching||{}; const log=Array.isArray(prev.log)?prev.log.slice(-200):[];
   log.push({date, coach, motive, note, fathom});
   const co={total, done:log.reduce((s,e)=>s+(Number(e.n)||1),0), note:prev.note||"", log, updated:todayStr()};
