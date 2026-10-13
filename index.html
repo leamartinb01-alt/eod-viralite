@@ -122,6 +122,8 @@
   .hide{display:none !important}
   .config-warn{background:rgba(255,180,71,.1); border:1px solid rgba(255,180,71,.35); color:#ffcf7a; font-size:13px; padding:12px 14px; border-radius:13px; margin:0 0 4px}
   body.readonly #app>.wrap:not(.hide)::before{content:"👀 Mode lecture seule — tu peux tout consulter, mais rien modifier";display:block;background:rgba(143,196,255,.12);border:1px solid rgba(143,196,255,.35);color:#8fc4ff;font-weight:700;font-size:12.5px;text-align:center;padding:8px 10px;border-radius:12px;margin:0 0 12px}
+  /* Le HoS PEUT remplir son propre EOD → pas de bandeau « lecture seule » sur la page EOD */
+  body.readonly #view-form::before{display:none!important}
   body.readonly .pLink,body.readonly #coo_facture,body.readonly #antho_facture{display:none}
   body.montants-only #view-finance>*{display:none}
   body.montants-only #view-finance>#finTableSection{display:block}
@@ -414,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 11/10/2026 · V2 : enregistrement des calls corrigé + REM par date</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 13/10/2026 · EOD du HoS + pas de relance week-end + REM par date</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -988,7 +990,11 @@ function isViewer(){ return ACCESS==="hos"||ACCESS==="finance"; } // lecture seu
 function guardDbForViewer(){ if(!db || db.__guarded || !isViewer()) return;
   const realCollection=db.collection.bind(db);
   const block=()=>{ try{ alert("👀 Accès en lecture seule — tu peux tout consulter, mais pas modifier."); }catch(e){} return Promise.reject(new Error("lecture seule")); };
-  db.collection=function(name){ const col=realCollection(name); const realDoc=col.doc.bind(col);
+  db.collection=function(name){ const col=realCollection(name);
+    // 🟢 Exception : le HoS (Anthony) peut écrire SON propre EOD (collection eod_reports). Tout le reste demeure en lecture seule.
+    // (Dans l'UI, son formulaire est verrouillé sur lui-même et le bouton « Modifier » n'apparaît que sur ses EOD → il ne peut toucher que les siens.)
+    if(name==="eod_reports" && ACCESS==="hos") return col;
+    const realDoc=col.doc.bind(col);
     col.add=block;
     col.doc=function(id){ const d=realDoc(id); d.set=block; d.update=block; d.delete=block; return d; };
     return col; };
@@ -1231,6 +1237,14 @@ function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],
   </div>`; }
 function addGoal(){ const c=$("goalBox"); if(c) c.insertAdjacentHTML("beforeend", goalRow({})); }
 function addLi(k){ const c=document.querySelector('#settingsBox .li-'+k); if(c) c.insertAdjacentHTML("beforeend", liRow("")); const inp=c&&c.lastElementChild&&c.lastElementChild.querySelector("input"); if(inp) inp.focus(); }
+// Timeline lisible de l'historique REM (chips : au départ → dès tel mois), la période actuelle est mise en avant.
+function rateHistoryChips(it){ const H=Array.isArray(it&&it.rates)?it.rates.filter(p=>p):null; if(!H||H.length<2) return "";
+  const sorted=H.slice().sort((a,b)=>String(a.from||"").localeCompare(String(b.from||"")));
+  const chip=(p,i)=>{ const when=p.from?("dès "+monthLabelFr(p.from)):"au départ"; const pct=Number(p.pct)||0, fx=Number(p.fixe)||0;
+    const amt=(pct?pct+"%":"")+(pct&&fx?" + ":"")+(fx?fx+"€":"")+(!pct&&!fx?"manuel":"")+(p.prime?" 🎁":""); const cur=(i===sorted.length-1);
+    return `<span style="display:inline-flex;flex-direction:column;gap:1px;padding:4px 10px;border:1px solid ${cur?'#8fc4ff':'var(--line)'};border-radius:9px;background:${cur?'rgba(143,196,255,.12)':'transparent'}"><span style="font-size:9.5px;letter-spacing:.02em;opacity:.7;text-transform:capitalize">${escapeHtml(when)}${cur?' · actuel':''}</span><span style="font-weight:800;font-size:12px">${escapeHtml(amt)}</span></span>`; };
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px">${sorted.map((p,i)=>chip(p,i)).join('<span style="opacity:.45">→</span>')}</div>`;
+}
 function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0,prime:false,archived:false};
   const _hasRates = Array.isArray(it.rates) && it.rates.length>1;
   const hasAdv = !!(it.archived || it.archivedFrom || it.from || it.activeFrom || _hasRates);
@@ -1245,16 +1259,30 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <button type="button" class="xrow pyAdvBtn" title="Dates d'entrée / d'archivage / changement de REM" onclick="togglePyAdv(this)" style="width:auto;padding:0 8px">${advBadge} dates</button>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
-    <div class="pyAdv" style="flex-basis:100%;${hasAdv?'':'display:none;'}margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)">
-      <div class="drow" style="flex-wrap:wrap;align-items:center;gap:14px">
-        <label class="ck" style="white-space:nowrap" title="La personne n'apparaît QU'À PARTIR de ce mois — rien dans les mois d'avant. À remplir pour un nouvel arrivé.">🟢 Dans l'équipe depuis <input class="pyFrom" type="month" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:150px"></label>
-        <label class="ck" style="white-space:nowrap" title="Archivé = plus payé à partir de ce mois. Les mois d'avant restent intacts."><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">📦 Archivé dès <input class="pyArchFrom" type="month" value="${escapeHtml(it.archivedFrom||'')}" style="width:150px"></label>
+    <div class="pyAdv" style="flex-basis:100%;${hasAdv?'':'display:none;'}margin-top:8px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden">
+      <div style="padding:11px 14px">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7ee2a3;margin-bottom:7px">🟢 Entrée dans l'équipe</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <span class="sub2">Payé·e à partir de</span><input class="pyFrom" type="month" title="Rien avant ce mois — pour un nouvel arrivé" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:160px">
+          <span class="sub2" style="opacity:.65">— laisse vide s'il a toujours été là</span>
+        </div>
       </div>
-      <div class="drow" style="flex-wrap:wrap;align-items:center;gap:14px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
-        <label class="ck" style="white-space:nowrap;font-weight:700" title="Coche quand tu changes sa REM. En enregistrant, l'ancien montant (%, fixe ET paliers) est gardé automatiquement pour tous les mois d'avant. Le nouveau (en haut) s'applique à partir du mois choisi."><input class="pyRateChg" type="checkbox" onchange="var mf=this.closest('.pyrow').querySelector('.pyRateFrom'); if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">✏️ J'ai changé sa REM — à partir de</label>
-        <input class="pyRateFrom" type="month" title="Mois à partir duquel la nouvelle REM s'applique (mois entier, pas de prorata)" value="" style="width:150px">
-        <span class="sub2" style="flex-basis:100%;opacity:.8">Coche la case + mets le mois, puis <b>Enregistrer</b>. L'ancien montant (%, fixe <b>et</b> paliers) est gardé tout seul pour les mois d'avant — tu n'as rien à retaper. Le nouveau vaut pour le <b>mois entier</b> indiqué et les suivants (jamais de prorata).</span>
-        ${_hasRates?`<span class="sub2" style="flex-basis:100%;color:#8fc4ff">📜 Historique REM : ${escapeHtml(rateHistoryLabel(it))}</span>`:""}
+      <div style="padding:11px 14px;border-top:1px solid var(--line)">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#ffd27a;margin-bottom:7px">✏️ Changement de REM</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <label class="ck" style="white-space:nowrap;font-weight:700"><input class="pyRateChg" type="checkbox" onchange="var mf=this.closest('.pyrow').querySelector('.pyRateFrom'); if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">J'ai changé sa REM</label>
+          <span class="sub2">à partir de</span><input class="pyRateFrom" type="month" title="Mois d'entrée en vigueur (mois entier, pas de prorata)" value="" style="width:160px">
+        </div>
+        <div class="sub2" style="margin-top:7px;opacity:.8">Mets le nouveau %/fixe en haut de la ligne, coche la case, choisis le mois, puis <b>Enregistrer</b>. L'ancien montant — %, fixe <b>et</b> 🎁 paliers — est gardé tout seul pour les mois d'avant. Le nouveau vaut pour le <b>mois entier</b> choisi et les suivants (jamais de prorata).</div>
+        ${_hasRates?rateHistoryChips(it):""}
+      </div>
+      <div style="padding:11px 14px;border-top:1px solid var(--line)">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#ff9a9a;margin-bottom:7px">📦 Départ / archivage</div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <label class="ck" style="white-space:nowrap"><input class="pyArch" type="checkbox" ${it.archived?'checked':''} onchange="var mf=this.closest('.pyrow').querySelector('.pyArchFrom'); this.closest('.pyrow').style.opacity=this.checked?'.55':'1'; if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">Ne plus payer à partir de</label>
+          <input class="pyArchFrom" type="month" title="Les mois d'avant restent payés/intacts" value="${escapeHtml(it.archivedFrom||'')}" style="width:160px">
+          <span class="sub2" style="opacity:.65">— les mois d'avant restent intacts</span>
+        </div>
       </div>
     </div>
   </div>`; }
@@ -2126,7 +2154,7 @@ function coachLogBox(who){ const cs=coachClientsFor(who); const box=$("clientLog
 function pickCoach(val){ _coachPick=val||""; coachLogBox(coachWho()); }
 // Type d'EOD à afficher : pour une personne verrouillée sur elle-même (setter/closer/coach), l'EOD suit son RÔLE D'ACCÈS (fiable, réglé dans Identifiants). HoS/Admin choisissent un membre → rôle de la roster.
 function eodRoleFor(){ const nm=($("member")&&$("member").value)||"";
-  if(!canPickAnyMember()){ if(ACCESS==="coach") return "coach"; if(ACCESS==="closer") return "closer"; if(ACCESS==="setter") return "setter"; }
+  if(!canPickAnyMember()){ if(ACCESS==="coach") return "coach"; if(ACCESS==="closer") return "closer"; if(ACCESS==="setter") return "setter"; if(ACCESS==="hos") return (member(nm).role||"closer"); } // HoS : son EOD = celui de son rôle dans l'équipe (closer par défaut)
   return member(nm).role; }
 function onMember(){
   const role=eodRoleFor(), box=$("fields"); box.innerHTML=""; _coachPick="";
@@ -2176,7 +2204,8 @@ function fillEodForm(x){
   });
 }
 // Seuls Head of Sales et Admin peuvent remplir l'EOD de quelqu'un d'autre. Setter/Closer/Coach = verrouillé sur eux-mêmes.
-function canPickAnyMember(){ return isAdmin()||ACCESS==="hos"; }
+// Seule Léa (admin) peut remplir l'EOD au nom de n'importe qui. Le HoS (Anthony) est verrouillé sur LUI-MÊME → il fait son propre EOD comme un closer.
+function canPickAnyMember(){ return isAdmin(); }
 function lockMemberSelect(){ const sel=$("member"); if(!sel) return;
   const me=(LOGIN_NAME||"").trim();
   if(!canPickAnyMember() && me){
@@ -3009,11 +3038,15 @@ function renderTeamDigest(){
   const days=[]; for(let i=0;i<6;i++){ days.push(new Date(Date.now()-i*864e5).toISOString().slice(0,10)); }
   dl.innerHTML=days.map(d=>{
     const dayE=EODS.filter(x=>x.report_date===d); const isToday=d===todayStr();
+    // 📅 Week-end (sam/dim) : les setters et les coachs ne bossent pas forcément → on ne les signale PAS comme « manquant ». Les closers restent attendus.
+    const _dow=new Date(d+"T12:00:00").getDay(); const _weekend=(_dow===0||_dow===6);
+    const eodExpected=m=>!_weekend || m.role==="closer";
+    const roster=teamActive().filter(eodExpected); // personnes attendues ce jour-là
     // Match tolérant EOD ↔ membre (casse/accents/espaces) → fini les « manquant » alors que la personne a rempli.
-    const postedRoster=teamActive().filter(m=>dayE.some(x=>eqName(x.member,m.name)));
+    const postedRoster=roster.filter(m=>dayE.some(x=>eqName(x.member,m.name)));
     const posted=postedRoster.map(m=>m.name);
-    const missing=teamActive().filter(m=>!dayE.some(x=>eqName(x.member,m.name))).map(m=>m.name);
-    if(!dayE.length){ const miss=(!isToday)?` · <span style="color:var(--red)">aucun EOD${missing.length<teamActive().length?"":""}</span>`:""; return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}</div><div class="sub2" style="margin-top:2px">Aucun EOD${!isToday?" — manquant : "+escapeHtml(teamActive().map(m=>m.name).join(", ")):""}</div></div>`; }
+    const missing=roster.filter(m=>!dayE.some(x=>eqName(x.member,m.name))).map(m=>m.name);
+    if(!dayE.length){ return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''}</div><div class="sub2" style="margin-top:2px">Aucun EOD${(!isToday&&missing.length)?" — manquant : "+escapeHtml(missing.join(", ")):""}</div></div>`; }
     const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
     const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0),0);
     const booked=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
@@ -3021,12 +3054,12 @@ function renderTeamDigest(){
     const bits=[`🎯 ${closes} closé(s)`,`👥 ${contacted} contactées`,`📅 ${booked} RDV pris`];
     if(nwarn) bits.push(`<span style="color:var(--red)">⚠️ ${nwarn} warning(s)</span>`);
     let miss="";
-    if(!isToday && missing.length && missing.length<teamActive().length){
+    if(!isToday && missing.length){
       const notAck=missing.filter(nm=>!ACKS["eod|"+nm+"|"+d]), done=missing.filter(nm=>ACKS["eod|"+nm+"|"+d]);
       if(notAck.length) miss+=`<div class="sub2" style="margin-top:5px"><span style="color:var(--red);font-weight:700">EOD manquant :</span> ${notAck.map(nm=>`<span class="ackchip">${escapeHtml(nm)}<button type="button" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',true,'team')">✓ vu / géré</button></span>`).join("")}</div>`;
       if(done.length) miss+=`<div class="sub2" style="margin-top:4px;opacity:.65">🗂 Géré : ${done.map(nm=>`<span class="ackchip ok">${escapeHtml(nm)}<button type="button" title="Remettre en alerte" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',false,'team')">↩︎</button></span>`).join("")}</div>`;
     }
-    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""} <span class="sub2" style="font-weight:400">· ${posted.length}/${teamActive().length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
+    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''} <span class="sub2" style="font-weight:400">· ${posted.length}/${roster.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
   }).join("");
 }
 async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFirebase();
@@ -3094,10 +3127,12 @@ function openMember(name){
       const v=(x.payload&&x.payload[f.key])?x.payload[f.key]:""; return v?`<div class="kv"><span class="k">${f.label}</span><span class="v">${escapeHtml(String(v))}</span></div>`:"";
     }).join("");
     const del=isAdmin()?`<button class="btn danger sm" onclick="deleteEod('${x.id}')">🗑 Supprimer</button>`:"";
+    const canEditThis=isAdmin()||eqName(m.name, LOGIN_NAME); // on ne peut modifier QUE ses propres EOD (ou tout, pour l'admin)
+    const editBtn=canEditThis?`<button class="btn ghost sm" onclick="editEod('${x.id}')">✎ Modifier</button>`:"";
     const moodEmoji=(x.payload&&x.payload.mood)?String(x.payload.mood).trim().split(" ")[0]:"";
     return `<details class="eodday"><summary><span>${dd}</span><span style="display:flex;align-items:center;gap:8px"><span class="sm-mood">${moodEmoji}</span><span class="chev">▸</span></span></summary>
       <div class="eodbody">${kvs}
-      <div class="row2" style="margin-top:12px"><button class="btn ghost sm" onclick="editEod('${x.id}')">✎ Modifier</button>${del}</div></div></details>`;
+      ${(editBtn||del)?`<div class="row2" style="margin-top:12px">${editBtn}${del}</div>`:""}</div></details>`;
   }).join("") : `<div class="empty">Aucun EOD en ${monthLabel(selM)}.</div>`;
   const fuCard = m.role==="closer" ? followupCard(name) : "";
   const coachCard = m.role==="coach" ? coachProgressCard() : "";
