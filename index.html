@@ -416,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 13/10/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 14/10/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -1247,8 +1247,9 @@ function rateHistoryChips(it){ const H=Array.isArray(it&&it.rates)?it.rates.filt
 }
 function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0,prime:false,archived:false};
   const _hasRates = Array.isArray(it.rates) && it.rates.length>1;
-  const hasAdv = !!(it.archived || it.archivedFrom || it.from || it.activeFrom || _hasRates);
-  const advBadge = _hasRates? "✏️" : (it.from||it.activeFrom? "🟢" : (it.archived? "📦" : "📅"));
+  const curFrom = _hasRates ? (it.rates[it.rates.length-1].from||"") : ""; // mois d'effet de la REM actuelle
+  const hasAdv = !!(it.archived || it.archivedFrom || it.from || it.activeFrom);
+  const advBadge = (it.from||it.activeFrom)? "🟢" : (it.archived? "📦" : "📅");
   return `<div class="drow pyrow" style="flex-wrap:wrap${it.archived?';opacity:.55':''}">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
@@ -1256,25 +1257,18 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <input class="pyPct" type="text" inputmode="decimal" placeholder="%" title="% de commission sur l'encaissé de ses clients (closer 10, setter 5)" value="${it.pct?it.pct:''}" style="width:56px">
     <input class="pyFixe" type="text" inputmode="numeric" placeholder="fixe €" title="Salaire fixe mensuel en € — souvent vide pour un closer/setter" value="${it.fixe?it.fixe:''}" style="width:70px">
     <label class="ck" title="Touche les primes paliers (comme Ilyas)" style="white-space:nowrap"><input class="pyPrime" type="checkbox" ${it.prime?'checked':''}>🎁 paliers</label>
-    <button type="button" class="xrow pyAdvBtn" title="Dates d'entrée / d'archivage / changement de REM" onclick="togglePyAdv(this)" style="width:auto;padding:0 8px">${advBadge} dates</button>
+    <label class="ck" style="white-space:nowrap" title="Si tu changes sa REM : mets le NOUVEAU % / fixe à gauche, et le mois à partir duquel ça s'applique ici. Les mois d'avant gardent l'ancien automatiquement (%, fixe ET paliers). Laisse vide = pas de changement daté.">✏️ REM dès <input class="pyRateFrom" type="month" title="Mois d'entrée en vigueur du nouveau montant (mois entier, pas de prorata)" value="${escapeHtml(curFrom)}" style="width:140px"></label>
+    <button type="button" class="xrow pyAdvBtn" title="Date d'entrée dans l'équipe / archivage" onclick="togglePyAdv(this)" style="width:auto;padding:0 8px">${advBadge}</button>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
-    <div class="pyAdv" style="flex-basis:100%;${hasAdv?'':'display:none;'}margin-top:8px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden">
+    ${_hasRates?`<div style="flex-basis:100%;margin-top:2px">${rateHistoryChips(it)}</div>`:""}
+    <div class="pyAdv" style="flex-basis:100%;display:none;margin-top:8px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden">
       <div style="padding:11px 14px">
         <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7ee2a3;margin-bottom:7px">🟢 Entrée dans l'équipe</div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
           <span class="sub2">Payé·e à partir de</span><input class="pyFrom" type="month" title="Rien avant ce mois — pour un nouvel arrivé" value="${escapeHtml(it.from||it.activeFrom||'')}" style="width:160px">
           <span class="sub2" style="opacity:.65">— laisse vide s'il a toujours été là</span>
         </div>
-      </div>
-      <div style="padding:11px 14px;border-top:1px solid var(--line)">
-        <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#ffd27a;margin-bottom:7px">✏️ Changement de REM</div>
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-          <label class="ck" style="white-space:nowrap;font-weight:700"><input class="pyRateChg" type="checkbox" onchange="var mf=this.closest('.pyrow').querySelector('.pyRateFrom'); if(this.checked&&mf&&!mf.value){var d=new Date();mf.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}">J'ai changé sa REM</label>
-          <span class="sub2">à partir de</span><input class="pyRateFrom" type="month" title="Mois d'entrée en vigueur (mois entier, pas de prorata)" value="" style="width:160px">
-        </div>
-        <div class="sub2" style="margin-top:7px;opacity:.8">Mets le nouveau %/fixe en haut de la ligne, coche la case, choisis le mois, puis <b>Enregistrer</b>. L'ancien montant — %, fixe <b>et</b> 🎁 paliers — est gardé tout seul pour les mois d'avant. Le nouveau vaut pour le <b>mois entier</b> choisi et les suivants (jamais de prorata).</div>
-        ${_hasRates?rateHistoryChips(it):""}
       </div>
       <div style="padding:11px 14px;border-top:1px solid var(--line)">
         <div style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#ff9a9a;margin-bottom:7px">📦 Départ / archivage</div>
@@ -1329,7 +1323,8 @@ function renderSettings(){
     <div style="width:56px">%</div>
     <div style="width:70px">Fixe €</div>
     <div style="white-space:nowrap">🎁 paliers</div>
-    <div style="white-space:nowrap">📅 dates</div>
+    <div style="white-space:nowrap">✏️ REM dès</div>
+    <div style="white-space:nowrap">📅</div>
   </div>`;
   html+=`<div class="setblock"><h3>💸 Personnes à payer (Finance) — ordre & calcul</h3>
     ${payHead}
@@ -1340,10 +1335,8 @@ function renderSettings(){
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
       <b>🎁 paliers</b> = la personne touche les primes paliers (comme Ilyas) — coche-la pour un nouveau setter/closer pour qu'il ait exactement le même système.<br>
-      Le bouton <b>📅 dates</b> (à droite de chaque ligne) ouvre un petit panneau pour 3 cas, <b>seulement si besoin</b> :<br>
-      &nbsp;&nbsp;• <b>🟢 Dans l'équipe depuis</b> = un nouvel arrivé n'apparaît qu'à partir de ce mois (rien avant). Ex. un closer qui démarre en octobre → « 2026-10 ».<br>
-      &nbsp;&nbsp;• <b>✏️ Changement de REM</b> = tu as changé son %/fixe ? Mets le nouveau en haut, le <b>mois</b> du changement, et son <b>ancien</b> % et/ou fixe. Les mois d'avant gardent l'ancien, le passé ne bouge pas.<br>
-      &nbsp;&nbsp;• <b>📦 Archivé dès</b> = plus payé à partir de ce mois ; les mois d'avant restent intacts. Décoche pour réactiver. Rien n'est supprimé.<br>
+      <b>✏️ REM dès</b> (sur chaque ligne) = pour changer une rému <b>sans toucher au passé</b> : modifie son % / fixe / paliers, puis mets le <b>mois</b> à partir duquel ça s'applique, et <b>Enregistre</b>. L'ancien montant (%, fixe <b>et</b> paliers) est gardé tout seul pour les mois d'avant. Le changement vaut pour le <b>mois entier</b> choisi et les suivants (jamais de prorata). L'historique s'affiche en petit sous la ligne. Laisse vide = le montant s'applique à tous les mois (comme avant).<br>
+      Le bouton <b>📅</b> (à droite) ouvre juste l'<b>entrée dans l'équipe</b> (un nouvel arrivé n'apparaît qu'à partir de son mois d'arrivée) et l'<b>archivage</b> (plus payé à partir d'un mois ; le passé reste intact).<br>
       Laisse % et fixe vides = paiement manuel (tu mets le montant dans Finance). Flèches ↑↓ pour l'ordre.</div></div>`;
   const ck=(SETTINGS.checks||[]).map(chkRow).join("");
   html+=`<div class="setblock"><h3>✅ Cases à cocher sur la fiche client (onboarding)</h3>
@@ -1443,15 +1436,20 @@ async function saveSettings(){
     // Historique REM (périodes {from,pct,fixe,prime}) — repris de l'ancienne config
     const old=_oldPay[name];
     let rates=(old&&Array.isArray(old.rates))?old.rates.map(p=>({from:p.from||"",pct:Number(p.pct)||0,fixe:Number(p.fixe)||0,prime:!!p.prime})):null;
-    const rateChg=!!(r.querySelector('.pyRateChg')&&r.querySelector('.pyRateChg').checked);
     const rateFrom=(function(){ const f=r.querySelector('.pyRateFrom'); return (f&&f.value)?f.value:""; })();
-    if(rateChg && rateFrom){
-      // on fige l'ANCIEN montant (celui d'avant cette modif) pour tous les mois d'avant, puis on applique le nouveau à partir du mois choisi
-      if(!rates||!rates.length){ const o=old||{pct,fixe,prime}; rates=[{from:"", pct:Number(o.pct)||0, fixe:Number(o.fixe)||0, prime:!!o.prime}]; }
-      const np={from:rateFrom, pct, fixe, prime}, last=rates[rates.length-1];
-      if(last && String(last.from)===String(rateFrom)) rates[rates.length-1]=np; else rates.push(np);
+    if(rateFrom){
+      if(rates && rates.length){
+        // historique déjà présent → on ajoute (ou met à jour) la période à partir de ce mois
+        const np={from:rateFrom, pct, fixe, prime}, last=rates[rates.length-1];
+        if(String(last.from)===String(rateFrom)) rates[rates.length-1]=np; else rates.push(np);
+      } else {
+        // 1er changement daté : on crée l'historique seulement s'il y a une vraie différence avec l'ancien montant
+        const o=old||{pct,fixe,prime};
+        const changed = Number(o.pct||0)!==pct || Number(o.fixe||0)!==fixe || (!!o.prime)!==prime;
+        if(changed) rates=[{from:"", pct:Number(o.pct)||0, fixe:Number(o.fixe)||0, prime:!!o.prime}, {from:rateFrom, pct, fixe, prime}];
+      }
     } else if(rates && rates.length){
-      // édition directe (sans cocher) → on met juste à jour la période en cours, sans toucher aux périodes passées
+      // édition directe (sans mois) → on met juste à jour la période en cours, sans toucher aux périodes passées
       const last=rates[rates.length-1]; rates[rates.length-1]={from:last.from, pct, fixe, prime};
     }
     if(rates && rates.length){ rates=rates.filter(p=>p).sort((a,b)=>String(a.from||"").localeCompare(String(b.from||""))); if(rates.length>1) out.rates=rates; }
@@ -3316,6 +3314,13 @@ function clientMontant(c){ return (Number(c&&c.montant)||0) + ((c&&c.upsell)?(Nu
 // Reste dû sur le contrat = montant − déjà encaissé. Un client Annulé/Litige n'a plus rien à encaisser (0). Source unique du « reste à encaisser » (KPI + tableau + détail).
 // On ignore les résidus sous 1 € (arrondis) → pas de « 1 € » fantôme.
 function clientReste(c){ if((c&&c.statut||"")==="Annulé / Litige") return 0; const r=clientMontant(c)-clientEncaisse(c); return r>=1?Math.round(r):0; }
+// 📅 Jour de prélèvement d'un client = le jour du mois de sa date de contrat (sinon onboarding, sinon 1er). Les échéances tombent « autour » de cette date chaque mois.
+function chargeDay(c){ const d=(c&&(c.date_debut||c.onboarding_date))||""; const mm=/^\d{4}-\d{2}-(\d{2})/.exec(d); if(mm){ const dd=parseInt(mm[1],10); if(dd>=1&&dd<=31) return dd; } return 1; }
+// Date de prélèvement lisible : mois "YYYY-MM" + jour (bridé au dernier jour du mois) → "15 nov. 2026".
+function chargeDateLabel(month, day){ if(!month||!/^\d{4}-\d{2}$/.test(month)) return ""; const y=+month.slice(0,4), mo=+month.slice(5,7); const dim=new Date(y,mo,0).getDate(); const dd=Math.min(Math.max(1,day||1),dim);
+  try{ return new Date(y,mo-1,dd).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}); }catch(e){ return month; } }
+// Prochaine date de prélèvement prévue (à partir d'un mois donné, défaut = mois courant) sur le jour d'entrée du client.
+function nextChargeLabel(c, fromMonth){ const m=fromMonth||monthStr(); return chargeDateLabel(m, chargeDay(c)); }
 function payMonthCard(M){
   const act=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige");
   const mois=[], late=[];
@@ -3331,7 +3336,8 @@ function payMonthCard(M){
   }).map(c=>({c,reste:clientMontant(c)-clientEncaisse(c)}));
   const nom=c=>escapeHtml(((c.nom||"")+" "+(c.prenom||"")).trim());
   const lnInfo=c=>{ const p=[]; if(c.date_debut) p.push("📅 contrat "+frDate(c.date_debut)); if(c.mail) p.push("✉️ "+escapeHtml(c.mail)); return p.length?`<br><span class="sub2" style="font-size:10.5px">${p.join(" · ")}</span>`:""; };
-  const ln=(r,tag)=>`<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}${lnInfo(r.c)}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`;
+  const ln=(r,tag)=>{ const dCharge=!r.s.paid?chargeDateLabel(r.s.month, chargeDay(r.c)):""; const dateBit=dCharge?` <span class="sub2" style="color:#8fc4ff">· 📅 prélèvement ~ ${dCharge}</span>`:"";
+    return `<div class="kv" style="align-items:center"><span class="k">${r.s.paid?'✅':'⏳'} ${offerEmoji(r.c.programme)} ${nom(r.c)}${tag?` <span class="sub2">${tag}</span>`:""}${dateBit}${lnInfo(r.c)}</span><span class="v" style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><b>${eur(r.s.amount)}</b><button class="btn ghost sm" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="toggleSched('${r.c.id}',${r.i})">${r.s.paid?'↩︎ Annuler':'✅ Encaissé'}</button></span></div>`; };
   const due=mois.filter(r=>!r.s.paid);
   const totDue=due.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
   const totLate=late.reduce((a,r)=>a+(Number(r.s.amount)||0),0);
@@ -3357,7 +3363,7 @@ function payMonthCard(M){
     <div id="payCardRows">
     ${late.length?`<div class="section-title paysec" style="margin:8px 2px 2px;color:var(--red)">⚠️ En retard (${late.length}) — ${eur(totLate)}</div>${late.sort((a,b)=>String(a.s.month).localeCompare(String(b.s.month))).map(r=>ln(r,"· échéance "+monthShort(r.s.month))).join("")}`:""}
     ${due.length?`<div class="section-title paysec" style="margin:10px 2px 2px">⏳ À encaisser ce mois (${due.length}) — ${eur(totDue)}</div>${due.map(r=>ln(r,"")).join("")}`:""}
-    ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2">· pas d'échéance à venir</span>${lnInfo(o.c)}</span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
+    ${orphans.length?`<div class="section-title paysec" style="margin:10px 2px 2px;color:#ffcf7a">❓ Reste dû sans échéance planifiée (${orphans.length}) — ${eur(totOrph)}</div>${orphans.map(o=>`<div class="kv" style="align-items:center;cursor:pointer" onclick="editClient('${o.c.id}')"><span class="k">⏳ ${offerEmoji(o.c.programme)} ${nom(o.c)} <span class="sub2" style="color:#8fc4ff">· 📅 prochain prélèvement ~ ${chargeDateLabel(M, chargeDay(o.c))}, puis chaque mois</span>${lnInfo(o.c)}</span><span class="v"><b>${eur(o.reste)}</b> <span class="sub2">→ ajouter une échéance</span></span></div>`).join("")}`:""}
     ${(!late.length&&!due.length&&!orphans.length)?'<div class="sub2" style="margin-top:10px">✅ Rien en attente ce mois — tout est encaissé.</div>':""}
     </div></details>
   </div>`;
