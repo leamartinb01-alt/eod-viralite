@@ -781,6 +781,7 @@ const FORMS = {
   ],
   // Setter APPEL (ex : Emerry) — funnel téléphonique dédié : messages → réponses → appels réservés → appels qualifiés.
   setter_appel:[
+    { key:"calls_made",   label:"📞 Personnes appelées aujourd'hui",            type:"number" },
     { key:"messages",     label:"💬 Messages envoyés aujourd'hui",              type:"number" },
     { key:"replies",      label:"↩️ Réponses reçues",                          type:"number" },
     { key:"calls_booked", label:"📅 Appels réservés (RDV calés)",              type:"number" },
@@ -878,9 +879,11 @@ function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTM
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 // Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
-// Illimité = propriété de l'OFFRE (case 🔓 illimité dans Réglages → Offres). Les anciennes offres (Viral Pro, Élite Viral) restent limitées.
-// On garde une compat : un ancien client coché « Version 2 » (c.v2) reste illimité.
-function isV2(c){ const o=offerFor(c&&c.programme); return !!(o&&o.illim) || !!(c&&c.v2); }
+// Illimité = propriété de l'OFFRE. Par défaut TOUT est illimité, SAUF les anciennes offres « Viral Pro » et « Élite Virale » (appels limités).
+// La case 🔓 dans Réglages → Offres permet de forcer (coché/décoché) ; sans choix explicite on applique ce défaut par nom.
+function offerUnlimited(o){ if(!o) return true; if(o.illim!=null) return !!o.illim; const n=normOffer(o.name)||""; if(n.includes("viral pro")||n.includes("elite viral")) return false; return true; }
+// Compat : un ancien client coché « Version 2 » (c.v2) reste illimité.
+function isV2(c){ return offerUnlimited(offerFor(c&&c.programme)) || !!(c&&c.v2); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
 // Cadence attendue par mois = nb de séances de l'offre / nb de mois (Viral Pro 9/3, Élite 12/4, Mentorat 18/6 → 3 partout).
@@ -1020,16 +1023,32 @@ function rebuildMemberSelect(){
   teamActive().forEach(m=> sel.insertAdjacentHTML("beforeend",`<option value="${m.name}">${m.name} — ${m.title}</option>`));
   if(cur && CONFIG.TEAM.some(m=>m.name===cur)) sel.value=cur; onMember();
 }
+// 🔗 Ajoute une personne dans « Gens à payer » si elle n'y est pas déjà (même prénom), avec le % par défaut de son rôle.
+// Closer → 10 % · Setter → 5 % (+ primes paliers) · Coach/Ads → manuel (0). Payé à partir de son mois d'arrivée (pas d'historique avant).
+function ensureInPayList(name, role, title){
+  if(!name || !["closer","setter","coach","ads"].includes(role)) return null;
+  SETTINGS.payList = SETTINGS.payList || [];
+  if(SETTINGS.payList.some(p=>p&&p.name&&eqName(p.name,name))) return null; // déjà présent
+  const pct = role==="closer"?10 : role==="setter"?5 : 0;
+  const prime = (role==="closer"||role==="setter");
+  SETTINGS.payList.push({name, label:title||ROLE_LBL[role]||"", role, pct, fixe:0, prime, archived:false, archivedFrom:"", from:monthStr()});
+  return {pct};
+}
+async function _persistPayList(){ if(!db) return; try{ initFirebase(); await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, payList:SETTINGS.payList},{merge:true}); }catch(e){} }
 async function addMember(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   const n=($("nmName").value||"").trim(); const role=$("nmRole").value;
   let t=($("nmTitle").value||"").trim();
   if(!n){ alert("Mets un prénom."); return; }
   const existing=CONFIG.TEAM.find(m=>m.name.toLowerCase()===n.toLowerCase());
-  if(existing){ if(existing.archived){ existing.archived=false; await saveTeamCfg(); rebuildMemberSelect(); renderTeam(); return; } alert("Ce prénom existe déjà."); return; }
+  if(existing){ if(existing.archived){ existing.archived=false; const addp=ensureInPayList(existing.name, existing.role, existing.title); await saveTeamCfg(); if(addp){ await _persistPayList(); if($("settingsBox")) renderSettings(); } rebuildMemberSelect(); renderTeam(); if($("finMonth")) renderFinance(); return; } alert("Ce prénom existe déjà."); return; }
   if(!t) t=ROLE_LABEL[role]||"Membre";
   CONFIG.TEAM.push({name:n,title:t,role});
-  await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
+  const addp=ensureInPayList(n, role, t);
+  await saveTeamCfg();
+  if(addp){ await _persistPayList(); if($("settingsBox")) renderSettings(); if($("finMonth")) renderFinance(); }
+  rebuildMemberSelect(); renderTeam();
+  if(addp){ alert(n+" ajouté à l'équipe ✓\n\nAjouté aussi dans « Gens à payer » : "+role+(addp.pct?(" "+addp.pct+" %"):" (manuel)")+", payé à partir de ce mois.\nTu peux ajuster son % / fixe dans Réglages → Gens à payer."); }
 }
 async function archiveMember(name, on){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
@@ -1214,7 +1233,13 @@ function fieldOptions(key){
     const extra=arr.filter(p=>{ const key2=String(p||"").trim().toLowerCase(); if(!key2||seen.has(key2)) return false; seen.add(key2); return true; });
     arr=offNames.concat(extra);
     if(!seen.has("autre")) arr.push("Autre"); }
-  if(key==='setter'||key==='closer') arr=[""].concat(arr);
+  if(key==='setter'||key==='closer'){
+    // 🔗 Source de vérité = l'ÉQUIPE : les membres du bon rôle apparaissent ici tout seuls (un nouveau closer/setter créé dans l'équipe est tout de suite sélectionnable sur les fiches). On garde aussi les anciennes valeurs de la liste pour ne rien casser.
+    const teamNames=teamActive().filter(m=>m.role===key).map(m=>m.name).filter(Boolean);
+    const seen=new Set(), merged=[];
+    teamNames.concat(arr).forEach(n=>{ const k2=noAcc(String(n||"")).trim().toLowerCase(); if(!n||seen.has(k2)) return; seen.add(k2); merged.push(n); });
+    arr=[""].concat(merged);
+  }
   return arr;
 }
 function liRow(v){ return `<div class="lirow"><input value="${escapeHtml(v||'')}"><button type="button" class="xrow" onclick="this.closest('.lirow').remove()">✕</button></div>`; }
@@ -1224,7 +1249,7 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
     <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:76px">
     <input class="ofMonths" type="number" inputmode="numeric" placeholder="mois" value="${o.months!=null?o.months:''}" style="width:66px">
     <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:76px">
-    <label class="ck" title="🔓 Appels ILLIMITÉS (nouveaux accompagnements). Décoché = nombre d'appels LIMITÉ selon « séances » (anciennes offres : Viral Pro, Élite Viral — les coachs gardent leur compteur)." style="white-space:nowrap"><input class="ofIllim" type="checkbox" ${o.illim?'checked':''}>🔓 illimité</label>
+    <label class="ck" title="🔓 Appels ILLIMITÉS (par défaut pour tout). Décoche UNIQUEMENT pour une offre à appels LIMITÉS selon « séances » (Viral Pro, Élite Virale — les coachs gardent leur compteur)." style="white-space:nowrap"><input class="ofIllim" type="checkbox" ${offerUnlimited(o)?'checked':''}>🔓 illimité</label>
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({illim:true})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
@@ -1313,13 +1338,17 @@ function renderSettings(){
     <div id="offerBox">${offr}</div>
     <button type="button" class="addrow" onclick="addOffer()">+ Ajouter une offre</button>
     <div class="hint">Le <b>nom</b> = le programme choisi sur la fiche client. Le <b>nb de séances</b> alimente le suivi coaching (X / total), le <b>prix</b> pré-remplit le montant du contrat.<br>
-      <b>🔓 illimité</b> = appels <b>illimités</b> pour cet accompagnement (coché par défaut pour les nouveaux). Décoché = appels <b>limités</b> au nombre de « séances » (garde ça pour <b>Viral Pro</b> et <b>Élite Viral</b> — leurs coachs gardent le compteur X/total). Plus besoin de cocher quoi que ce soit sur la fiche client : c'est l'offre qui décide.</div></div>`;
+      <b>🔓 illimité</b> = appels <b>illimités</b>. <b>Par défaut tout est illimité</b> ; décoche uniquement <b>Viral Pro</b> et <b>Élite Virale</b> (appels <b>limités</b> au nombre de « séances » — leurs coachs gardent le compteur X/total). Plus besoin de cocher quoi que ce soit sur la fiche client : c'est l'offre qui décide.</div></div>`;
   const gl=(SETTINGS.setterGoals||[]).map(goalRow).join("");
   html+=`<div class="setblock"><h3>🎯 Objectifs setters (par mois)</h3>
     <div id="goalBox">${gl}</div>
     <button type="button" class="addrow" onclick="addGoal()">+ Ajouter un objectif</button>
     <div class="hint">Choisis <b>pour qui</b> (un setter précis, ou « Tous les setters » pour une cible commune). Chacun ne voit que SES objectifs dans son EOD, avec la progression du mois (fait / cible).</div></div>`;
-  const pr=(SETTINGS.payList||[]).map(payRow).join("");
+  // Actifs affichés normalement ; archivés repliés (gardés DANS #payListBox pour que l'enregistrement ne les perde pas).
+  const _pl=(SETTINGS.payList||[]);
+  const _plAct=_pl.filter(p=>!(normPay(p)||{}).archived), _plArch=_pl.filter(p=>(normPay(p)||{}).archived);
+  const pr=_plAct.map(payRow).join("")
+    + (_plArch.length?`<details class="cdet" style="margin-top:8px"><summary style="font-weight:700;color:var(--muted)">📦 Archivés (${_plArch.length}) — gardés, masqués</summary>${_plArch.map(payRow).join("")}</details>`:"");
   const payHead=`<div class="drow" style="flex-wrap:wrap;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">
     <div style="flex:2;min-width:100px">Nom</div>
     <div style="flex:1.6;min-width:110px">Poste affiché</div>
@@ -1387,9 +1416,20 @@ function renderNameCheck(){ const box=$("nameCheckBox"); if(!box) return;
   // membres de l'équipe sans identifiant (ne peuvent pas se connecter) — info
   const noLogin=roster.filter(r=>!logins.some(l=>eqName(l.name,r)));
   const warnCount=rows.filter(r=>r.includes("⚠️")).length;
-  box.innerHTML=(warnCount?`<div class="sub2" style="color:#ff9a9a;margin-bottom:4px"><b>${warnCount} écart(s)</b> à corriger : mets le même nom des deux côtés (Identifiants ci-dessus ↔ Gestion d'équipe).</div>`:`<div class="sub2" style="color:#7ee2a3;margin-bottom:4px">✅ Tous les noms de connexion correspondent à un membre de l'équipe.</div>`)
+  // 2) Chaque closer/setter/coach de l'équipe doit être dans « Gens à payer » (même nom), sinon AUCUNE commission n'est calculée pour lui.
+  const payNames=(SETTINGS.payList||[]).map(normPay).filter(p=>p&&p.name).map(p=>p.name);
+  // Le Head of Sales a sa rému spéciale (section dédiée dans Finance), pas une commission dans « Gens à payer » → on ne le réclame pas ici.
+  const hosNames=(SETTINGS.logins||[]).filter(l=>l.role==="hos").map(l=>l.name).filter(Boolean);
+  const needPay=(teamActive()||[]).filter(m=>["closer","setter","coach"].includes(m.role) && !hosNames.some(h=>eqName(h,m.name)));
+  const payRows=needPay.map(m=>{ const ok=payNames.some(pn=>eqName(pn,m.name)); return `<div class="kv" style="padding:5px 0;border-top:1px solid var(--line)"><span class="k">💸 ${escapeHtml(m.name)} <span class="sub2">· ${escapeHtml(m.role)}</span></span><span class="v" style="color:${ok?'#7ee2a3':'#ff9a9a'};text-align:right">${ok?'✓ dans Gens à payer':'⚠️ absent de « Gens à payer » → pas de commission'}</span></div>`; });
+  const payWarn=payRows.filter(r=>r.includes("⚠️")).length;
+  box.innerHTML=`<div class="sub2" style="font-weight:800;margin:2px 0 2px">1) Connexion ↔ Équipe</div>`
+    + (warnCount?`<div class="sub2" style="color:#ff9a9a;margin-bottom:4px"><b>${warnCount} écart(s)</b> à corriger : mets le même nom des deux côtés (Identifiants ↔ Gestion d'équipe).</div>`:`<div class="sub2" style="color:#7ee2a3;margin-bottom:4px">✅ Tous les noms de connexion correspondent à un membre de l'équipe.</div>`)
     + (rows.join("")||'<div class="sub2">Aucun identifiant setter/closer/coach.</div>')
-    + (noLogin.length?`<div class="sub2" style="margin-top:8px;opacity:.8">ℹ️ Membres d'équipe sans identifiant de connexion : ${noLogin.map(escapeHtml).join(", ")}</div>`:"");
+    + (noLogin.length?`<div class="sub2" style="margin-top:8px;opacity:.8">ℹ️ Membres d'équipe sans identifiant de connexion : ${noLogin.map(escapeHtml).join(", ")}</div>`:"")
+    + `<div class="sub2" style="font-weight:800;margin:12px 0 2px">2) Équipe ↔ Gens à payer (commissions)</div>`
+    + (payWarn?`<div class="sub2" style="color:#ff9a9a;margin-bottom:4px"><b>${payWarn}</b> personne(s) de l'équipe ne sont pas dans « Gens à payer » : ajoute-les (même prénom exact) pour que leurs commissions se calculent.</div>`:`<div class="sub2" style="color:#7ee2a3;margin-bottom:4px">✅ Tous les closers/setters/coachs de l'équipe sont dans « Gens à payer ».</div>`)
+    + (payRows.join("")||'<div class="sub2">Aucun closer/setter/coach dans l\'équipe.</div>');
 }
 // Liste des clients avec case à cocher pour réassigner un setter/closer en masse (réparation).
 async function renderRepairList(){ const wrap=$("rpList"); if(!wrap) return;
@@ -3041,8 +3081,9 @@ function renderTeamDigest(){
   dl.innerHTML=days.map(d=>{
     const dayE=EODS.filter(x=>x.report_date===d); const isToday=d===todayStr();
     // 📅 Week-end (sam/dim) : les setters et les coachs ne bossent pas forcément → on ne les signale PAS comme « manquant ». Les closers restent attendus.
-    const _dow=new Date(d+"T12:00:00").getDay(); const _weekend=(_dow===0||_dow===6);
-    const eodExpected=m=>!_weekend || m.role==="closer";
+    const _dow=new Date(d+"T12:00:00").getDay(); const _sat=(_dow===6), _sun=(_dow===0), _weekend=(_sat||_sun);
+    // 📅 Dimanche : PERSONNE n'est attendu (aucune relance). Samedi : seuls les closers. En semaine : tout le monde.
+    const eodExpected=m=> _sun ? false : (_sat ? m.role==="closer" : true);
     const roster=teamActive().filter(eodExpected); // personnes attendues ce jour-là
     // Match tolérant EOD ↔ membre (casse/accents/espaces) → fini les « manquant » alors que la personne a rempli.
     const postedRoster=roster.filter(m=>dayE.some(x=>eqName(x.member,m.name)));
