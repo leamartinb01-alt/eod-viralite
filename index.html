@@ -416,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 14/10/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 21/10/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -878,7 +878,9 @@ function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTM
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 // Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
-function isV2(c){ return !!(c && c.v2); }
+// Illimité = propriété de l'OFFRE (case 🔓 illimité dans Réglages → Offres). Les anciennes offres (Viral Pro, Élite Viral) restent limitées.
+// On garde une compat : un ancien client coché « Version 2 » (c.v2) reste illimité.
+function isV2(c){ const o=offerFor(c&&c.programme); return !!(o&&o.illim) || !!(c&&c.v2); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
 function coachDone(c){ const lg=c&&c.coaching&&c.coaching.log; if(Array.isArray(lg)) return lg.reduce((s,e)=>s+(Number(e.n)||1),0); return (c&&c.coaching&&Number(c.coaching.done))||0; }
 // Cadence attendue par mois = nb de séances de l'offre / nb de mois (Viral Pro 9/3, Élite 12/4, Mentorat 18/6 → 3 partout).
@@ -965,7 +967,7 @@ function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Il
 let ACCESS="setter";
 const ACCESS_TABS={
   setter: ["form"],                                                           // EOD seulement
-  closer: ["form","clients","unpaid","immersive"],                            // EOD + Clients + Impayés + Immersive
+  closer: ["form","clients"],                                                 // EOD + Clients (Impayés & Immersive retirés — pas besoin)
   coach:  ["form","clients","coaching","unpaid","immersive"],                 // EOD + Clients + Coaching + Impayés + Immersive
   hos:    ["form","team","goals","coaching","unpaid","immersive","clients","finance"],  // Head of Sales (ex: Anthony) : TOUS ses onglets habituels + la Finance, le tout EN LECTURE SEULE. Il voit les montants payés (paie équipe, logiciels, prestas, encaissements) mais PAS la rému COO, la marge nette, les Comptes Dubaï ni les Réglages.
   finance:["finance"],  // « Montants seuls » : UNIQUEMENT le tableau des encaissements clients, lecture seule, rien d'autre
@@ -1222,9 +1224,10 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
     <input class="ofPrice" type="number" inputmode="numeric" placeholder="€" value="${o.price!=null?o.price:''}" style="width:76px">
     <input class="ofMonths" type="number" inputmode="numeric" placeholder="mois" value="${o.months!=null?o.months:''}" style="width:66px">
     <input class="ofSess" type="number" inputmode="numeric" placeholder="séances" value="${o.sessions!=null?o.sessions:''}" style="width:76px">
+    <label class="ck" title="🔓 Appels ILLIMITÉS (nouveaux accompagnements). Décoché = nombre d'appels LIMITÉ selon « séances » (anciennes offres : Viral Pro, Élite Viral — les coachs gardent leur compteur)." style="white-space:nowrap"><input class="ofIllim" type="checkbox" ${o.illim?'checked':''}>🔓 illimité</label>
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
-function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
+function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({illim:true})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
 function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]];
   const setters=teamActive().filter(m=>m.role==="setter").map(m=>m.name);
   const whoOpts=['<option value="">Tous les setters</option>'].concat(setters.map(s=>`<option value="${escapeHtml(s)}"${s===(g.who||'')?' selected':''}>${escapeHtml(s)}</option>`)).join("");
@@ -1289,7 +1292,7 @@ function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" 
     <button type="button" class="xrow" onclick="this.closest('.chkrow').remove()">✕</button>
   </div>`; }
 function addChk(){ const box=$("checkBox"); if(box){ box.insertAdjacentHTML("beforeend", chkRow({})); const i=box.lastElementChild.querySelector(".chkLabel"); if(i) i.focus(); } }
-function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients + Impayés + Immersive)"],["coach","Coach (EOD + Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales — Anthony (tous ses onglets + Finance, LECTURE SEULE)"],["finance","Montants seuls (lecture seule — juste les encaissements)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
+function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)"],["closer","Closer (EOD + Clients)"],["coach","Coach (EOD + Clients + Coaching + Impayés + Immersive)"],["hos","Head of Sales — Anthony (tous ses onglets + Finance, LECTURE SEULE)"],["finance","Montants seuls (lecture seule — juste les encaissements)"],["admin","Admin — Léa (tout)"]]; const curRole=normAccess(it.role||"setter");
   return `<div class="drow lgrow" style="flex-wrap:wrap;gap:6px">
     <input class="lgName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:1;min-width:90px">
     <input class="lgEmail" type="email" placeholder="email" value="${escapeHtml(it.email||"")}" style="flex:1.4;min-width:130px">
@@ -1309,7 +1312,8 @@ function renderSettings(){
   html+=`<div class="setblock"><h3>🎓 Offres (prix + nb de séances)</h3>
     <div id="offerBox">${offr}</div>
     <button type="button" class="addrow" onclick="addOffer()">+ Ajouter une offre</button>
-    <div class="hint">Le <b>nom</b> = le programme choisi sur la fiche client. Le <b>nb de séances</b> alimente le suivi coaching (X / total), le <b>prix</b> pré-remplit le montant du contrat.</div></div>`;
+    <div class="hint">Le <b>nom</b> = le programme choisi sur la fiche client. Le <b>nb de séances</b> alimente le suivi coaching (X / total), le <b>prix</b> pré-remplit le montant du contrat.<br>
+      <b>🔓 illimité</b> = appels <b>illimités</b> pour cet accompagnement (coché par défaut pour les nouveaux). Décoché = appels <b>limités</b> au nombre de « séances » (garde ça pour <b>Viral Pro</b> et <b>Élite Viral</b> — leurs coachs gardent le compteur X/total). Plus besoin de cocher quoi que ce soit sur la fiche client : c'est l'offre qui décide.</div></div>`;
   const gl=(SETTINGS.setterGoals||[]).map(goalRow).join("");
   html+=`<div class="setblock"><h3>🎯 Objectifs setters (par mois)</h3>
     <div id="goalBox">${gl}</div>
@@ -1349,7 +1353,7 @@ function renderSettings(){
     <button type="button" class="addrow" onclick="addLogin()">+ Ajouter une personne</button>
     <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son <b>rôle</b> :<br>
       • <b>Setter</b> → EOD seulement.<br>
-      • <b>Closer</b> → EOD + Clients + Impayés + Immersive.<br>
+      • <b>Closer</b> → EOD + Clients.<br>
       • <b>Coach</b> → EOD + Clients + Coaching + Impayés + Immersive.<br>
       • <b>Head of Sales (Anthony)</b> → tous ses onglets habituels (EOD, Équipe, Objectifs, Coaching, Impayés, Immersive, Clients) + la <b>Finance</b>, le tout <b>en lecture seule</b>. Il voit les montants payés (paie équipe, logiciels, prestas, encaissements) mais PAS ta rému COO, la marge nette, les Comptes Dubaï ni les Réglages.<br>
       • <b>Montants seuls</b> → UNIQUEMENT le tableau des encaissements, en lecture seule (si tu veux quelqu'un qui ne voit QUE ça).<br>
@@ -1416,7 +1420,7 @@ async function applyRepair(){ if(!isAdmin()){ alert("Réservé à l'admin."); re
 async function saveSettings(){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   SET_KEYS.forEach(k=>{ SETTINGS[k]=[...document.querySelectorAll(`#settingsBox .li-${k} input`)].map(i=>i.value.trim()).filter(Boolean); });
-  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0})).filter(x=>x.name);
+  SETTINGS.offers=[...document.querySelectorAll('#offerBox .offrow')].map(r=>({emoji:(r.querySelector('.ofEmoji').value||"").trim(), name:r.querySelector('.ofName').value.trim(), price:Number(r.querySelector('.ofPrice').value)||0, months:Number(r.querySelector('.ofMonths').value)||0, sessions:Number(r.querySelector('.ofSess').value)||0, illim:!!(r.querySelector('.ofIllim')&&r.querySelector('.ofIllim').checked)})).filter(x=>x.name);
   SETTINGS.setterGoals=[...document.querySelectorAll('#goalBox .goalrow')].map(r=>({who:r.querySelector('.glWho').value, label:r.querySelector('.glLabel').value.trim(), key:r.querySelector('.glKey').value, target:Number(r.querySelector('.glTarget').value)||0})).filter(x=>x.label);
   const _gl=[...document.querySelectorAll('#loginBox .lgrow')].map(r=>({name:r.querySelector('.lgName').value.trim(), email:(r.querySelector('.lgEmail').value||"").trim().toLowerCase(), code:(r.querySelector('.lgCode').value||"").trim(), role:r.querySelector('.lgRole').value})).filter(x=>x.email&&x.code);
   // 🛡️ ANTI-ÉCRASEMENT : on ne remplace la liste d'identifiants QUE s'il y a au moins une ligne. Une liste vide (Firebase pas encore chargé, ou tout supprimé par erreur) ne peut PLUS écraser les identifiants existants.
@@ -3166,7 +3170,6 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
-  { key:"v2",label:"🔓 Version 2 — appels ILLIMITÉS (si décoché : Version 1, nombre d'appels selon l'offre). Tous les clients actuels = Version 1.",type:"check" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
