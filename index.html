@@ -748,7 +748,9 @@ const MOODS = [
   { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
 ];
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
-const CALL_RESULTS = ["Show-up","No-show","Closé","Disqualifié"];
+const CALL_RESULTS = ["Show-up","No-show","Closé","R2","Follow-up","No pitch","Reporté","Disqualifié"];
+// Résultats où le prospect s'est PRÉSENTÉ (comptent comme show-up + lead pour le setter). No-show / Reporté / Disqualifié = pas présent.
+const CALL_SHOWN = new Set(["Show-up","Closé","R2","Follow-up","No pitch"]);
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
 /* Leads d'Ilyas DÉJÀ VÉRIFIÉS par Léa (juin) — comptent comme leads payés, archivés dans sa fiche */
 const CALL_SEED=[
@@ -962,7 +964,7 @@ function monthCashSum(eods, dayKey, monthKey){
   return Object.values(byM).reduce((s,o)=>s+o.v,0);
 }
 function aggCalls(eods){ const o={calls:0,noshow:0,showup:0,close:0,bySetter:{Ilyas:{lead:0,close:0},Lucas:{lead:0,close:0}}};
-  (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=(c.res==="Show-up"||c.res==="Closé"); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
+  (eods||[]).forEach(e=>callsArr(e).forEach(c=>{ o.calls++; const shown=CALL_SHOWN.has(c.res); if(c.res==="No-show")o.noshow++; if(shown)o.showup++; if(c.res==="Closé")o.close++; const set=SRC_SETTER[c.src]; if(set){ if(shown)o.bySetter[set].lead++; if(c.res==="Closé")o.bySetter[set].close++; } }));
   return o; }
 
 /* ===================== ACCÈS (par rôle) =====================
@@ -2984,11 +2986,11 @@ function orphanEodCloses(M){
 // Appels = PROSPECTS UNIQUES (un client vu en R1+R2+R3 = 1 seul appel/prospect). On garde le meilleur résultat par prospect.
 function closerConv(name,M){
   const pkey=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
-  const rank=r=> r==="Closé"?3:(r==="Show-up"?2:(r==="No-show"?1:0));
+  const rank=r=> r==="Closé"?4:(CALL_SHOWN.has(r)?3:(r==="No-show"?2:1));
   const seen=new Map();
   EODS.filter(x=>eqName(x.member,name) && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=pkey(c.p); if(!k) return; const cur=seen.get(k); if(!cur || rank(c.res)>rank(cur)) seen.set(k, c.res); }); });
   let calls=0,show=0,no=0;
-  seen.forEach(res=>{ calls++; if(res==="No-show")no++; if(res==="Show-up"||res==="Closé")show++; });
+  seen.forEach(res=>{ calls++; if(res==="No-show")no++; if(CALL_SHOWN.has(res))show++; });
   const closed=monthCloses(M).filter(l=>isPerson(l.closer,name)).length;
   return {calls,closed,show,no};
 }
@@ -3027,7 +3029,7 @@ function renderConversions(M){
 function renderSources(M){
   const box=$("sourcesList"); if(!box) return;
   const pkey=s=>noAcc(s).split(/\s+/).filter(Boolean).sort().join(" ");
-  const rank=r=> r==="Closé"?3:(r==="Show-up"?2:(r==="No-show"?1:0));
+  const rank=r=> r==="Closé"?4:(CALL_SHOWN.has(r)?3:(r==="No-show"?2:1));
   const bySrc={}; // src -> Map(pkey -> {name, res})
   EODS.filter(x=>x.role==="closer" && (x.report_date||"").slice(0,7)===M).forEach(x=>{ callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const s=(c.src||"?").trim()||"?"; const k=pkey(c.p); if(!k) return; (bySrc[s]=bySrc[s]||new Map()); const cur=bySrc[s].get(k); if(!cur||rank(c.res)>rank(cur.res)) bySrc[s].set(k,{name:c.p,res:c.res}); }); });
   // Closé = vraie fiche signée (source unique), pas le tag EOD → un close LinkedIn taggé "Show-up" compte quand même.
@@ -3586,7 +3588,7 @@ function autoCallCandidates(M){
   // 2) CALLS des closers = le résultat (show / no-show / closé). Setter = celui qui a booké si connu, sinon la source taguée.
   const called=new Set();
   monthE.forEach(e=>{ callsArr(e).forEach(c=>{ if(junkName(c.p)) return; const k=normName(c.p); const bk=bookedBy[k];
-    out.push({prospect:c.p, setter:(bk?bk.setter:SRC_SETTER[c.src])||"", closer:e.member||"", date:e.report_date||"", show:(c.res==="Show-up"||c.res==="Closé")?true:(c.res==="No-show"?false:null), closed:c.res==="Closé", verified:false});
+    out.push({prospect:c.p, setter:(bk?bk.setter:SRC_SETTER[c.src])||"", closer:e.member||"", date:e.report_date||"", show:CALL_SHOWN.has(c.res)?true:(c.res==="No-show"?false:null), closed:c.res==="Closé", verified:false});
     if(k) called.add(k); }); });
   // 3) RDV pris SANS call encore trouvé (booké mais pas de résultat) -> statut vide, chez son setter
   Object.keys(bookedBy).forEach(k=>{ if(called.has(k)) return; const b=bookedBy[k]; out.push({prospect:b.name, setter:b.setter, closer:"", date:b.date, show:null, verified:false}); });
@@ -3686,7 +3688,7 @@ function renderFinance(){
   const closedThisMonth=CLIENTS.filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c));
   const genMonth=closedThisMonth.reduce((s,c)=>s+clientMontant(c),0);
   const agg=aggCalls(monthEods);
-  function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>c.res==="Show-up"||c.res==="Closé").length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":"✅ show")])); return det; }
+  function setterTrack(nm){ const det=[]; const bk=bookedForSetter(monthEods,nm); det.push(["📌 RDV pris notés ("+nm+")", bk.length]); bk.forEach(b=>det.push(["• "+(b.name||""), b.verified?"✓ vérifié":"—"])); const cl=callsForSetter(monthEods,nm); const su=cl.filter(c=>CALL_SHOWN.has(c.res)).length, ns=cl.filter(c=>c.res==="No-show").length, cz=cl.filter(c=>c.res==="Closé").length; det.push(["📞 Calls remontés (closers)", cl.length]); det.push(["✅ Show-up (= leads comptés)", su]); det.push(["❌ No-show", ns]); det.push(["🎯 Closés", cz]); cl.forEach(c=>det.push(["• "+(c.p||"—")+(c.by?" ("+c.by+")":""), c.res==="Closé"?"🎯 closé":(c.res==="No-show"?"❌ no-show":(CALL_SHOWN.has(c.res)?"✅ "+escapeHtml(c.res):"• "+escapeHtml(c.res||"—")))])); return det; }
   const stIl=statOf("Ilyas",M), stLu=statOf("Lucas",M);
   const has=v=>v!=null&&v!=="";
   const ilRdv = has(stIl.rdv)?Number(stIl.rdv):trackerLeads(M,"Ilyas");
