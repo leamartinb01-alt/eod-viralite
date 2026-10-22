@@ -748,7 +748,7 @@ const MOODS = [
   { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
 ];
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
-const CALL_RESULTS = ["Show-up","No-show","Closé"];
+const CALL_RESULTS = ["Show-up","No-show","Closé","Disqualifié"];
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
 /* Leads d'Ilyas DÉJÀ VÉRIFIÉS par Léa (juin) — comptent comme leads payés, archivés dans sa fiche */
 const CALL_SEED=[
@@ -3665,6 +3665,7 @@ function renderFinance(){
   if(isMontantsOnly()){ renderFinTable(); return; } // accès « Montants » : on ne calcule/affiche QUE le tableau des encaissements (aucune donnée paie/marge/COO n'est générée)
   const M=$("finMonth").value||monthStr(), C=CONFIG.COMM;
   renderFinLockRow(M);
+  try{ autoCloseFinishedMonths(); }catch(e){} // 🔒 verrouille tout seul les mois déjà terminés (une seule fois chacun)
   // encaissements du mois
   let encTot=0, dueMonth=0, dueTotal=0, byCloser={}, lucasCA=0, coachTot=0, nbCoachClients=0;
   CLIENTS.forEach(c=>{
@@ -4155,6 +4156,38 @@ async function lockMonth(M){ if(!isAdmin()){ alert("Réservé à l'admin."); ret
     renderFinance();
     if(box){ box.className="msg ok"; box.textContent="🔒 "+monthLabelFr(M)+" clôturé — "+arr.length+" montant(s) figé(s). Ce mois ne bougera plus."; }
   }catch(e){ if(box){ box.className="msg err"; box.textContent="Erreur : "+e.message; } }
+}
+// 🔒 AUTO : tout mois TERMINÉ (avant le mois en cours) se verrouille tout seul → ses montants sont figés et ne bougeront plus jamais,
+// même si on change un %/fixe ou qu'on ajoute quelqu'un. Ne verrouille que les mois pas encore verrouillés (donc une seule fois par mois).
+let _autoLockRunning=false;
+async function autoCloseFinishedMonths(){
+  if(_autoLockRunning || !isAdmin() || !db || !CLIENTS || !CLIENTS.length) return;
+  const cur=monthStr();
+  const set=new Set();
+  (CLIENTS||[]).forEach(c=>{ (c.schedule||[]).forEach(s=>{ if(s.paid && s.month) set.add(String(s.month).slice(0,7)); }); const sm=startMonth(c); if(sm) set.add(sm); if(encGlobal(c)>0) set.add(baseMonth(c)); });
+  Object.keys(SSTATS||{}).forEach(k=>{ const mm=(k.split("|")[1]||"").slice(0,7); if(mm) set.add(mm); });
+  const locked=Array.isArray(SETTINGS.lockedMonths)?SETTINGS.lockedMonths.slice():[];
+  const toLock=[...set].filter(m=>m && /^\d{4}-\d{2}$/.test(m) && String(m)<String(cur) && locked.indexOf(m)<0).sort();
+  if(!toLock.length) return;
+  _autoLockRunning=true;
+  try{
+    initFirebase();
+    const statMap={}; Object.keys(SSTATS||{}).forEach(k=>statMap[k]=SSTATS[k]);
+    const writes=[]; const act=(CLIENTS||[]).filter(c=>!c.deleted);
+    toLock.forEach(M=>{
+      const arr=payForMonth(M, act, [], statMap);
+      arr.forEach(p=>{ const amt=Math.round((Number(p.eff)||0)*100)/100; const obj={member:p.n, month:M, override:amt, locked:true};
+        SSTATS[p.n+"|"+M]={...statOf(p.n,M),...obj};
+        writes.push(db.collection("setter_stats").doc(p.n+"_"+M).set(obj,{merge:true})); });
+      locked.push(M);
+    });
+    SETTINGS.lockedMonths=locked;
+    writes.push(db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, lockedMonths:locked},{merge:true}));
+    await Promise.all(writes);
+    const box=$("saveAllMsg"); if(box){ box.className="msg ok"; box.style.display="block"; box.textContent="🔒 "+toLock.length+" mois terminé(s) verrouillé(s) automatiquement ("+toLock.join(", ")+") — ils ne bougeront plus."; }
+    try{ renderFinLockRow(($("finMonth")&&$("finMonth").value)||cur); }catch(e){}
+  }catch(e){}
+  _autoLockRunning=false;
 }
 async function unlockMonth(M){ if(!isAdmin()){ alert("Réservé à l'admin."); return; } M=M||($("finMonth")&&$("finMonth").value)||monthStr();
   if(!confirm(`Rouvrir ${monthLabelFr(M)} ?\n\nLes montants figés par la clôture seront enlevés → le mois recalculera à nouveau avec la config actuelle. Les ajustements que tu avais mis à la main, eux, restent.`)) return;
