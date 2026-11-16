@@ -416,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 21/10/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 16/11/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -458,7 +458,7 @@
     <div id="myEods" style="margin-top:14px"></div>
     <div class="card" style="margin-top:14px">
       <h2 style="margin:0 0 4px">🔎 Rechercher dans les EOD</h2>
-      <p class="sub2" style="margin:0 0 8px">Tape un nom / prénom de prospect pour retrouver tout ce qui a été noté à son sujet (calls, RDV, notes) par l'équipe.</p>
+      <p class="sub2" style="margin:0 0 8px">Tape un nom / prénom de prospect pour retrouver les calls, RDV et notes faits à son sujet — <b>tes propres leads</b> (l'admin et le Head of Sales voient toute l'équipe).</p>
       <input id="eodSearchInput" type="text" placeholder="Ex : Dupont, Marie…" oninput="searchEods()" autocomplete="off" style="width:100%">
       <div id="eodSearchResults" style="margin-top:10px"></div>
     </div>
@@ -890,6 +890,8 @@ function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||
 // Illimité = propriété de l'OFFRE. Par défaut TOUT est illimité, SAUF les anciennes offres « Viral Pro » et « Élite Virale » (appels limités).
 // La case 🔓 dans Réglages → Offres permet de forcer (coché/décoché) ; sans choix explicite on applique ce défaut par nom.
 function offerUnlimited(o){ if(!o) return true; if(o.illim!=null) return !!o.illim; const n=normOffer(o.name)||""; if(n.includes("viral pro")||n.includes("elite viral")) return false; return true; }
+// 🎯 Tunnel de vente inclus par défaut pour les NOUVEAUX Mentorat & Partenariat (les anciens clients ne l'ont pas tant que la case n'est pas cochée).
+function tunnelByDefault(prog){ const n=normOffer(prog)||""; return n.includes("mentorat")||n.includes("partenariat")||n.includes("partnership"); }
 // Compat : un ancien client coché « Version 2 » (c.v2) reste illimité.
 function isV2(c){ return offerUnlimited(offerFor(c&&c.programme)) || !!(c&&c.v2); }
 function coachTotal(c){ if(c&&c.coaching&&c.coaching.total!=null&&c.coaching.total!=="") return Number(c.coaching.total)||0; const o=offerFor(c&&c.programme); if(o&&o.sessions) return Number(o.sessions)||0; const m=monthsBetween(c&&c.date_debut,c&&c.date_fin); return m?3*m:12; }
@@ -1634,14 +1636,13 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         ${verB}
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        ${callsMonthB}${callsB}${editoB}
+        ${callsMonthB}${editoB}${analyseStatusBadge(c)}
+        ${c.tunnel?`<span class="gbadge" title="Tunnel de vente inclus dans l'accompagnement" style="border-color:#ff8b47;color:#ff8b47;font-weight:800">🎯 Tunnel de vente</span>`:''}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
-        ${unlim?'':`<span class="gbadge" style="border-color:var(--line)">🎯 ${pct}%</span>`}
-        ${callMgmtBadge(c)}
         ${flowListed(c)?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="sub2">📞 Suivi appel :</span>${callMgmtBtns(c)}</div>
       ${editoMonths(c)}
+      ${analyseMonths(c)}
       ${satisMonths(c)}
       ${rappelsBlock(c)}
       <details class="calwrap"><summary>📅 Calendrier des coachings</summary>${coachCalendar(c)}</details>
@@ -1673,13 +1674,14 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
+  const infoBox = `<div class="card" style="border-color:rgba(255,139,71,.35);background:rgba(255,139,71,.06);margin:0 0 12px"><div style="font-weight:700;margin-bottom:2px">💡 Rappels coach</div><div class="sub2">• En <b>début d'accompagnement</b>, cale un petit <b>appel de 15 min par semaine</b> pour faire le point.<br>• Les appels sont <b>illimités</b> — pas de retard de call à gérer.<br>• <b>Pointe bien chaque coaching</b> (bouton « + Pointer le coaching du jour ») et <b>fais tes analyses tous les 15 jours</b>.</div></div>`;
   // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+infoBox+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
   const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Fondateur (1/mois) + upsells à préparer (J-10) — sur tous les clients
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
-  let html=seedBtn+upC+loicC+coachAlertsCard(cs);
+  let html=seedBtn+infoBox+upC+loicC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
     const col=coachColor(coach); const l=((coach||"?").trim().charAt(0)||"?").toUpperCase();
     html+=`<details class="cdet" ${idx<2?"open":""} style="margin-top:10px;border-left:3px solid ${col};padding-left:6px">
@@ -1740,6 +1742,33 @@ async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLI
   const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
   const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
+/* 🔍 Analyses de quinzaine : 1 analyse complète tous les 15 jours depuis l'onboarding. Le coach coche « faite » + date + note.
+   Stocké dans c.analyses = {"1":{done,date,note},…}. Rien n'est touché sur les clients existants tant que rien n'est coché. */
+function analyseNb(c){ return editoNb(c); } // 1 analyse par quinzaine (même cadence que l'éditorial)
+function analyseDone(c){ const a=(c&&c.analyses)||{}; return Object.keys(a).filter(k=>a[k]&&a[k].done).length; }
+function analyseDueCount(c){ const onb=onbDate(c); if(!onb) return 0; const d=daysDiff(onb, todayStr()); if(d==null||d<0) return 0; return Math.min(analyseNb(c), Math.floor(d/15)); } // 1 analyse due à chaque palier de 15 jours écoulé
+function analyseStatusBadge(c){ const onb=onbDate(c); if(!onb) return ""; const late=analyseDueCount(c)-analyseDone(c);
+  if(late>0) return `<span class="gbadge" title="Analyses de quinzaine en retard" style="border-color:var(--red);color:var(--red);font-weight:800">🔍 ${late} analyse(s) à faire</span>`;
+  return `<span class="gbadge" title="Analyses de quinzaine à jour" style="border-color:rgba(52,199,89,.5);color:#7ee2a3;font-weight:800">🔍 analyses à jour</span>`; }
+function analyseMonths(c){ const onb=onbDate(c); const n=analyseNb(c); const a=c.analyses||{}; let rows="";
+  for(let i=1;i<=n;i++){ const e=a[i]||{}; const dueDate=onb?addDaysISO(onb,i*15):""; const overdue=!e.done && dueDate && dueDate<todayStr();
+    rows+=`<div class="edrow${e.done?' on':''}" data-k="${i}" style="flex-wrap:wrap">
+      <span class="edm"${overdue?' style="color:var(--red)"':''}>#${i}${dueDate?' · ≈ '+dayLabel(dueDate):''}</span>
+      <label class="ck edtoggle"><input type="checkbox" class="anDone" ${e.done?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> faite</label>
+      <input type="date" class="anDate" value="${escapeHtml(e.date||'')}" title="Date de l'analyse" style="width:150px">
+      <input type="text" class="anNote" value="${escapeHtml(e.note||'')}" placeholder="note / lien de l'analyse" style="flex:1;min-width:140px">
+    </div>`; }
+  const done=analyseDone(c), late=analyseDueCount(c)-done;
+  return `<details class="cdet" style="margin-top:10px"><summary>🔍 Analyses de quinzaine — ${done}/${n} faites ${late>0?`<span style="color:var(--red)">· ${late} à faire</span>`:`<span style="color:#7ee2a3">· à jour</span>`}</summary>
+    <div class="anbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">
+      <div class="hint">1 analyse complète <b>tous les 15 jours</b> depuis l'onboarding. Coche « faite », mets la date et une note (ex : lien du doc d'analyse). Pour un client déjà en cours, rattrape la 1re depuis le début.</div>
+      ${rows||'<div class="sub2" style="margin:6px 0">Renseigne la date d\'onboarding pour générer les analyses.</div>'}
+      <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveAnalyses('${c.id}')">💾 Enregistrer</button>
+      <div class="anMsg msg"></div></div></details>`; }
+async function saveAnalyses(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=[...document.querySelectorAll('.anbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; if(!c||!box) return;
+  const analyses={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const done=r.querySelector(".anDone").checked; const date=r.querySelector(".anDate").value||""; const note=(r.querySelector(".anNote").value||"").trim(); if(done||date||note) analyses[k]={done,date,note}; });
+  const m=box.querySelector(".anMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  try{ await db.collection("clients").doc(id).update({analyses}); c.analyses=analyses; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Note de suivi des rappels faits — un texte libre par client, dans l'espace coaching. Visible par toute l'équipe. */
 function rappelsBlock(c){ const nb=((c.coach_rappels||"").match(/\n/g)||[]).length + ((c.coach_rappels||"").trim()?1:0);
   return `<details class="cdet" style="margin-top:10px"><summary>📞 Suivi des rappels${nb?` — ${nb} ligne${nb>1?'s':''}`:''}</summary>
@@ -1911,17 +1940,10 @@ function coachAlertsCard(cs){
   const preEd=cs.filter(c=>editoStatus(c).code==="prevoir");
   const covEd=cs.filter(c=>editoStatus(c).code==="covered");
   const noDate=cs.filter(c=>!onbDate(c));
-  if(!lateCalls.length && !relCalls.length && !lateEd.length && !preEd.length && !covEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Tous les clients sont à jour (calls & édito)</h2></div>`;
-  // Sections repliables. DEUX cartes distinctes : Calls / Calendriers éditoriaux.
+  // 📞 Les calls sont illimités pour tout le monde → on n'affiche plus les « calls en retard / à relancer ». On ne garde que les retards de calendrier éditorial.
+  if(!lateEd.length && !preEd.length && !covEd.length && !noDate.length) return `<div class="card" style="border-color:rgba(52,199,89,.35);background:rgba(52,199,89,.06);margin:0 0 12px"><h2 style="margin:0">✅ Calendriers éditoriaux à jour</h2></div>`;
   const sec=(title,color,open,rows)=>rows.length?`<details class="cdet" ${open?'open':''} style="margin-top:8px"><summary style="color:${color};font-weight:700">${title} (${rows.length})</summary><div style="margin-top:4px">${rows.join("")}</div></details>`:"";
   let out="";
-  // ---- Carte CALLS (info seule) ----
-  if(lateCalls.length || relCalls.length){
-    out+=`<div class="card" style="border-color:rgba(255,69,58,.4);margin:0 0 12px"><h2 style="margin:0 0 2px">📞 Calls à relancer</h2><p class="sub2" style="margin:0 0 4px">Pour info — se met à jour tout seul quand un coaching est pointé.</p>`
-      + sec("❌ En retard","var(--red)",true, lateCalls.map(c=>callRow(c,"var(--red)")))
-      + sec("🟠 À relancer bientôt","#ffcf7a",true, relCalls.map(c=>callRow(c,"#ffcf7a")))
-      + `</div>`;
-  }
   // ---- Carte CALENDRIERS ÉDITO (avec « couvert jusqu'au ») ----
   if(lateEd.length || preEd.length || covEd.length || noDate.length){
     out+=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 2px">🗓 Calendriers éditoriaux</h2><p class="sub2" style="margin:0 0 4px">Règle : <b>15 reels / 15 jours</b>. Mets une date « couvert jusqu'au » (en 2026) → le client passe en attente.</p>`
@@ -2309,15 +2331,24 @@ async function loadMyEods(){ const box=$("myEods"); if(!box) return;
   }
   renderMyEods();
 }
-// 🔎 Recherche dans TOUS les EOD : retrouve un prospect par nom et affiche calls, RDV et notes faits à son sujet par toute l'équipe.
+// 🔎 Recherche dans les EOD. Admin / Head of Sales : tous les EOD de l'équipe. Setter / closer / coach : UNIQUEMENT leurs propres leads (leurs propres EOD).
 let _EOD_SEARCH_CACHE=null;
 async function searchEods(){
   const inp=$("eodSearchInput"), box=$("eodSearchResults"); if(!box) return;
   const q=((inp&&inp.value)||"").trim();
   if(q.length<2){ box.innerHTML = q?'<div class="sub2">Tape au moins 2 lettres…</div>':''; return; }
+  const seeAll = isAdmin() || ACCESS==="hos"; // seul l'admin et le HoS voient toute l'équipe
   if(!_EOD_SEARCH_CACHE){ box.innerHTML='<div class="sub2">Chargement…</div>';
-    if(fbReady()){ initFirebase(); try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(5000).get(); _EOD_SEARCH_CACHE=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ _EOD_SEARCH_CACHE=(EODS||[]).slice(); } }
-    else _EOD_SEARCH_CACHE=(EODS||[]).slice();
+    const me=(LOGIN_NAME||"").trim();
+    if(seeAll){
+      if(fbReady()){ initFirebase(); try{ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(5000).get(); _EOD_SEARCH_CACHE=s.docs.map(d=>({id:d.id,...d.data()})); }catch(e){ _EOD_SEARCH_CACHE=(EODS||[]).slice(); } }
+      else _EOD_SEARCH_CACHE=(EODS||[]).slice();
+    } else {
+      // uniquement SES propres EOD (ses leads à lui)
+      if(Array.isArray(MY_EODS)&&MY_EODS.length){ _EOD_SEARCH_CACHE=MY_EODS.slice(); }
+      else if(me && fbReady()){ initFirebase(); try{ const s=await db.collection("eod_reports").where("member","==",me).get(); _EOD_SEARCH_CACHE=s.docs.map(d=>({id:d.id,...d.data()})); const ids=new Set(_EOD_SEARCH_CACHE.map(x=>x.id)); (EODS||[]).forEach(x=>{ if(eqName(x.member,me)&&!ids.has(x.id)){ _EOD_SEARCH_CACHE.push(x); ids.add(x.id); } }); }catch(e){ _EOD_SEARCH_CACHE=(EODS||[]).filter(x=>eqName(x.member,me)); } }
+      else _EOD_SEARCH_CACHE=(EODS||[]).filter(x=>eqName(x.member,me));
+    }
     if(((inp&&inp.value)||"").trim()!==q) return; // la saisie a changé entre-temps
   }
   const nq=noAcc(q).toLowerCase(); const inc=s=>noAcc(String(s||"")).toLowerCase().includes(nq);
@@ -3242,6 +3273,7 @@ const CLIENT_FIELDS=[
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
+  { key:"tunnel",label:"🎯 Tunnel de vente inclus (nouveauté — Mentorat / Partenariat)",type:"check" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
   { key:"onboarding_date",label:"Date d'onboarding (début du suivi coaching)",type:"date" },
   { key:"montant",label:"Montant total du contrat (€)",type:"number" },{ key:"encaisse",label:"Total encaissé (€) — OU laisse vide et coche l'échéancier (l'app prend le plus grand des deux)",type:"number" },
@@ -3279,6 +3311,8 @@ function renderClientForm(data){
 function onOfferPick(initial){ const pe=$("cf_programme"); if(!pe) return; const o=offerFor(pe.value); const h=$("offerHint");
   if(h){ let t=o?("🎓 "+o.name+" : "+(o.sessions||"?")+" séances"+(o.months?" · "+o.months+" mois d'accès":"")+(o.price?" · "+o.price+" €":"")):""; const ob=$("cf_onboarding_date"); const fe=(ob&&ob.value&&o&&Number(o.months))?addMonthsISO(ob.value,o.months):""; if(fe) t+=" · 🏁 fin d'accès "+dayLabel(fe); h.textContent=t; }
   if(!initial && o){ const mEl=$("cf_montant"); if(mEl && (!mEl.value || Number(mEl.value)===0) && o.price) mEl.value=o.price; }
+  // 🎯 Nouvelle fiche : coche le tunnel de vente tout seul pour Mentorat/Partenariat (on ne touche pas aux fiches existantes).
+  if(!initial && currentClientId==null){ const tn=$("cf_tunnel"); if(tn) tn.checked=tunnelByDefault(pe.value); }
   if(!initial) recalcFin();
 }
 // Tu modifies la date de fin à la main → on la marque comme prioritaire (l'auto ne l'écrase plus)
@@ -3534,7 +3568,7 @@ function renderClients(){
     return `<details class="clcard" data-id="${escapeHtml(c.id)}">
       <summary>
         <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${isV2(c)?' <span title="Appels illimités" style="color:#c9a0ff;font-weight:800">♾️</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
+          <span class="who" style="flex:none">${offerEmoji(c.programme)?offerEmoji(c.programme)+" ":""}${inImmersive(c.id)?"🎟️ ":""}${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}${isV2(c)?' <span title="Appels illimités" style="color:#c9a0ff;font-weight:800">♾️</span>':''}${c.tunnel?' <span title="Tunnel de vente inclus" style="color:#ff8b47;font-weight:800">🎯</span>':''}${flowListed(c)?` <span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800;font-size:10px;padding:1px 6px">${flowStatusDef(c).l}</span>`:''}</span>
           <span class="sub2" style="font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${metaLine}</span>
         </div>
         ${money?`<span class="pill gold">${eur(encC)} / ${eur(clientMontant(c))}</span>`:""}
