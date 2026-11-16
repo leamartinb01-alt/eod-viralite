@@ -872,7 +872,7 @@ function offerFor(prog){ const p=normOffer(prog); if(!p) return null; const off=
   if(p.includes("viral")) return off.find(x=>normOffer(x.name).includes("viral"))||null;
   return null; }
 function offerEmoji(prog){ const o=offerFor(prog); return (o&&o.emoji)||""; }
-function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s); } // tous en suivi sauf terminé / annulé
+function isSuivi(c){ const s=(c&&c.statut||"").trim().toLowerCase(); return s!=="terminé" && s!=="termine" && !/annul/.test(s) && !(c&&c.coaching_done); } // tous en suivi sauf terminé / annulé / accompagnement clôturé
 function coachClients(){ return CLIENTS.filter(isSuivi).sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||""))); }
 // Match tolérant sur le nom du coach ("John" = "John LB", accents/casse) — pour l'EOD coach.
 function sameCoachName(a,b){ a=noAcc(a||"").trim(); b=noAcc(b||"").trim(); if(!a||!b) return false; if(a===b) return true; return a.split(/\s+/)[0]===b.split(/\s+/)[0]; }
@@ -883,7 +883,36 @@ function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; con
   const rows=goals.map(g=>{ const done=mine.reduce((s,x)=>s+(Number(x.payload&&x.payload[g.key])||0),0); const t=Number(g.target)||0; const pct=t?Math.min(100,Math.round(done/t*100)):0; const ok=t&&done>=t;
     return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
   return `<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs — ${monthLabel(M)}</h2>${rows}<div class="hint">Se met à jour tout seul quand tu envoies tes EOD du mois.</div></div>`; }
-function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dgMineBlock(name)+setterGoalsBlock(name); }
+// ⭐ Phrase du jour — motivante, change chaque jour, un peu gamifiée. Même phrase toute la journée pour une personne (déterministe par date+nom).
+const MOTIV_PHRASES=[
+  "aujourd'hui, un closing de plus que personne n'attend. 🔥",
+  "chaque appel est une chance. Prends-les toutes. 🎯",
+  "le NON d'aujourd'hui, c'est le OUI de demain. 💪",
+  "ta meilleure journée n'est pas encore arrivée — fais-la maintenant. 🚀",
+  "concentre-toi sur le prochain call, pas sur le dernier. 🧠",
+  "l'énergie que tu mets revient toujours. Donne tout. ⚡",
+  "un lead bien suivi vaut dix leads oubliés. 📞",
+  "sois le closer que tu voudrais avoir en face de toi. 🤝",
+  "discipline aujourd'hui = liberté demain. 🏆",
+  "parle moins, écoute plus, close mieux. 👂",
+  "le marché récompense les réguliers, pas les parfaits. 📈",
+  "fais-en un de plus. C'est souvent celui-là qui compte. ➕",
+  "ton seul concurrent, c'est toi d'hier. Dépasse-le. 🥇",
+  "la confiance se construit appel après appel. Commence. 💬",
+  "un bon follow-up a sauvé plus de deals qu'un bon pitch. 🔁",
+  "souris au téléphone, ça s'entend. 😄",
+  "les champions pointent tout, tout le temps. ✍️",
+  "vends le résultat, pas le produit. 🎁",
+  "reste calme, reste clair, reste présent. 🌊",
+  "aujourd'hui tu sèmes, bientôt tu récoltes. 🌱",
+];
+function _motivSeed(s){ s=String(s||""); let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function dailyMotivation(name){ const first=((name||"").trim().split(/\s+/)[0])||""; const phrase=MOTIV_PHRASES[_motivSeed(todayStr()+"|"+first)%MOTIV_PHRASES.length];
+  return `<div class="card" style="margin:0 0 12px;border:none;background:linear-gradient(135deg,#ff8b47,#e04c6b);color:#fff;box-shadow:0 10px 30px rgba(224,76,107,.25)">
+    <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;opacity:.9">⭐ Ta phrase du jour</div>
+    <div style="font-size:16px;font-weight:800;margin-top:5px;line-height:1.35">${first?escapeHtml(first)+", ":""}${escapeHtml(phrase)}</div>
+  </div>`; }
+function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dailyMotivation(name)+setterGoalsBlock(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 // Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
@@ -1628,16 +1657,14 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
     const es=editoStatus(c);
     const editoB = `<span class="gbadge" style="border-color:${es.cl};color:${es.cl}">${es.label}</span>`;
     return `<div class="card cwkcard" data-id="${c.id}">
-      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${unlim?`${done} · ∞`:`${done} / ${tot}`}</span></div>
+      <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${done} séance${done>1?'s':''}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
-      <div class="cwk-sub" style="margin-top:2px">📅 Démarrage (onboarding) : <b>${onbDate(c)?frDate(onbDate(c)):"—"}</b></div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
-      ${unlim?`<div class="cwk-sub" style="margin-top:6px;color:#c9a0ff">♾️ <b>Appels illimités</b> — pas de nombre à respecter. Suivi à la régularité (voir statut ci-dessous).</div>`:`<div class="cwk-bar"><span style="width:${pct}%"></span></div>`}
+      ${unlim?'':`<div class="cwk-bar" style="margin-top:8px"><span style="width:${pct}%"></span></div>`}
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
-        ${verB}
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
-        ${callsMonthB}${editoB}${analyseStatusBadge(c)}
-        ${c.tunnel?`<span class="gbadge" title="Tunnel de vente inclus dans l'accompagnement" style="border-color:#ff8b47;color:#ff8b47;font-weight:800">🎯 Tunnel de vente</span>`:''}
+        ${editoB}${analyseStatusBadge(c)}
+        ${c.tunnel?`<span class="gbadge" title="Tunnel de vente (VSL) inclus" style="border-color:#ff8b47;color:#ff8b47;font-weight:800">🎯 Tunnel VSL</span>`:''}
         <span class="gbadge" style="border-color:${satisDone(c)>=satisTotal(c)?'#34c759':'var(--line)'};color:${satisDone(c)>=satisTotal(c)?'#7ee2a3':'var(--muted)'}">📝 ${satisDone(c)}/${satisTotal(c)}</span>
         ${flowListed(c)?`<span class="gbadge" title="Statut décrochage/impayé" style="border-color:${flowStatusDef(c).cl};color:${flowStatusDef(c).cl};font-weight:800">${flowStatusDef(c).l}</span>`:''}
       </div>
@@ -1658,10 +1685,19 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
         </div>
         <label>🎬 Lien Fathom du call (optionnel) — le client pourra revisionner</label><input type="url" class="cgFathom" placeholder="https://fathom.video/…">
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
-        ${unlim?`<div class="cwk-in"><span class="sub2">🔓 Version 2 — appels illimités, pas de total à définir.</span></div>`:`<div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>`}
+        ${unlim?'':`<div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>`}
       </div>
+      <div style="margin-top:10px;text-align:right"><button type="button" class="btn ghost sm" style="width:auto;border-color:rgba(52,199,89,.4);color:#7ee2a3" onclick="finishCoaching('${c.id}')">✅ Accompagnement terminé</button></div>
     </div>`;
 }
+// Marque l'accompagnement comme terminé → le client disparaît de l'onglet Coaching (réversible depuis sa fiche). On note aussi s'il y a eu un upsell.
+async function finishCoaching(id){ const c=CLIENTS.find(x=>x.id===id); if(!c) return;
+  const nm=((c.nom||"")+" "+(c.prenom||"")).trim();
+  if(!confirm("Marquer l'accompagnement de « "+nm+" » comme TERMINÉ ?\n\nIl disparaîtra de l'onglet Coaching (ses données sont gardées).")) return;
+  const hadUpsell=confirm("Y a-t-il eu un UPSELL (prolongation) sur ce client ?\n\nOK = oui · Annuler = non");
+  if(!fbReady()){ alert("Backend non connecté."); return; } initFirebase();
+  const obj={coaching_done:true, coaching_done_date:todayStr()}; if(hadUpsell) obj.upsell=true;
+  try{ await db.collection("clients").doc(id).update(obj); Object.assign(c,obj); renderCoachingTab(); }catch(e){ alert("Erreur : "+e.message); } }
 function renderCoachingTab(){
   const box=$("coachingList"); if(!box) return;
   const q=(($("cgSearch")&&$("cgSearch").value)||"").toLowerCase();
@@ -1674,7 +1710,7 @@ function renderCoachingTab(){
   cs.sort((a,b)=>String(a.nom||"").localeCompare(String(b.nom||"")));
   if(!cs.length){ box.innerHTML='<div class="empty">Aucun client.</div>'; return; }
   const seedBtn = isAdmin() ? `<div style="margin:0 0 10px;text-align:right"><button class="btn ghost sm" style="width:auto" onclick="seedCoachDates()">⚡ Pré-remplir onboarding & derniers calls (dates fournies)</button></div>` : "";
-  const infoBox = `<div class="card" style="border-color:rgba(255,139,71,.35);background:rgba(255,139,71,.06);margin:0 0 12px"><div style="font-weight:700;margin-bottom:2px">💡 Rappels coach</div><div class="sub2">• En <b>début d'accompagnement</b>, cale un petit <b>appel de 15 min par semaine</b> pour faire le point.<br>• Les appels sont <b>illimités</b> — pas de retard de call à gérer.<br>• <b>Pointe bien chaque coaching</b> (bouton « + Pointer le coaching du jour ») et <b>fais tes analyses tous les 15 jours</b>.</div></div>`;
+  const infoBox = `<div class="card" style="border-color:rgba(255,139,71,.35);background:rgba(255,139,71,.06);margin:0 0 12px"><div style="font-weight:700;margin-bottom:2px">💡 Rappels coach</div><div class="sub2">• En <b>début d'accompagnement</b> : cale un <b>appel de 15 min par semaine</b> pour faire le point.<br>• <b>Pointe bien chaque coaching</b> et fais une <b>analyse tous les 15 jours</b>.<br>• <b>Mentorat / Partenariat</b> : n'oublie pas de gérer le <b>tunnel de VSL</b> 🎯.</div></div>`;
   // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
     box.innerHTML=seedBtn+infoBox+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
@@ -1742,31 +1778,34 @@ async function saveSatis(id){ if(!fbReady()) return; initFirebase(); const c=CLI
   const satis={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const sent=r.querySelector(".stSent").checked; const date=r.querySelector(".stDate").value||""; if(sent||date) satis[k]={sent,date}; });
   const m=box.querySelector(".satMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({satis}); c.satis=satis; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
-/* 🔍 Analyses de quinzaine : 1 analyse complète tous les 15 jours depuis l'onboarding. Le coach coche « faite » + date + note.
-   Stocké dans c.analyses = {"1":{done,date,note},…}. Rien n'est touché sur les clients existants tant que rien n'est coché. */
-function analyseNb(c){ return editoNb(c); } // 1 analyse par quinzaine (même cadence que l'éditorial)
+/* 🔍 Analyses de quinzaine : 1 analyse tous les 15 jours. On ne flague JAMAIS le passé d'avant la mise en place (ANALYSE_START) :
+   les anciens clients démarrent « à jour » et n'ont des analyses que pour les quinzaines À VENIR ; les nouveaux, dès leur onboarding.
+   Stocké dans c.analyses, clé = la date de l'analyse (YYYY-MM-DD) → stable. */
+const ANALYSE_START="2026-11-16";
+function analyseNb(c){ return editoNb(c); } // nb total sur l'accès (1 par quinzaine)
+function analyseDates(c){ const onb=onbDate(c); if(!onb) return []; const n=analyseNb(c); const out=[];
+  for(let i=1;i<=n;i++){ const d=addDaysISO(onb,i*15); if(d>=ANALYSE_START) out.push(d); } return out; }
 function analyseDone(c){ const a=(c&&c.analyses)||{}; return Object.keys(a).filter(k=>a[k]&&a[k].done).length; }
-function analyseDueCount(c){ const onb=onbDate(c); if(!onb) return 0; const d=daysDiff(onb, todayStr()); if(d==null||d<0) return 0; return Math.min(analyseNb(c), Math.floor(d/15)); } // 1 analyse due à chaque palier de 15 jours écoulé
-function analyseStatusBadge(c){ const onb=onbDate(c); if(!onb) return ""; const late=analyseDueCount(c)-analyseDone(c);
-  if(late>0) return `<span class="gbadge" title="Analyses de quinzaine en retard" style="border-color:var(--red);color:var(--red);font-weight:800">🔍 ${late} analyse(s) à faire</span>`;
+function analyseDueCount(c){ const t=todayStr(); return analyseDates(c).filter(d=>d<=t).length; } // analyses dont la date est passée
+function analyseStatusBadge(c){ if(!onbDate(c)) return ""; const dates=analyseDates(c); if(!dates.length) return ""; const late=analyseDueCount(c)-analyseDone(c);
+  if(late>0) return `<span class="gbadge" title="Analyses de quinzaine à faire" style="border-color:var(--red);color:var(--red);font-weight:800">🔍 ${late} analyse(s) à faire</span>`;
   return `<span class="gbadge" title="Analyses de quinzaine à jour" style="border-color:rgba(52,199,89,.5);color:#7ee2a3;font-weight:800">🔍 analyses à jour</span>`; }
-function analyseMonths(c){ const onb=onbDate(c); const n=analyseNb(c); const a=c.analyses||{}; let rows="";
-  for(let i=1;i<=n;i++){ const e=a[i]||{}; const dueDate=onb?addDaysISO(onb,i*15):""; const overdue=!e.done && dueDate && dueDate<todayStr();
-    rows+=`<div class="edrow${e.done?' on':''}" data-k="${i}" style="flex-wrap:wrap">
-      <span class="edm"${overdue?' style="color:var(--red)"':''}>#${i}${dueDate?' · ≈ '+dayLabel(dueDate):''}</span>
+function analyseMonths(c){ const dates=analyseDates(c); const a=c.analyses||{}; const t=todayStr(); let rows="";
+  dates.forEach((d,idx)=>{ const e=a[d]||{}; const overdue=!e.done && d<=t;
+    rows+=`<div class="edrow${e.done?' on':''}" data-k="${d}" style="flex-wrap:wrap">
+      <span class="edm"${overdue?' style="color:var(--red)"':''}>#${idx+1} · ${dayLabel(d)}${d>t?' <span class="sub2">(à venir)</span>':''}</span>
       <label class="ck edtoggle"><input type="checkbox" class="anDone" ${e.done?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> faite</label>
-      <input type="date" class="anDate" value="${escapeHtml(e.date||'')}" title="Date de l'analyse" style="width:150px">
-      <input type="text" class="anNote" value="${escapeHtml(e.note||'')}" placeholder="note / lien de l'analyse" style="flex:1;min-width:140px">
-    </div>`; }
+      <input type="text" class="anNote" value="${escapeHtml(e.note||'')}" placeholder="note / lien de l'analyse" style="flex:1;min-width:150px">
+    </div>`; });
   const done=analyseDone(c), late=analyseDueCount(c)-done;
-  return `<details class="cdet" style="margin-top:10px"><summary>🔍 Analyses de quinzaine — ${done}/${n} faites ${late>0?`<span style="color:var(--red)">· ${late} à faire</span>`:`<span style="color:#7ee2a3">· à jour</span>`}</summary>
+  return `<details class="cdet" style="margin-top:10px"><summary>🔍 Analyses de quinzaine — ${done} faite(s) ${late>0?`<span style="color:var(--red)">· ${late} à faire</span>`:`<span style="color:#7ee2a3">· à jour</span>`}</summary>
     <div class="anbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">
-      <div class="hint">1 analyse complète <b>tous les 15 jours</b> depuis l'onboarding. Coche « faite », mets la date et une note (ex : lien du doc d'analyse). Pour un client déjà en cours, rattrape la 1re depuis le début.</div>
+      <div class="hint">1 analyse <b>tous les 15 jours</b>. Coche « faite » + une note (ex : lien du doc). Les quinzaines d'avant la mise en place ne sont pas comptées.</div>
       ${rows||'<div class="sub2" style="margin:6px 0">Renseigne la date d\'onboarding pour générer les analyses.</div>'}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveAnalyses('${c.id}')">💾 Enregistrer</button>
       <div class="anMsg msg"></div></div></details>`; }
 async function saveAnalyses(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=[...document.querySelectorAll('.anbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; if(!c||!box) return;
-  const analyses={}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const done=r.querySelector(".anDone").checked; const date=r.querySelector(".anDate").value||""; const note=(r.querySelector(".anNote").value||"").trim(); if(done||date||note) analyses[k]={done,date,note}; });
+  const analyses={...(c.analyses||{})}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const done=r.querySelector(".anDone").checked; const note=(r.querySelector(".anNote").value||"").trim(); if(done||note) analyses[k]={done,note}; else delete analyses[k]; });
   const m=box.querySelector(".anMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({analyses}); c.analyses=analyses; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Note de suivi des rappels faits — un texte libre par client, dans l'espace coaching. Visible par toute l'équipe. */
@@ -1947,9 +1986,9 @@ function coachAlertsCard(cs){
   // ---- Carte CALENDRIERS ÉDITO (avec « couvert jusqu'au ») ----
   if(lateEd.length || preEd.length || covEd.length || noDate.length){
     out+=`<div class="card" style="border-color:rgba(255,180,71,.45);margin:0 0 12px"><h2 style="margin:0 0 2px">🗓 Calendriers éditoriaux</h2><p class="sub2" style="margin:0 0 4px">Règle : <b>15 reels / 15 jours</b>. Mets une date « couvert jusqu'au » (en 2026) → le client passe en attente.</p>`
-      + sec("🔴 En retard","var(--red)",true, lateEd.map(c=>edRow(c,"var(--red)")))
+      + sec("🔴 En retard","var(--red)",false, lateEd.map(c=>edRow(c,"var(--red)")))
       + sec("🟠 À prévoir","#ffcf7a",false, preEd.map(c=>edRow(c,"#ffcf7a")))
-      + sec("🕓 En attente — couvert","#8fb4ff",true, covEd.map(c=>edRow(c,"#8fb4ff")))
+      + sec("🕓 En attente — couvert","#8fb4ff",false, covEd.map(c=>edRow(c,"#8fb4ff")))
       + sec("📅 Onboarding manquant","var(--muted)",false, noDate.map(c=>`<div class="kv" style="cursor:pointer" onclick="editClient('${c.id}')"><span class="k">${offerEmoji(c.programme)} ${nom(c)}</span><span class="v sub2">renseigne l'onboarding</span></div>`))
       + `</div>`;
   }
