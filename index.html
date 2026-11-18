@@ -778,26 +778,23 @@ const FORMS = {
     { key:"mood",            label:"Ton énergie du jour ⚡️",               type:"mood" },
     { key:"feeling",         label:"Un mot sur ta journée ? (optionnel)",   type:"textarea" },
   ],
+  // Setter INSTA / LinkedIn — suivi de la journée : leads envoyés, relances, RDV calés, débrief.
   setter:[
-    { key:"contacts_src",     label:"👥 Personnes contactées aujourd'hui — par source", type:"srccount" },
-    { key:"in_contact",       label:"Personnes en contact (conversations)", type:"number" },
-    { key:"calls_booked",     label:"Calls pris (RDV calés)",               type:"number" },
-    { key:"booked",           label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
-    { key:"need_help",        label:"Un blocage / besoin d'aide ?",         type:"textarea" },
-    { key:"mood",             label:"Ton énergie du jour ⚡️",              type:"mood" },
-    { key:"feeling",          label:"Un mot sur ta journée ? (optionnel)",  type:"textarea" },
-  ],
-  // Setter APPEL (ex : Emerry) — funnel téléphonique dédié : messages → réponses → appels réservés → appels qualifiés.
-  setter_appel:[
-    { key:"calls_made",   label:"📞 Personnes appelées aujourd'hui",            type:"number" },
-    { key:"messages",     label:"💬 Messages envoyés aujourd'hui",              type:"number" },
-    { key:"replies",      label:"↩️ Réponses reçues",                          type:"number" },
-    { key:"calls_booked", label:"📅 Appels réservés (RDV calés)",              type:"number" },
-    { key:"calls_qualif", label:"✅ Appels qualifiés",                         type:"number" },
+    { key:"contacted",    label:"📤 Nouveaux leads envoyés aujourd'hui", type:"number" },
+    { key:"relances",     label:"🔁 Relances faites aujourd'hui",        type:"number" },
+    { key:"calls_booked", label:"📅 Calls bookés (RDV calés)",            type:"number" },
     { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
-    { key:"need_help",    label:"Un blocage / besoin d'aide ?",                type:"textarea" },
-    { key:"mood",         label:"Ton énergie du jour ⚡️",                     type:"mood" },
-    { key:"feeling",      label:"Un mot sur ta journée ? (optionnel)",         type:"textarea" },
+    { key:"debrief",      label:"📝 Débrief de la journée",              type:"textarea" },
+    { key:"mood",         label:"Ton énergie du jour ⚡️",               type:"mood" },
+  ],
+  // Setter APPEL (ex : Emerry) — suivi téléphonique : appels passés, relances, RDV calés, débrief.
+  setter_appel:[
+    { key:"calls_made",   label:"📞 Personnes appelées aujourd'hui",     type:"number" },
+    { key:"relances",     label:"🔁 Relances faites aujourd'hui",        type:"number" },
+    { key:"calls_booked", label:"📅 Appels bookés (RDV calés)",          type:"number" },
+    { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
+    { key:"debrief",      label:"📝 Débrief de la journée",              type:"textarea" },
+    { key:"mood",         label:"Ton énergie du jour ⚡️",               type:"mood" },
   ],
   coach:[
     { key:"clientlog", label:"📋 Suivi clients du jour — action + note pour chaque client coaché", type:"clientlog" },
@@ -912,7 +909,7 @@ function dailyMotivation(name){ const first=((name||"").trim().split(/\s+/)[0])|
     <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;opacity:.9">⭐ Ta phrase du jour</div>
     <div style="font-size:16px;font-weight:800;margin-top:5px;line-height:1.35">${first?escapeHtml(first)+", ":""}${escapeHtml(phrase)}</div>
   </div>`; }
-function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dailyMotivation(name)+setterGoalsBlock(name); }
+function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dailyMotivation(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
 // Version de l'offre : v2 = appels illimités (pas de total à respecter). Tout client sans le champ = v1 (limité).
@@ -1011,9 +1008,9 @@ const ACCESS_TABS={
   setter: ["form"],                                                           // EOD seulement
   closer: ["form","clients"],                                                 // EOD + Clients (Impayés & Immersive retirés — pas besoin)
   coach:  ["form","clients","coaching","unpaid","immersive"],                 // EOD + Clients + Coaching + Impayés + Immersive
-  hos:    ["form","team","goals","coaching","unpaid","immersive","clients","finance"],  // Head of Sales (ex: Anthony) : TOUS ses onglets habituels + la Finance, le tout EN LECTURE SEULE. Il voit les montants payés (paie équipe, logiciels, prestas, encaissements) mais PAS la rému COO, la marge nette, les Comptes Dubaï ni les Réglages.
+  hos:    ["form","team","coaching","unpaid","immersive","clients","finance"],  // Head of Sales (ex: Anthony) : TOUS ses onglets habituels + la Finance, le tout EN LECTURE SEULE. Il voit les montants payés (paie équipe, logiciels, prestas, encaissements) mais PAS la rému COO, la marge nette, les Comptes Dubaï ni les Réglages.
   finance:["finance"],  // « Montants seuls » : UNIQUEMENT le tableau des encaissements clients, lecture seule, rien d'autre
-  admin:  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout
+  admin:  ["form","team","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout (onglet Objectifs retiré)
 };
 function isMontantsOnly(){ return ACCESS==="finance"; } // « Montants seuls » : seulement le tableau des encaissements (le HoS, lui, voit toute la Finance en lecture seule)
 // Compat anciens rôles : team→closer, client→hos (Anthony HoS), manager→hos.
@@ -1292,7 +1289,7 @@ function offerRow(o){ o=o||{}; return `<div class="drow offrow" style="display:f
     <button type="button" class="xrow" onclick="this.closest('.offrow').remove()">✕</button>
   </div>`; }
 function addOffer(){ const c=$("offerBox"); if(c){ c.insertAdjacentHTML("beforeend", offerRow({illim:true})); const i=c.lastElementChild.querySelector(".ofName"); if(i) i.focus(); } }
-function goalRow(g){ g=g||{}; const keys=[["contacted","Personnes contactées"],["in_contact","En contact"],["calls_booked","Calls pris (RDV)"]];
+function goalRow(g){ g=g||{}; const keys=[["contacted","Nouveaux leads envoyés"],["relances","Relances faites"],["calls_booked","Calls bookés (RDV)"]];
   const setters=teamActive().filter(m=>m.role==="setter").map(m=>m.name);
   const whoOpts=['<option value="">Tous les setters</option>'].concat(setters.map(s=>`<option value="${escapeHtml(s)}"${s===(g.who||'')?' selected':''}>${escapeHtml(s)}</option>`)).join("");
   return `<div class="drow goalrow" style="display:flex;gap:6px;align-items:center;margin:5px 0;flex-wrap:wrap">
@@ -3192,10 +3189,11 @@ function renderTeamDigest(){
     const missing=roster.filter(m=>!dayE.some(x=>eqName(x.member,m.name))).map(m=>m.name);
     if(!dayE.length){ return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''}</div><div class="sub2" style="margin-top:2px">Aucun EOD${(!isToday&&missing.length)?" — manquant : "+escapeHtml(missing.join(", ")):""}</div></div>`; }
     const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
-    const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0),0);
+    const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0)+(Number(x.payload&&x.payload.calls_made)||0),0); // leads insta + appels passés
+    const relances=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.relances)||0),0);
     const booked=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
     const nwarn=dayE.reduce((s,x)=>s+((x.payload&&Array.isArray(x.payload.clientlog))?x.payload.clientlog.filter(a=>a.warning).length:0),0);
-    const bits=[`🎯 ${closes} closé(s)`,`👥 ${contacted} contactées`,`📅 ${booked} RDV pris`];
+    const bits=[`🎯 ${closes} closé(s)`,`📤 ${contacted} leads`,`🔁 ${relances} relances`,`📅 ${booked} RDV pris`];
     if(nwarn) bits.push(`<span style="color:var(--red)">⚠️ ${nwarn} warning(s)</span>`);
     let miss="";
     if(!isToday && missing.length){
