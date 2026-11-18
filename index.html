@@ -416,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 16/11/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 18/11/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -462,6 +462,18 @@
       <input id="eodSearchInput" type="text" placeholder="Ex : Dupont, Marie…" oninput="searchEods()" autocomplete="off" style="width:100%">
       <div id="eodSearchResults" style="margin-top:10px"></div>
     </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div id="view-analytics" class="wrap hide">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0">📊 Analytics closing</h2>
+        <select id="anMonth" style="width:auto;min-width:150px" onchange="renderAnalytics()"></select>
+      </div>
+      <div class="hint" style="margin-top:4px">Calculé depuis les calls remontés par les closers (présence, clôture, sources) et les ventes du mois.</div>
+    </div>
+    <div id="analyticsBox" style="margin-top:12px"></div>
   </div>
 
   <!-- ÉQUIPE -->
@@ -703,7 +715,8 @@
 <div id="nav" class="nav hide">
   <button id="nav-form" class="active" onclick="show('form')"><span class="ic">✍️</span>Mon EOD</button>
   <button id="nav-team" onclick="show('team')"><span class="ic">👥</span>Équipe</button>
-  <button id="nav-goals" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
+  <button id="nav-goals" class="hide" onclick="show('goals')"><span class="ic">🎯</span>Objectifs</button>
+  <button id="nav-analytics" class="hide" onclick="show('analytics')"><span class="ic">📊</span>Analytics</button>
   <button id="nav-coaching" onclick="show('coaching')"><span class="ic">📚</span>Coaching</button>
   <button id="nav-unpaid" onclick="show('unpaid')"><span class="ic">⚠️</span>Impayés</button>
   <button id="nav-immersive" onclick="show('immersive')"><span class="ic">🎟️</span>Immersive</button>
@@ -1010,7 +1023,7 @@ const ACCESS_TABS={
   coach:  ["form","clients","coaching","unpaid","immersive"],                 // EOD + Clients + Coaching + Impayés + Immersive
   hos:    ["form","team","coaching","unpaid","immersive","clients","finance"],  // Head of Sales (ex: Anthony) : TOUS ses onglets habituels + la Finance, le tout EN LECTURE SEULE. Il voit les montants payés (paie équipe, logiciels, prestas, encaissements) mais PAS la rému COO, la marge nette, les Comptes Dubaï ni les Réglages.
   finance:["finance"],  // « Montants seuls » : UNIQUEMENT le tableau des encaissements clients, lecture seule, rien d'autre
-  admin:  ["form","team","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout (onglet Objectifs retiré)
+  admin:  ["form","team","analytics","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"], // Léa : tout (onglet Objectifs retiré)
 };
 function isMontantsOnly(){ return ACCESS==="finance"; } // « Montants seuls » : seulement le tableau des encaissements (le HoS, lui, voit toute la Finance en lecture seule)
 // Compat anciens rôles : team→closer, client→hos (Anthony HoS), manager→hos.
@@ -1123,7 +1136,7 @@ function applyNavAccess(){
   document.body.classList.toggle("readonly", isViewer()); // bandeau + désactivation visuelle des champs
   document.body.classList.toggle("montants-only", isMontantsOnly()); // accès Montants : n'affiche que le tableau des encaissements
   // Chaque onglet de nav est visible seulement si le rôle y a droit.
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("hide", !canView(k)); });
+  ["form","team","goals","analytics","coaching","unpaid","immersive","clients","finance","accounts","settings","linkedin"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("hide", !canView(k)); });
   initApp();
   show(accessTabs()[0]||"form"); // atterrit sur le 1er onglet autorisé du rôle
 }
@@ -1255,6 +1268,7 @@ async function loadSettings(){
       if(x.weekActuals&&typeof x.weekActuals==="object") SETTINGS.weekActuals=x.weekActuals;
       if(Array.isArray(x.logins)) SETTINGS.logins=x.logins;
       if(Array.isArray(x.lockedMonths)) SETTINGS.lockedMonths=x.lockedMonths;
+      if(x.caObjectif!=null) SETTINGS.caObjectif=x.caObjectif;
       if(Array.isArray(x.checks)) SETTINGS.checks=x.checks;
       if(Array.isArray(x.payList)&&x.payList.length) SETTINGS.payList=x.payList;
       else if(Array.isArray(x.payees)) SETTINGS.payList=PAYLIST_DEFAULT.concat(x.payees.filter(n=>n&&!PAYLIST_DEFAULT.some(p=>p.name===n)).map(n=>({name:n,type:"manual"}))); } }catch(e){}
@@ -2593,12 +2607,13 @@ function dgMineBlock(name){ const m=member(name); const pk=poleForMember(m); if(
 function show(v){
   // Accès par rôle : Finance ouverte au Head of Sales (lecture seule) ET à l'admin ; Comptes (Dubai) & Réglages = Léa seule. Tout est géré par canView (ACCESS_TABS).
   if(!canView(v)) v=accessTabs()[0]||"form"; // le rôle n'a pas droit à cet onglet → on le renvoie sur son 1er onglet autorisé
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
-  ["form","team","goals","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
+  ["form","team","goals","analytics","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=> { const el=$("view-"+k); if(el) el.classList.toggle("hide",k!==v); });
+  ["form","team","goals","analytics","coaching","unpaid","immersive","clients","finance","accounts","linkedin","settings"].forEach(k=>{ const b=$("nav-"+k); if(b) b.classList.toggle("active",k===v); });
   const el=$("view-"+v); if(el){ el.style.animation="none"; void el.offsetWidth; el.style.animation="viewIn .3s ease"; }
   if(v==="form"){ lockMemberSelect(); loadMyEods(); }
   if(v==="team"){ $("memberDetail").classList.add("hide"); $("teamList").classList.remove("hide"); loadTeam(); }
   if(v==="goals") loadGoals();
+  if(v==="analytics") loadAnalytics();
   if(v==="coaching") loadCoaching();
   if(v==="clients") loadClients();
   if(v==="finance") loadFinance();
@@ -2606,6 +2621,66 @@ function show(v){
   if(v==="settings") renderSettings();
   if(v==="immersive") loadImmersive();
   if(v==="unpaid") loadUnpaid();
+}
+/* ===================== ANALYTICS (closing) ===================== */
+async function loadAnalytics(){ const box=$("analyticsBox"); if(!box) return;
+  if(fbReady()){ initFirebase();
+    try{ if(!EODS||!EODS.length){ const s=await db.collection("eod_reports").orderBy("created_at","desc").limit(3000).get(); EODS=s.docs.map(d=>({id:d.id,...d.data()})); } }catch(e){}
+    try{ if(!CLIENTS||!CLIENTS.length){ const s=await db.collection("clients").get(); CLIENTS=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted); } }catch(e){}
+  }
+  fillAnMonths(); renderAnalytics();
+}
+function fillAnMonths(){ const sel=$("anMonth"); if(!sel) return; const cur=sel.value||monthStr(); const set=new Set([monthStr()]);
+  (EODS||[]).forEach(e=>{ const m=(e.report_date||"").slice(0,7); if(m) set.add(m); });
+  (CLIENTS||[]).forEach(c=>{ const m=closeMonth(c); if(m) set.add(m); });
+  const ms=[...set].filter(Boolean).sort().reverse();
+  sel.innerHTML=ms.map(m=>`<option value="${m}" ${m===cur?"selected":""}>${monthLabel(m)}</option>`).join(""); if(!sel.value) sel.value=monthStr(); }
+async function saveCaObjectif(){ const el=$("anObjInput"); if(!el) return; const v=Number(String(el.value||"").replace(/[^0-9.]/g,""))||0; SETTINGS.caObjectif=v;
+  if(fbReady()){ initFirebase(); try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set({isSettings:true, caObjectif:v},{merge:true}); }catch(e){} } renderAnalytics(); }
+function renderAnalytics(){ const box=$("analyticsBox"); if(!box) return;
+  const M=($("anMonth")&&$("anMonth").value)||monthStr();
+  const monthEods=(EODS||[]).filter(x=>(x.report_date||"").slice(0,7)===M);
+  // Calls des closers dédupliqués par prospect (piste unique) → on garde le meilleur résultat
+  const rank=r=> r==="Closé"?4:(CALL_SHOWN.has(r)?3:(r==="No-show"?2:1));
+  const pk=s=>noAcc(s||"").split(/\s+/).filter(Boolean).sort().join(" ");
+  const seen=new Map();
+  monthEods.filter(x=>x.role==="closer").forEach(x=>callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=pk(c.p); if(!k) return; const cur=seen.get(k); if(!cur||rank(c.res)>rank(cur.res)) seen.set(k,{src:(c.src||"(sans source)"),res:c.res}); }));
+  const pistes=[...seen.values()];
+  const leads=pistes.length, shows=pistes.filter(p=>CALL_SHOWN.has(p.res)).length, noshows=pistes.filter(p=>p.res==="No-show").length, closesTag=pistes.filter(p=>p.res==="Closé").length;
+  const honored=shows+noshows;
+  const showPct=honored?Math.round(shows/honored*100):0, closePct=leads?Math.round(closesTag/leads*100):0, closePctShow=shows?Math.round(closesTag/shows*100):0;
+  const realCloses=monthCloses(M).length;
+  let caGen=0, caEnc=0; (CLIENTS||[]).forEach(c=>{ caEnc+=paidInMonth(c,M)||0; });
+  (CLIENTS||[]).filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c)).forEach(c=>{ caGen+=clientMontant(c)||0; });
+  let rdv=0; monthEods.filter(x=>x.role==="setter").forEach(x=>{ rdv+=bookedArr(x).length; });
+  // Par source
+  const bySrc={}; pistes.forEach(p=>{ const s=p.src||"(sans source)"; const o=bySrc[s]||(bySrc[s]={n:0,shows:0,no:0,closes:0}); o.n++; if(CALL_SHOWN.has(p.res))o.shows++; if(p.res==="No-show")o.no++; if(p.res==="Closé")o.closes++; });
+  const srcRows=Object.entries(bySrc).sort((a,b)=>b[1].n-a[1].n).map(([s,o])=>{ const sh=(o.shows+o.no)?Math.round(o.shows/(o.shows+o.no)*100):0; const cl=o.n?Math.round(o.closes/o.n*100):0; return {s,n:o.n,sh,cl}; });
+  const obj=Number(SETTINGS.caObjectif)||0, objPct=obj?Math.min(100,Math.round(caEnc/obj*100)):0;
+  const kpi=(ic,lab,val,sub)=>`<div class="box"><div class="n grad-text">${val}</div><div class="l">${ic} ${lab}</div>${sub?`<div class="sub2" style="margin-top:2px">${sub}</div>`:''}</div>`;
+  const bar=(pct,col)=>`<div style="height:12px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:4px"><span style="display:block;height:100%;width:${Math.max(2,pct)}%;background:${col}"></span></div>`;
+  box.innerHTML=`
+    <div class="stat">
+      ${kpi("🎯","Ventes closées",realCloses)}
+      ${kpi("📅","RDV pris",rdv)}
+      ${kpi("👁","Présence (show)",showPct+" %",shows+" show · "+noshows+" no-show")}
+      ${kpi("✅","Taux de clôture",closePct+" %",closesTag+" / "+leads+" pistes")}
+      ${kpi("💰","CA généré",eur(caGen))}
+      ${kpi("💸","CA encaissé",eur(caEnc))}
+    </div>
+    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">🎯 Objectif du mois (CA encaissé)</h2>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="sub2">Objectif €</span><input id="anObjInput" type="text" inputmode="numeric" value="${obj||''}" placeholder="ex : 60000" style="width:140px"><button type="button" class="btn ghost sm" style="width:auto;margin:0" onclick="saveCaObjectif()">Enregistrer</button></div>
+      ${obj?`<div style="margin-top:8px"><div style="display:flex;justify-content:space-between"><b>${eur(caEnc)}</b><span class="sub2">${objPct}% de ${eur(obj)}</span></div>${bar(objPct,"linear-gradient(90deg,#ff8b47,#e04c6b)")}</div>`:`<div class="hint" style="margin-top:6px">Fixe un objectif pour voir la jauge.</div>`}
+    </div>
+    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">📞 Présence & clôture — ${monthLabel(M)}</h2>
+      <div class="kv"><span class="k">👁 Taux de présence (show)</span><span class="v"><b>${showPct}%</b></span></div>${bar(showPct,"#8b5cf6")}
+      <div class="kv" style="margin-top:8px"><span class="k">✅ Taux de clôture (par piste)</span><span class="v"><b>${closePct}%</b></span></div>${bar(closePct,"#34c759")}
+      <div class="kv" style="margin-top:8px"><span class="k">🔥 Clôture sur les shows</span><span class="v"><b>${closePctShow}%</b></span></div>${bar(closePctShow,"#ff8b47")}
+      <div class="sub2" style="margin-top:8px">${leads} piste(s) unique(s) · ${shows} show · ${noshows} no-show · ${closesTag} closé(s)</div>
+    </div>
+    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">🌐 Par source de lead</h2>
+      ${srcRows.length?`<div class="dgscroll"><table class="dgtab"><thead><tr><th>Source</th><th class="r">Pistes</th><th class="r">Présence</th><th class="r">Clôture</th></tr></thead><tbody>${srcRows.map(r=>`<tr><td>${escapeHtml(r.s)}</td><td class="r">${r.n}</td><td class="r">${r.sh}%</td><td class="r">${r.cl}%</td></tr>`).join("")}</tbody></table></div>`:'<div class="sub2">Aucun call remonté ce mois.</div>'}
+    </div>`;
 }
 /* ===================== IMPAYÉS (suivi recouvrement, visible par toute l'équipe) ===================== */
 // Process de recouvrement, dans l'ordre à suivre.
