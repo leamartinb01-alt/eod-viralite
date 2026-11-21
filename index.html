@@ -73,6 +73,11 @@
   .msg{padding:12px 14px; border-radius:12px; font-size:14px; margin-top:14px; display:none}
   .msg.ok{background:rgba(52,199,89,.13); color:#7ee2a3; display:block; border:1px solid rgba(52,199,89,.3)}
   .msg.err{background:rgba(255,90,77,.13); color:#ff9a90; display:block; border:1px solid rgba(255,90,77,.3)}
+  /* 💸 encart argent animé */
+  .moneycard{position:relative; overflow:hidden; margin:0 0 12px; border-radius:16px; padding:15px 18px; min-height:70px; color:#eafff3; background:linear-gradient(135deg,#0f2b1e,#1f7a4c 70%,#27c06a); box-shadow:0 12px 34px rgba(31,122,76,.35)}
+  .moneycard .mfly{position:absolute; bottom:-26px; z-index:1; opacity:0; animation:mfly linear infinite; will-change:transform,opacity}
+  @keyframes mfly{0%{transform:translateY(0) rotate(-8deg); opacity:0} 12%{opacity:.95} 80%{opacity:.85} 100%{transform:translateY(-110px) rotate(16deg); opacity:0}}
+  @media (prefers-reduced-motion:reduce){ .moneycard .mfly{animation:none; display:none} }
   /* NAV animée */
   .nav{position:fixed; bottom:0; left:0; right:0; z-index:50; display:flex;
     background:rgba(11,11,14,.86); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-top:1px solid var(--line)}
@@ -909,34 +914,24 @@ function setterGoalsBlock(name){ if(member(name).role!=="setter") return ""; con
     return `<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${ok?"✅ ":""}${escapeHtml(g.label)}</span><span><b>${done}</b> / ${t||"—"}${t?" · "+pct+"%":""}</span></div><div class="cwk-bar"><span style="width:${pct}%"></span></div></div>`; }).join("");
   return `<div class="card" style="margin:0 0 12px"><h2 style="font-size:15px;margin:0 0 6px">🎯 Mes objectifs — ${monthLabel(M)}</h2>${rows}<div class="hint">Se met à jour tout seul quand tu envoies tes EOD du mois.</div></div>`; }
 // ⭐ Phrase du jour — motivante, change chaque jour, un peu gamifiée. Même phrase toute la journée pour une personne (déterministe par date+nom).
-const MOTIV_PHRASES=[
-  "ta meilleure journée n'est pas encore arrivée — fais-la aujourd'hui. 🚀",
-  "la régularité bat le talent quand le talent n'est pas régulier. 📈",
-  "discipline aujourd'hui = liberté demain. 🏆",
-  "l'énergie que tu mets revient toujours. Donne tout. ⚡",
-  "ton seul concurrent, c'est toi d'hier. Dépasse-le. 🥇",
-  "fais-en un de plus — c'est souvent celui-là qui compte. ➕",
-  "un pas chaque jour, et la montagne est derrière toi. 🏔️",
-  "concentre-toi sur ce que tu contrôles : ton effort. 🎯",
-  "les petits efforts répétés font les grands résultats. 🌱",
-  "reste calme, reste clair, reste présent. 🌊",
-  "la constance d'aujourd'hui, c'est la fierté de demain. 💪",
-  "commence, même imparfaitement — l'élan fait le reste. ✨",
-  "chaque journée bien faite te rapproche de ton objectif. 🧭",
-  "sois fier·e du travail que personne ne voit. 🙌",
-  "l'attitude fait la différence quand le niveau est proche. 🔥",
-  "aujourd'hui tu sèmes, bientôt tu récoltes. 🌾",
-  "un sourire et de l'énergie, ça change toute une journée. 😄",
-  "ce qui compte, c'est de ne pas lâcher. Avance. 🚶",
-  "tu es capable de bien plus que tu ne le crois. 🌟",
-  "fais les choses à fond ou pas du tout — choisis à fond. 💯",
+const MONEY_LINES=[
+  "va chercher le cash aujourd'hui 🤑",
+  "aujourd'hui, on fait rentrer l'argent 💸",
+  "chaque appel = du cash potentiel 💰",
+  "fais parler les chiffres aujourd'hui 📈",
+  "le cash aime les gens réguliers 💵",
+  "on signe, on encaisse, on avance 🚀",
 ];
 function _motivSeed(s){ s=String(s||""); let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
-function dailyMotivation(name){ const first=((name||"").trim().split(/\s+/)[0])||""; const phrase=MOTIV_PHRASES[_motivSeed(todayStr()+"|"+first)%MOTIV_PHRASES.length];
-  return `<div class="card" style="margin:0 0 12px;border:none;background:linear-gradient(135deg,#ff8b47,#e04c6b);color:#fff;box-shadow:0 10px 30px rgba(224,76,107,.25)">
-    <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;opacity:.9">⭐ Ta phrase du jour</div>
-    <div style="font-size:16px;font-weight:800;margin-top:5px;line-height:1.35">${first?escapeHtml(first)+", ":""}${escapeHtml(phrase)}</div>
-  </div>`; }
+// 💸 Petit encart animé avec de l'argent qui se balade (remplace la phrase de motivation).
+function dailyMotivation(name){ const first=((name||"").trim().split(/\s+/)[0])||""; const line=MONEY_LINES[_motivSeed(todayStr()+"|"+first)%MONEY_LINES.length];
+  const coins=["💸","💰","🤑","💵","💶","🪙"]; let flies="";
+  for(let i=0;i<9;i++){ const left=4+i*11+(i%2?3:0); const dl=(i*0.45).toFixed(2); const dur=(3.1+(i%4)*0.5).toFixed(2); const sz=18+(i%3)*5; flies+=`<span class="mfly" style="left:${left}%;animation-delay:${dl}s;animation-duration:${dur}s;font-size:${sz}px">${coins[i%coins.length]}</span>`; }
+  return `<div class="moneycard">
+      <div style="position:relative;z-index:2;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:800;opacity:.85">💸 Let's get this money</div>
+      <div style="position:relative;z-index:2;font-size:17px;font-weight:900;margin-top:4px;line-height:1.3">${first?escapeHtml(first)+", ":""}${escapeHtml(line)}</div>
+      ${flies}
+    </div>`; }
 function renderSetterGoals(name){ const w=$("setterGoalsWrap"); if(w) w.innerHTML=dailyMotivation(name); }
 function inImmersive(id){ return (SETTINGS.immersives||[]).some(d=>(d.clients||[]).includes(id)); }
 function immDaysFor(id){ return (SETTINGS.immersives||[]).filter(d=>(d.clients||[]).includes(id)).map(d=>(d.date?dayLabel(d.date):"date à définir")+(d.lieu?" · "+d.lieu:"")).join(" · ")||"inscrit"; }
