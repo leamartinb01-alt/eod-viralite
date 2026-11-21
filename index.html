@@ -416,7 +416,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 18/11/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 21/11/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -454,6 +454,8 @@
       <button class="btn" id="eodSubmitBtn" onclick="submitEod()">Envoyer mon EOD ✓</button>
       <button class="btn ghost hide" id="eodCancelEdit" onclick="cancelEdit()">Annuler la modification</button>
       <div id="formMsg" class="msg"></div>
+      <button type="button" class="btn ghost" id="eodWaBtn" style="margin-top:10px" onclick="copyEodWhatsapp()">📋 Copier le récap pour WhatsApp</button>
+      <div id="eodWaBox" class="hide" style="margin-top:8px"></div>
     </div>
     <div id="myEods" style="margin-top:14px"></div>
     <div class="card" style="margin-top:14px">
@@ -781,33 +783,46 @@ const CALL_SEED=[
   {month:"2026-06", prospect:"Samuel Lariviere", setter:"Ilyas", closer:"Anthony", date:"2026-06-21", show:true, verified:true},
 ];
 const FORMS = {
+  // CLOSER — EOD du soir. Les DATAS (résa/shows/pitch/disqual/vente) se calculent depuis les calls remontés (et alimentent les Analytics).
   closer:[
-    { key:"calls_log",       label:"📞 Tes calls du jour (prospect · source · résultat)", type:"calls" },
-    { key:"cash_gen_day",    label:"💰 Cash généré aujourd'hui (€) — le total du mois se calcule tout seul", type:"number" },
-    { key:"cash_day",        label:"🏦 Cash collecté aujourd'hui (€) — le total du mois se calcule tout seul", type:"number" },
-    { key:"objections",      label:"Objections / blocages rencontrés",      type:"textarea" },
-    { key:"followup_next",   label:"Nb & noms follow-up des prochains jours", type:"textarea" },
-    { key:"followup_update", label:"Update follow-up du jour",              type:"textarea" },
+    { key:"calls_log",       label:"📞 Tes appels du jour (prospect · source · résultat) — c'est ça qui remplit tes datas", type:"calls" },
+    { key:"n_pitch",         label:"🎤 Nombre de pitchs (optionnel — sinon calculé auto)", type:"number" },
+    { key:"cash_day",        label:"🏦 Collecté aujourd'hui (€)",          type:"number" },
+    { key:"cash_gen_day",    label:"💰 Généré aujourd'hui (€)",            type:"number" },
+    { key:"profils",         label:"🧑 Quick description des profils du jour", type:"textarea" },
+    { key:"disqual_reasons", label:"❌ Raisons des disqualifications + feedbacks", type:"textarea" },
+    { key:"improve",         label:"📈 Ce que tu aurais pu faire de mieux aujourd'hui", type:"textarea" },
+    { key:"noshow_called",   label:"📞 No-shows de la veille rappelés (nb)", type:"number" },
+    { key:"rdv_confirmed",   label:"✅ RDV du lendemain confirmés en appel (nb)", type:"number" },
     { key:"mood",            label:"Ton énergie du jour ⚡️",               type:"mood" },
-    { key:"feeling",         label:"Un mot sur ta journée ? (optionnel)",   type:"textarea" },
   ],
-  // Setter INSTA / LinkedIn — suivi de la journée : leads envoyés, relances, RDV calés, débrief.
+  // Setter DM / setting écrit (Insta / LinkedIn).
   setter:[
-    { key:"contacted",    label:"📤 Nouveaux leads envoyés aujourd'hui", type:"number" },
-    { key:"relances",     label:"🔁 Relances faites aujourd'hui",        type:"number" },
-    { key:"calls_booked", label:"📅 Calls bookés (RDV calés)",            type:"number" },
-    { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
-    { key:"debrief",      label:"📝 Débrief de la journée",              type:"textarea" },
-    { key:"mood",         label:"Ton énergie du jour ⚡️",               type:"mood" },
+    { key:"new_followers",label:"👥 New followers",       type:"number" },
+    { key:"qualif",       label:"✅ Qualif",              type:"number" },
+    { key:"contacted",    label:"📤 Contacté",            type:"number" },
+    { key:"conv_active",  label:"💬 Conv activ",          type:"number" },
+    { key:"relances",     label:"🔁 Relances",            type:"number" },
+    { key:"propositions", label:"📞 Proposition call",    type:"number" },
+    { key:"calls_booked", label:"📅 Call booké",          type:"number" },
+    { key:"debrief",      label:"📝 Débrief de la journée (optionnel)", type:"textarea" },
+    { key:"mood",         label:"Ton énergie du jour ⚡️", type:"mood" },
   ],
-  // Setter APPEL (ex : Emerry) — suivi téléphonique : appels passés, relances, RDV calés, débrief.
+  // Setter APPEL — fait souvent Autobook ET Optin.
   setter_appel:[
-    { key:"calls_made",   label:"📞 Personnes appelées aujourd'hui",     type:"number" },
-    { key:"relances",     label:"🔁 Relances faites aujourd'hui",        type:"number" },
-    { key:"calls_booked", label:"📅 Appels bookés (RDV calés)",          type:"number" },
+    { key:"ab_called",    label:"📞 AUTOBOOK — nb appelés",        type:"number" },
+    { key:"ab_rep",       label:"↩️ Autobook — nb réponses",      type:"number" },
+    { key:"ab_confirmed", label:"✅ Autobook — nb calls confirmés", type:"number" },
+    { key:"ab_disqual",   label:"❌ Autobook — nb disqualifiés",  type:"number" },
+    { key:"opt_called",   label:"📞 OPTIN — nb appelés",          type:"number" },
+    { key:"opt_rep",      label:"↩️ Optin — nb réponses",         type:"number" },
+    { key:"opt_confirmed",label:"✅ Optin — nb calls confirmés",  type:"number" },
+    { key:"opt_disqual",  label:"❌ Optin — nb disqualifiés",     type:"number" },
+    { key:"disqual_reasons", label:"📝 Raisons des disqualifications", type:"textarea" },
+    { key:"calls_booked", label:"📅 Nb calls book (total)",       type:"number" },
     { key:"booked",       label:"📋 RDV pris aujourd'hui (nom + source + vérifié)", type:"booked" },
-    { key:"debrief",      label:"📝 Débrief de la journée",              type:"textarea" },
-    { key:"mood",         label:"Ton énergie du jour ⚡️",               type:"mood" },
+    { key:"debrief",      label:"📝 Débrief de la journée",       type:"textarea" },
+    { key:"mood",         label:"Ton énergie du jour ⚡️",        type:"mood" },
   ],
   coach:[
     { key:"clientlog", label:"📋 Suivi clients du jour — action + note pour chaque client coaché", type:"clientlog" },
@@ -1671,6 +1686,7 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
       <div class="cwk-h"><span class="cwk-n" style="font-size:15px">${escapeHtml(c.nom||"")} ${escapeHtml(c.prenom||"")}${coachBadges(c)}${c.upsell?' <span title="Upsell signé" style="color:#ff7a3d;font-weight:800">⬆️</span>':''}</span><span class="cwk-prog">${done} séance${done>1?'s':''}</span></div>
       <div class="cwk-sub">${escapeHtml(c.programme||"")}${acc}${coachBreakdown(c)?" · "+escapeHtml(coachBreakdown(c)):""}</div>
       ${c.instagram?`<div class="cwk-sub" style="margin-top:3px">📸 <a href="${escapeHtml(instaUrl(c.instagram))}" target="_blank" rel="noopener" style="color:#ff8fd0;text-decoration:underline;font-weight:600">Instagram du client</a></div>`:""}
+      ${c.drive?`<div style="margin-top:7px;padding:8px 11px;border:1px solid rgba(143,196,255,.35);background:rgba(143,196,255,.08);border-radius:10px">📁 <a href="${escapeHtml(c.drive)}" target="_blank" rel="noopener" style="color:#8fc4ff;text-decoration:underline;font-weight:700">Drive / dossier client</a></div>`:""}
       ${unlim?'':`<div class="cwk-bar" style="margin-top:8px"><span style="width:${pct}%"></span></div>`}
       <div class="gstrip" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px">
         <span class="gbadge" style="border-color:${lv.cl};color:${lv.cl}">${lv.lvl}</span>
@@ -1698,7 +1714,6 @@ function coachCardHtml(c){ const coachOpts=SETTINGS.coachs||[];
         <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="addCoachWeek(this,'${c.id}')">+ Pointer le coaching du jour</button>
         ${unlim?'':`<div class="cwk-in"><label>Total prévu de séances</label><input type="number" inputmode="numeric" class="cgTot" min="0" value="${tot}" onchange="saveCoachTotal('${c.id}',this.value)"></div>`}
       </div>
-      <div style="margin-top:10px;text-align:right"><button type="button" class="btn ghost sm" style="width:auto;border-color:rgba(52,199,89,.4);color:#7ee2a3" onclick="finishCoaching('${c.id}')">✅ Accompagnement terminé</button></div>
     </div>`;
 }
 // Marque l'accompagnement comme terminé → le client disparaît de l'onglet Coaching (réversible depuis sa fiche). On note aussi s'il y a eu un upsell.
@@ -1724,11 +1739,11 @@ function renderCoachingTab(){
   const infoBox = `<div class="card" style="border-color:rgba(255,139,71,.35);background:rgba(255,139,71,.06);margin:0 0 12px"><div style="font-weight:700;margin-bottom:2px">💡 Rappels coach</div><div class="sub2">• En <b>début d'accompagnement</b> : cale un <b>appel de 15 min par semaine</b> pour faire le point.<br>• <b>Pointe bien chaque coaching</b> et fais une <b>analyse tous les 15 jours</b>.<br>• <b>Mentorat / Partenariat</b> : n'oublie pas de gérer le <b>tunnel de VSL</b> 🎯.</div></div>`;
   // Filtre sur un coach précis → liste plate. Les cartes « calls Fondateur » + « upsells » + alertes se calent AUSSI sur ce coach.
   if(fc){ const list=cs.filter(c=>coachesOf(c).includes(fc));
-    box.innerHTML=seedBtn+infoBox+upsellDueCard(list)+loicCallsCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
+    box.innerHTML=seedBtn+infoBox+upsellDueCard(list)+coachAlertsCard(list)+(list.length?list.map(coachCardHtml).join(""):`<div class="empty">Aucun client pour ${escapeHtml(fc)}.</div>`);
     return; }
-  const loicC=loicCallsCard(cs); const upC=upsellDueCard(cs); // calls Fondateur (1/mois) + upsells à préparer (J-10) — sur tous les clients
+  const upC=upsellDueCard(cs); // upsells à préparer (J-10) — sur tous les clients
   // Sinon : une section dépliable par coach (un client à 2 coachs apparaît dans les 2)
-  let html=seedBtn+infoBox+upC+loicC+coachAlertsCard(cs);
+  let html=seedBtn+infoBox+upC+coachAlertsCard(cs);
   (SETTINGS.coachs||[]).forEach((coach,idx)=>{ const list=cs.filter(c=>coachesOf(c).includes(coach)); if(!list.length) return;
     const col=coachColor(coach); const l=((coach||"?").trim().charAt(0)||"?").toUpperCase();
     html+=`<details class="cdet" ${idx<2?"open":""} style="margin-top:10px;border-left:3px solid ${col};padding-left:6px">
@@ -1803,20 +1818,19 @@ function analyseStatusBadge(c){ if(!onbDate(c)) return ""; const dates=analyseDa
   return `<span class="gbadge" title="Analyses de quinzaine à jour" style="border-color:rgba(52,199,89,.5);color:#7ee2a3;font-weight:800">🔍 analyses à jour</span>`; }
 function analyseMonths(c){ const dates=analyseDates(c); const a=c.analyses||{}; const t=todayStr(); let rows="";
   dates.forEach((d,idx)=>{ const e=a[d]||{}; const overdue=!e.done && d<=t;
-    rows+=`<div class="edrow${e.done?' on':''}" data-k="${d}" style="flex-wrap:wrap">
+    rows+=`<div class="edrow${e.done?' on':''}" data-k="${d}">
       <span class="edm"${overdue?' style="color:var(--red)"':''}>#${idx+1} · ${dayLabel(d)}${d>t?' <span class="sub2">(à venir)</span>':''}</span>
       <label class="ck edtoggle"><input type="checkbox" class="anDone" ${e.done?'checked':''} onchange="this.closest('.edrow').classList.toggle('on',this.checked)"> faite</label>
-      <input type="text" class="anNote" value="${escapeHtml(e.note||'')}" placeholder="note / lien de l'analyse" style="flex:1;min-width:150px">
     </div>`; });
   const done=analyseDone(c), late=analyseDueCount(c)-done;
   return `<details class="cdet" style="margin-top:10px"><summary>🔍 Analyses de quinzaine — ${done} faite(s) ${late>0?`<span style="color:var(--red)">· ${late} à faire</span>`:`<span style="color:#7ee2a3">· à jour</span>`}</summary>
     <div class="anbox" data-id="${escapeHtml(c.id)}" style="margin-top:6px">
-      <div class="hint">1 analyse <b>tous les 15 jours</b>. Coche « faite » + une note (ex : lien du doc). Les quinzaines d'avant la mise en place ne sont pas comptées.</div>
+      <div class="hint">1 analyse <b>tous les 15 jours</b>. Coche « faite » quand elle est réalisée. Les quinzaines d'avant la mise en place ne sont pas comptées.</div>
       ${rows||'<div class="sub2" style="margin:6px 0">Renseigne la date d\'onboarding pour générer les analyses.</div>'}
       <button type="button" class="btn ghost sm" style="margin-top:10px" onclick="saveAnalyses('${c.id}')">💾 Enregistrer</button>
       <div class="anMsg msg"></div></div></details>`; }
 async function saveAnalyses(id){ if(!fbReady()) return; initFirebase(); const c=CLIENTS.find(x=>x.id===id); const box=[...document.querySelectorAll('.anbox[data-id]')].find(el=>el.getAttribute('data-id')===id)||null; if(!c||!box) return;
-  const analyses={...(c.analyses||{})}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const done=r.querySelector(".anDone").checked; const note=(r.querySelector(".anNote").value||"").trim(); if(done||note) analyses[k]={done,note}; else delete analyses[k]; });
+  const analyses={...(c.analyses||{})}; [...box.querySelectorAll(".edrow")].forEach(r=>{ const k=r.getAttribute("data-k"); const done=r.querySelector(".anDone").checked; if(done) analyses[k]={done:true}; else delete analyses[k]; });
   const m=box.querySelector(".anMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
   try{ await db.collection("clients").doc(id).update({analyses}); c.analyses=analyses; m.className="msg ok"; m.textContent="Enregistré ✓"; renderCoachingTab(); }catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; } }
 /* Note de suivi des rappels faits — un texte libre par client, dans l'espace coaching. Visible par toute l'équipe. */
@@ -2421,7 +2435,33 @@ function editEod(id){
   $("formTitle").textContent="Modifier l'EOD"; $("eodSubmitBtn").textContent="Mettre à jour ✓"; $("eodCancelEdit").classList.remove("hide"); $("formMsg").style.display="none";
   window.scrollTo({top:0});
 }
-function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; }
+function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; const wb=$("eodWaBox"); if(wb){ wb.classList.add("hide"); wb.innerHTML=""; } }
+// 📋 Génère un récap WhatsApp depuis l'EOD en cours (format setter DM / setter appel / closer).
+function _fv(k){ const el=$("f_"+k); return el?String(el.value||"").trim():""; }
+function _fn(k){ const v=_fv(k); return v===""?0:(Number(v)||0); }
+function copyEodWhatsapp(){
+  const role=eodRoleFor(); const name=($("member")&&$("member").value)||""; const date=($("rdate")&&$("rdate").value)||todayStr();
+  let d=date; try{ d=new Date(date+"T00:00:00").toLocaleDateString("fr-FR"); }catch(e){}
+  let msg="";
+  if(role==="closer"){
+    const calls=(typeof gatherCalls==="function")?gatherCalls():[];
+    const resa=calls.length, disq=calls.filter(c=>c.res==="Disqualifié").length, shows=calls.filter(c=>CALL_SHOWN.has(c.res)).length, noPitch=calls.filter(c=>c.res==="No pitch").length, vente=calls.filter(c=>c.res==="Closé").length;
+    const pitch=_fn("n_pitch")||Math.max(0,shows-noPitch);
+    msg=`📊 EOD Closer — ${name} — ${d}\n\n1) DATAS\nNombre résa : ${resa}\nNombre disqualifié : ${disq}\nNombre shows qualifiés : ${shows}\nNombre pitch : ${pitch}\nNombre vente : ${vente}\n\nCollecté : ${_fn("cash_day")} €\nGénéré : ${_fn("cash_gen_day")} €\n\n2) MARKETING\nProfils : ${_fv("profils")||"—"}\nRaisons disqualif + feedbacks : ${_fv("disqual_reasons")||"—"}\nÀ améliorer : ${_fv("improve")||"—"}\n\n3) SUIVI\nNo-shows de la veille rappelés : ${_fn("noshow_called")}\nRDV du lendemain confirmés (appel) : ${_fn("rdv_confirmed")}`;
+  } else if(role==="setter"){
+    const ch=memberChannel(member(name)||{});
+    if(ch==="appel"){
+      msg=`📊 EOD Setter Appel — ${name} — ${d}\n\n1) AUTOBOOK\nNb appelés : ${_fn("ab_called")}\nNb réponses : ${_fn("ab_rep")}\nNb calls confirmés : ${_fn("ab_confirmed")}\nNb disqualifiés : ${_fn("ab_disqual")}\n\n2) OPTIN\nNb appelés : ${_fn("opt_called")}\nNb réponses : ${_fn("opt_rep")}\nNb calls confirmés : ${_fn("opt_confirmed")}\nNb disqualifiés : ${_fn("opt_disqual")}\n\nRaisons disqualif : ${_fv("disqual_reasons")||"—"}\nNb calls book : ${_fn("calls_booked")}`;
+    } else {
+      msg=`📅 EOD Setter — ${name} — ${d}\n\nNew followers : ${_fn("new_followers")}\nQualif : ${_fn("qualif")}\nContacté : ${_fn("contacted")}\nConv activ : ${_fn("conv_active")}\nRelances : ${_fn("relances")}\nProposition call : ${_fn("propositions")}\nCall booké : ${_fn("calls_booked")}`;
+    }
+  } else { msg=`EOD — ${name} — ${d}`; }
+  const box=$("eodWaBox"); if(box){ box.classList.remove("hide");
+    box.innerHTML=`<textarea id="eodWaText" readonly rows="${Math.min(22,(msg.match(/\n/g)||[]).length+2)}" style="width:100%;font-family:monospace;font-size:12.5px;white-space:pre">${escapeHtml(msg)}</textarea><div class="sub2" id="eodWaMsg" style="margin-top:4px">Sélectionne le texte et copie-le, ou utilise le bouton Copier.</div><button type="button" class="btn ghost sm" style="width:auto;margin-top:6px" onclick="(function(){try{navigator.clipboard.writeText(document.getElementById('eodWaText').value);var m=document.getElementById('eodWaMsg');if(m){m.textContent='✅ Copié ! Colle dans WhatsApp.';m.style.color='#7ee2a3';}}catch(e){var t=document.getElementById('eodWaText');t.focus();t.select();}})()">📋 Copier</button>`;
+    const t=$("eodWaText"); if(t){ t.focus(); t.select(); }
+  }
+  try{ navigator.clipboard.writeText(msg); const m=$("eodWaMsg"); if(m){ m.textContent="✅ Copié ! Colle dans WhatsApp."; m.style.color="#7ee2a3"; } }catch(e){}
+}
 async function submitEod(){
   const name=$("member").value, role=eodRoleFor(), rdate=$("rdate").value, msg=$("formMsg");
   const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
@@ -2652,10 +2692,23 @@ function renderAnalytics(){ const box=$("analyticsBox"); if(!box) return;
   const realCloses=monthCloses(M).length;
   let caGen=0, caEnc=0; (CLIENTS||[]).forEach(c=>{ caEnc+=paidInMonth(c,M)||0; });
   (CLIENTS||[]).filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c)).forEach(c=>{ caGen+=clientMontant(c)||0; });
-  let rdv=0; monthEods.filter(x=>x.role==="setter").forEach(x=>{ rdv+=bookedArr(x).length; });
+  let rdv=0; monthEods.filter(x=>x.role==="setter").forEach(x=>{ rdv+=(Number(x.payload&&x.payload.calls_booked)||0)||bookedArr(x).length; });
   // Par source
   const bySrc={}; pistes.forEach(p=>{ const s=p.src||"(sans source)"; const o=bySrc[s]||(bySrc[s]={n:0,shows:0,no:0,closes:0}); o.n++; if(CALL_SHOWN.has(p.res))o.shows++; if(p.res==="No-show")o.no++; if(p.res==="Closé")o.closes++; });
   const srcRows=Object.entries(bySrc).sort((a,b)=>b[1].n-a[1].n).map(([s,o])=>{ const sh=(o.shows+o.no)?Math.round(o.shows/(o.shows+o.no)*100):0; const cl=o.n?Math.round(o.closes/o.n*100):0; return {s,n:o.n,sh,cl}; });
+  // 👤 Par closer : ses calls remontés (présence/clôture) + ses ventes réellement signées + CA généré. Un closer sans EOD (ex. Loïc) → ventes/CA affichés, taux « — ».
+  const closerNames=new Set();
+  (teamActive()||[]).filter(m=>m.role==="closer").forEach(m=>closerNames.add(m.name));
+  (CLIENTS||[]).filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c) && c.closer).forEach(c=>closerNames.add((c.closer||"").trim()));
+  monthEods.filter(x=>x.role==="closer" && x.member).forEach(x=>closerNames.add(x.member));
+  const closerRows=[...closerNames].filter(Boolean).map(nm=>{
+    const seenC=new Map();
+    monthEods.filter(x=>x.role==="closer" && eqName(x.member,nm)).forEach(x=>callsArr(x).forEach(c=>{ if(junkName(c.p)&&!c.res) return; const k=pk(c.p); if(!k) return; const cur=seenC.get(k); if(!cur||rank(c.res)>rank(cur.res)) seenC.set(k,c.res); }));
+    const ps=[...seenC.values()]; const sh=ps.filter(r=>CALL_SHOWN.has(r)).length, no=ps.filter(r=>r==="No-show").length, clt=ps.filter(r=>r==="Closé").length;
+    const ventes=(CLIENTS||[]).filter(c=>(c.statut||"")!=="Annulé / Litige" && closeMonth(c)===M && isRealClose(c) && isPerson(c.closer,nm));
+    const ca=ventes.reduce((s,c)=>s+(clientMontant(c)||0),0);
+    return {nm, pistes:ps.length, pres:(sh+no)?Math.round(sh/(sh+no)*100):null, clo:ps.length?Math.round(clt/ps.length*100):null, ventes:ventes.length, ca};
+  }).filter(r=>r.pistes>0 || r.ventes>0).sort((a,b)=>(b.ventes-a.ventes)||(b.ca-a.ca)||(b.pistes-a.pistes));
   const obj=Number(SETTINGS.caObjectif)||0, objPct=obj?Math.min(100,Math.round(caEnc/obj*100)):0;
   const kpi=(ic,lab,val,sub)=>`<div class="box"><div class="n grad-text">${val}</div><div class="l">${ic} ${lab}</div>${sub?`<div class="sub2" style="margin-top:2px">${sub}</div>`:''}</div>`;
   const bar=(pct,col)=>`<div style="height:12px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:4px"><span style="display:block;height:100%;width:${Math.max(2,pct)}%;background:${col}"></span></div>`;
@@ -2672,7 +2725,12 @@ function renderAnalytics(){ const box=$("analyticsBox"); if(!box) return;
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="sub2">Objectif €</span><input id="anObjInput" type="text" inputmode="numeric" value="${obj||''}" placeholder="ex : 60000" style="width:140px"><button type="button" class="btn ghost sm" style="width:auto;margin:0" onclick="saveCaObjectif()">Enregistrer</button></div>
       ${obj?`<div style="margin-top:8px"><div style="display:flex;justify-content:space-between"><b>${eur(caEnc)}</b><span class="sub2">${objPct}% de ${eur(obj)}</span></div>${bar(objPct,"linear-gradient(90deg,#ff8b47,#e04c6b)")}</div>`:`<div class="hint" style="margin-top:6px">Fixe un objectif pour voir la jauge.</div>`}
     </div>
-    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">📞 Présence & clôture — ${monthLabel(M)}</h2>
+    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">👤 Par closer — ${monthLabel(M)}</h2>
+      <div class="hint" style="margin:0 0 6px">Présence/clôture = calculées depuis les calls remontés dans les EOD. Un closer qui ne remplit pas d'EOD (ex. Loïc) affiche ses ventes & CA mais « — » sur les taux.</div>
+      ${closerRows.length?`<div class="dgscroll"><table class="dgtab"><thead><tr><th>Closer</th><th class="r">Pistes</th><th class="r">Présence</th><th class="r">Clôture</th><th class="r">Ventes</th><th class="r">CA généré</th></tr></thead><tbody>${closerRows.map(r=>`<tr><td><b>${escapeHtml(r.nm)}</b></td><td class="r">${r.pistes||"—"}</td><td class="r">${r.pres==null?"—":r.pres+"%"}</td><td class="r">${r.clo==null?"—":r.clo+"%"}</td><td class="r">${r.ventes||"—"}</td><td class="r">${r.ca?eur(r.ca):"—"}</td></tr>`).join("")}</tbody></table></div>`:'<div class="sub2">Aucune donnée closer ce mois.</div>'}
+    </div>
+    <div class="card" style="margin-top:12px"><h2 style="margin:0 0 6px">📞 Présence & clôture (global) — ${monthLabel(M)}</h2>
+      <div class="hint" style="margin:0 0 8px">Sur les calls remontés : <b>présence</b> = % de présents sur les RDV honorés · <b>clôture par piste</b> = % de signés sur tous les prospects appelés · <b>clôture sur shows</b> = % de signés parmi ceux présents.</div>
       <div class="kv"><span class="k">👁 Taux de présence (show)</span><span class="v"><b>${showPct}%</b></span></div>${bar(showPct,"#8b5cf6")}
       <div class="kv" style="margin-top:8px"><span class="k">✅ Taux de clôture (par piste)</span><span class="v"><b>${closePct}%</b></span></div>${bar(closePct,"#34c759")}
       <div class="kv" style="margin-top:8px"><span class="k">🔥 Clôture sur les shows</span><span class="v"><b>${closePctShow}%</b></span></div>${bar(closePctShow,"#ff8b47")}
@@ -3264,8 +3322,9 @@ function renderTeamDigest(){
     const missing=roster.filter(m=>!dayE.some(x=>eqName(x.member,m.name))).map(m=>m.name);
     if(!dayE.length){ return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''}</div><div class="sub2" style="margin-top:2px">Aucun EOD${(!isToday&&missing.length)?" — manquant : "+escapeHtml(missing.join(", ")):""}</div></div>`; }
     const closes=aggCalls(dayE.filter(x=>x.role==="closer")).close;
-    const contacted=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.contacted)||0)+(Number(x.payload&&x.payload.calls_made)||0),0); // leads insta + appels passés
-    const relances=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.relances)||0),0);
+    const _p=k=>dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload[k])||0),0);
+    const contacted=_p("contacted")+_p("ab_called")+_p("opt_called")+_p("calls_made"); // contactés DM + appels autobook/optin (+ ancien champ)
+    const relances=_p("relances");
     const booked=dayE.filter(x=>x.role==="setter").reduce((s,x)=>s+(Number(x.payload&&x.payload.calls_booked)||0),0);
     const nwarn=dayE.reduce((s,x)=>s+((x.payload&&Array.isArray(x.payload.clientlog))?x.payload.clientlog.filter(a=>a.warning).length:0),0);
     const bits=[`🎯 ${closes} closé(s)`,`📤 ${contacted} leads`,`🔁 ${relances} relances`,`📅 ${booked} RDV pris`];
@@ -3384,6 +3443,7 @@ const CLIENT_FIELDS=[
   { key:"nom",label:"Nom",type:"text" },{ key:"prenom",label:"Prénom",type:"text" },
   { key:"mail",label:"Mail",type:"text" },{ key:"tel",label:"Téléphone / WhatsApp",type:"text" },
   { key:"instagram",label:"📸 Lien Instagram du client (@pseudo ou URL)",type:"text" },
+  { key:"drive",label:"📁 Drive / dossier client (lien) — accessible aux coachs",type:"text" },
   { key:"programme",label:"Programme",type:"select" },
   { key:"tunnel",label:"🎯 Tunnel de vente inclus (nouveauté — Mentorat / Partenariat)",type:"check" },
   { key:"date_debut",label:"Date de début (contrat)",type:"date" },{ key:"date_fin",label:"Date de fin (auto = onboarding + mois d'accès de l'offre — ne sert que si onboarding ou offre manquants)",type:"date" },
