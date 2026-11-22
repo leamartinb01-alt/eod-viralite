@@ -774,9 +774,11 @@ const MOODS = [
   { e:"😮‍💨", l:"Dur",     v:"😮‍💨 Dur" },
 ];
 const CALL_SOURCES = ["Instagram","LinkedIn","Typeform","Setting closer"];
-const CALL_RESULTS = ["Show-up","No-show","Closé","R2","Follow-up","No pitch","Reporté","Disqualifié"];
-// Résultats où le prospect s'est PRÉSENTÉ (comptent comme show-up + lead pour le setter). No-show / Reporté / Disqualifié = pas présent.
-const CALL_SHOWN = new Set(["Show-up","Closé","R2","Follow-up","No pitch"]);
+const CALL_RESULTS = ["Show-up","Closé","R2","Follow-up","Non qualifié","No pitch","No-show","Reporté","Disqualifié"];
+// PRÉSENT = le prospect s'est présenté (sert au taux de présence + lead setter). No-show / Reporté / Disqualifié = pas présent.
+const CALL_SHOWN = new Set(["Show-up","Closé","R2","Follow-up","Non qualifié","No pitch"]);
+// QUALIFIÉ = présent ET qualifié (prêt à être pitché). R2 / Non qualifié / No pitch = présents mais PAS « shows qualifiés ».
+const CALL_QUALIFIED = new Set(["Show-up","Closé"]);
 const SRC_SETTER = { "Instagram":"Ilyas", "LinkedIn":"Lucas" };
 /* Leads d'Ilyas DÉJÀ VÉRIFIÉS par Léa (juin) — comptent comme leads payés, archivés dans sa fiche */
 const CALL_SEED=[
@@ -809,7 +811,8 @@ const FORMS = {
     { key:"conv_active",  label:"💬 Conv activ",          type:"number" },
     { key:"relances",     label:"🔁 Relances",            type:"number" },
     { key:"propositions", label:"📞 Proposition call",    type:"number" },
-    { key:"calls_booked", label:"📅 Call booké",          type:"number" },
+    { key:"calls_booked", label:"📅 Call booké (nb)",      type:"number" },
+    { key:"booked",       label:"📋 Noms des RDV pris (nom + source + vérifié)", type:"booked" },
     { key:"debrief",      label:"📝 Débrief de la journée (optionnel)", type:"textarea" },
     { key:"mood",         label:"Ton énergie du jour ⚡️", type:"mood" },
   ],
@@ -2435,8 +2438,8 @@ function copyEodWhatsapp(){
   let msg="";
   if(role==="closer"){
     const calls=(typeof gatherCalls==="function")?gatherCalls():[];
-    const resa=calls.length, disq=calls.filter(c=>c.res==="Disqualifié").length, shows=calls.filter(c=>CALL_SHOWN.has(c.res)).length, noPitch=calls.filter(c=>c.res==="No pitch").length, vente=calls.filter(c=>c.res==="Closé").length;
-    const pitch=_fn("n_pitch")||Math.max(0,shows-noPitch);
+    const resa=calls.length, disq=calls.filter(c=>c.res==="Disqualifié").length, shows=calls.filter(c=>CALL_QUALIFIED.has(c.res)).length, vente=calls.filter(c=>c.res==="Closé").length;
+    const pitch=_fn("n_pitch")||shows;
     msg=`📊 EOD Closer — ${name} — ${d}\n\n1) DATAS\nNombre résa : ${resa}\nNombre disqualifié : ${disq}\nNombre shows qualifiés : ${shows}\nNombre pitch : ${pitch}\nNombre vente : ${vente}\n\nCollecté : ${_fn("cash_day")} €\nGénéré : ${_fn("cash_gen_day")} €\n\n2) MARKETING\nProfils : ${_fv("profils")||"—"}\nRaisons disqualif + feedbacks : ${_fv("disqual_reasons")||"—"}\nÀ améliorer : ${_fv("improve")||"—"}\n\n3) SUIVI\nNo-shows de la veille rappelés : ${_fn("noshow_called")}\nRDV du lendemain confirmés (appel) : ${_fn("rdv_confirmed")}`;
   } else if(role==="setter"){
     const ch=memberChannel(member(name)||{});
