@@ -421,7 +421,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 22/11/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 24/11/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -3338,7 +3338,16 @@ function renderTeamDigest(){
       if(notAck.length) miss+=`<div class="sub2" style="margin-top:5px"><span style="color:var(--red);font-weight:700">EOD manquant :</span> ${notAck.map(nm=>`<span class="ackchip">${escapeHtml(nm)}<button type="button" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',true,'team')">✓ vu / géré</button></span>`).join("")}</div>`;
       if(done.length) miss+=`<div class="sub2" style="margin-top:4px;opacity:.65">🗂 Géré : ${done.map(nm=>`<span class="ackchip ok">${escapeHtml(nm)}<button type="button" title="Remettre en alerte" onclick="setAck('eod|${nm.replace(/'/g,"")}|${d}',false,'team')">↩︎</button></span>`).join("")}</div>`;
     }
-    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''} <span class="sub2" style="font-weight:400">· ${posted.length}/${roster.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}</div>`;
+    // 👁 Détail PAR PERSONNE : exactement tout ce que chacun a rempli (débrief compris), rien d'agrégé, rien de masqué.
+    const _xr=x=>x.role?x:Object.assign({},x,{role:(member(x.member)||{}).role||""});
+    const detail=dayE.slice().sort((a,b)=>String(a.member||"").localeCompare(String(b.member||""))).map(x=>{
+      const xr=_xr(x); const parts=eodSummaryList(xr);
+      const mo=(x.payload&&x.payload.mood)?String(x.payload.mood).trim().split(" ")[0]:"";
+      const body=parts.length?parts.map(p=>`<div style="padding:3px 0;font-size:12.5px;line-height:1.5;border-top:1px dashed var(--line)">${p}</div>`).join(""):'<div class="sub2" style="padding:3px 0">EOD vide.</div>';
+      return `<details class="cdet" style="margin:6px 0;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--card2)"><summary style="cursor:pointer;font-weight:700;font-size:13px;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center"><span>${escapeHtml(x.member)} ${mo} <span class="sub2" style="font-weight:400">· ${escapeHtml(xr.role||"")}</span></span><span class="sub2" style="font-weight:400">déplier ▾</span></summary><div style="margin-top:6px">${body}</div></details>`;
+    }).join("");
+    const perPerson=detail?`<details class="cdet" style="margin-top:6px"><summary class="sub2" style="cursor:pointer;font-weight:600">👁 Détail de chaque EOD (${dayE.length}) — tout ce qui a été rempli</summary><div style="margin-top:4px">${detail}</div></details>`:"";
+    return `<div class="digline"><div style="font-weight:700;text-transform:capitalize">${escapeHtml(dayLabel(d))}${isToday?" (aujourd'hui)":""}${_weekend?' <span class="sub2" style="font-weight:400">· week-end</span>':''} <span class="sub2" style="font-weight:400">· ${posted.length}/${roster.length} EOD</span></div><div class="sub2" style="margin-top:3px">${bits.join(" · ")}</div>${miss}${perPerson}</div>`;
   }).join("");
 }
 async function saveWarnStatus(key,status,note){ if(!fbReady())return; initFirebase();
