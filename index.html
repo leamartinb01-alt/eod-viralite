@@ -421,7 +421,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 24/11/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 25/11/2026</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -1101,7 +1101,7 @@ async function addMember(){
   let t=($("nmTitle").value||"").trim();
   if(!n){ alert("Mets un prénom."); return; }
   const existing=CONFIG.TEAM.find(m=>m.name.toLowerCase()===n.toLowerCase());
-  if(existing){ if(existing.archived){ existing.archived=false; const addp=ensureInPayList(existing.name, existing.role, existing.title); await saveTeamCfg(); if(addp){ await _persistPayList(); if($("settingsBox")) renderSettings(); } rebuildMemberSelect(); renderTeam(); if($("finMonth")) renderFinance(); return; } alert("Ce prénom existe déjà."); return; }
+  if(existing){ if(existing.archived){ existing.archived=false; delete existing.hidden; const addp=ensureInPayList(existing.name, existing.role, existing.title); await saveTeamCfg(); if(addp){ await _persistPayList(); if($("settingsBox")) renderSettings(); } rebuildMemberSelect(); renderTeam(); if($("finMonth")) renderFinance(); return; } alert("Ce prénom existe déjà."); return; }
   if(!t) t=ROLE_LABEL[role]||"Membre";
   CONFIG.TEAM.push({name:n,title:t,role});
   const addp=ensureInPayList(n, role, t);
@@ -1114,16 +1114,24 @@ async function archiveMember(name, on){
   if(!isAdmin()){ alert("Réservé à l'admin."); return; }
   const m=CONFIG.TEAM.find(x=>x.name===name); if(!m) return;
   if(on && !confirm("Archiver "+name+" ?\n\nDisparaît des vues actives (EOD, Équipe, Finance) mais ses données restent gardées — tu peux le réactiver quand tu veux.")) return;
-  m.archived=!!on;
+  m.archived=!!on; if(!on) delete m.hidden;
   await saveTeamCfg(); rebuildMemberSelect(); renderTeam();
+}
+// 🗑 Retire définitivement un ancien membre de la liste « Archivés » (il n'apparaît plus nulle part). Ses EOD, ses clients et sa paie passée restent gardés → aucun chiffre ne bouge.
+async function hideMember(name){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const m=CONFIG.TEAM.find(x=>x.name===name); if(!m||!m.archived) return;
+  if(!confirm("Supprimer "+name+" de la liste ?\n\nIl n'apparaîtra plus du tout dans l'équipe. Ses anciens EOD et tout l'historique restent gardés — aucun chiffre ne change.\n\n(Si tu recrées un jour une personne avec ce prénom, elle reviendra.)")) return;
+  m.hidden=true;
+  await saveTeamCfg(); renderTeam();
 }
 function renderTeamManage(){
   const box=$("teamManage"); if(!box) return;
   if(!isAdmin()){ box.innerHTML=""; return; }
   const esc=s=>s.replace(/'/g,"\\'");
-  const actives=CONFIG.TEAM.filter(m=>!m.archived), archived=CONFIG.TEAM.filter(m=>m.archived);
+  const actives=CONFIG.TEAM.filter(m=>!m.archived), archived=CONFIG.TEAM.filter(m=>m.archived&&!m.hidden); // 🗑 hidden = retiré de la liste (données gardées)
   const list=actives.map(m=>`<div class="kv"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn ghost sm" onclick="archiveMember('${esc(m.name)}',true)">📦 Archiver</button></span></div>`).join("");
-  const archList=archived.length?`<details class="cdet" style="margin-top:10px"><summary style="font-weight:700">📦 Archivés (${archived.length}) — données gardées</summary>${archived.map(m=>`<div class="kv" style="opacity:.75"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn ghost sm" onclick="archiveMember('${esc(m.name)}',false)">↺ Réactiver</button></span></div>`).join("")}</details>`:"";
+  const archList=archived.length?`<details class="cdet" style="margin-top:10px"><summary style="font-weight:700">📦 Archivés (${archived.length}) — données gardées</summary>${archived.map(m=>`<div class="kv" style="opacity:.75"><span class="k">${initials(m.name)} · ${escapeHtml(m.name)} — ${escapeHtml(m.title)}</span><span class="v"><button class="btn ghost sm" onclick="archiveMember('${esc(m.name)}',false)">↺ Réactiver</button> <button class="btn ghost sm" title="Ne plus l'afficher du tout (ses EOD et son historique restent gardés)" onclick="hideMember('${esc(m.name)}')">🗑</button></span></div>`).join("")}</details>`:"";
   box.innerHTML=`<div class="card" style="margin-top:14px">
     <h2 style="margin:0 0 4px">⚙️ Gérer l'équipe <span style="font-size:11px;color:var(--muted);font-weight:500">(admin)</span></h2>
     <p class="sub2" style="margin:0 0 10px">Ajoute ou archive des membres toi-même. L'archivage garde les données (rien n'est supprimé). C'est partagé en temps réel.</p>
@@ -1221,7 +1229,7 @@ function normPay(it){
   if(it.role){ let pct=Number(it.pct)||0;
     // Repli standard si le % a été perdu (case vide) : closer → 10 %, setter → 5 % (mêmes valeurs que les défauts historiques). Coach/Autre/Ads restent à 0 (fixe).
     if(!pct){ if(it.role==="closer") pct=10; else if(it.role==="setter") pct=5; }
-    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, archivedFrom:it.archivedFrom||"", from:it.from||it.activeFrom||"", rates:(Array.isArray(it.rates)?it.rates.filter(p=>p&&typeof p==="object").map(p=>({from:p.from||"", pct:Number(p.pct)||0, fixe:Number(p.fixe)||0, prime:!!p.prime})):undefined)}; }
+    return {name:it.name, role:it.role, label:it.label||"", pct, fixe:Number(it.fixe)||0, prime:(it.prime!=null?!!it.prime:primeDefault(it.role)), archived:!!it.archived, hidden:!!it.hidden, archivedFrom:it.archivedFrom||"", from:it.from||it.activeFrom||"", rates:(Array.isArray(it.rates)?it.rates.filter(p=>p&&typeof p==="object").map(p=>({from:p.from||"", pct:Number(p.pct)||0, fixe:Number(p.fixe)||0, prime:!!p.prime})):undefined)}; }
   const t=it.type||"manual", rate=Number(it.rate), base=Number(it.base)||0;
   // Sécurité : pour une ancienne ligne, on se fie au rôle réel de la personne dans l'équipe (évite un Anthony classé "setter" par erreur)
   const teamRole=(member(it.name)||{}).role;
@@ -1344,7 +1352,7 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
   const hasAdv = !!(it.archived || it.archivedFrom || it.from || it.activeFrom);
   const advBadge = (it.from||it.activeFrom)? "🟢" : (it.archived? "📦" : "📅");
   const _appel = it.role==="setter" && memberChannel(member(it.name)||{})==="appel"; // REM auto Optin 5% / Autobook 1,5%
-  return `<div class="drow pyrow" style="flex-wrap:wrap${it.archived?';opacity:.55':''}">
+  return `<div class="drow pyrow" data-hidden="${it.hidden?'1':''}" style="flex-wrap:wrap${it.archived?';opacity:.55':''}${it.hidden?';display:none':''}">
     <input class="pyName" type="text" placeholder="Nom" value="${escapeHtml(it.name||"")}" style="flex:2;min-width:100px">
     <input class="pyLabel" type="text" placeholder="Poste affiché (ex : COO)" title="Ce qui s'affiche sous son nom" value="${escapeHtml(it.label||"")}" style="flex:1.6;min-width:110px">
     <select class="pyRole" title="Sert au calcul : quels clients sont les siens" style="flex:1.2;min-width:100px">${PAY_ROLES.map(r=>`<option value="${r.v}" ${r.v===(it.role||'autre')?'selected':''}>${r.l}</option>`).join("")}</select>
@@ -1356,6 +1364,7 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
     <button type="button" class="xrow pyAdvBtn" title="Date d'entrée dans l'équipe / archivage" onclick="togglePyAdv(this)" style="width:auto;padding:0 8px">${advBadge}</button>
     <button type="button" class="xrow" title="Monter" onclick="movePy(this,-1)">↑</button>
     <button type="button" class="xrow" title="Descendre" onclick="movePy(this,1)">↓</button>
+    <button type="button" class="xrow" title="Supprimer de la liste (le passé déjà payé reste intact)" onclick="delPy(this)">🗑</button>
     ${_hasRates?`<div style="flex-basis:100%;margin-top:2px">${rateHistoryChips(it)}</div>`:""}
     <div class="pyAdv" style="flex-basis:100%;display:none;margin-top:8px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden">
       <div style="padding:11px 14px">
@@ -1377,6 +1386,24 @@ function payRow(it){ it=normPay(it)||{name:"",role:"autre",label:"",pct:0,fixe:0
   </div>`; }
 function togglePyAdv(btn){ const row=btn.closest('.pyrow'); const adv=row&&row.querySelector('.pyAdv'); if(adv) adv.style.display=(adv.style.display==='none'||!adv.style.display)?'block':'none'; }
 function movePy(btn,dir){ const row=btn.closest('.pyrow'), box=row.parentNode; if(dir<0 && row.previousElementSibling) box.insertBefore(row,row.previousElementSibling); else if(dir>0 && row.nextElementSibling) box.insertBefore(row.nextElementSibling,row); }
+/* 🗑 Supprimer quelqu'un de la liste des rémunérations : il n'apparaît PLUS DU TOUT (ni dans Réglages, ni dans la paie à partir du mois d'arrêt).
+   Sécurité chiffres : la fiche reste gardée en mémoire (masquée) → les mois passés déjà payés/clôturés ne bougent pas d'un euro. Pris en compte au clic sur « Enregistrer ». */
+function delPy(btn){ const row=btn.closest('.pyrow'); if(!row) return;
+  const name=(row.querySelector('.pyName').value||"").trim();
+  if(!name){ row.remove(); return; }
+  const a=row.querySelector('.pyArch'), f=row.querySelector('.pyArchFrom');
+  const already=!!(a&&a.checked&&f&&f.value);
+  const txt=already
+    ? `Supprimer ${name} de la liste ?\n\nIl n'apparaîtra plus du tout ici. Il est déjà arrêté depuis ${f.value} → aucun chiffre ne change.\n\nN'oublie pas de cliquer « Enregistrer ».`
+    : `Supprimer ${name} de la liste ?\n\n• Il n'apparaîtra plus du tout ici.\n• Il ne sera plus compté dans la paie À PARTIR DE CE MOIS-CI (mois en cours inclus).\n• Tous les mois passés restent exactement comme ils sont.\n\nS'il doit encore être payé ce mois-ci : annule, et utilise plutôt 📅 « Ne plus payer à partir de » avec le mois prochain.\n\nN'oublie pas de cliquer « Enregistrer ».`;
+  if(!confirm(txt)) return;
+  if(a) a.checked=true;
+  if(f && !f.value){ const d=new Date(); f.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  row.setAttribute('data-hidden','1'); row.style.display='none';
+  const m=$("settingsMsg"); if(m){ m.className="msg"; m.style.display="block"; m.textContent="🗑 "+name+" sera supprimé de la liste — clique « Enregistrer » pour valider."; }
+}
+function showHiddenPy(){ document.querySelectorAll('#payListBox .pyrow[data-hidden="1"]').forEach(r=>{ r.setAttribute('data-hidden',''); r.style.display=''; r.style.opacity='.55'; });
+  const n=$("pyHidNote"); if(n) n.innerHTML='Les personnes supprimées sont réaffichées ci-dessus (grisées). Décoche « Ne plus payer » via 📅 pour en réactiver une, puis <b>Enregistrer</b>.'; }
 function addPy(){ const box=$("payListBox"); if(box){ box.insertAdjacentHTML("afterbegin", payRow({name:"",type:"manual"})); const i=box.firstElementChild.querySelector(".pyName"); if(i) i.focus(); } }
 function slugKey(s){ return (String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,24))||("chk"+Date.now()); }
 function chkRow(it){ it=it||{key:"",label:""}; return `<div class="drow chkrow" data-key="${escapeHtml(it.key||"")}">
@@ -1391,7 +1418,89 @@ function loginRow(it){ it=it||{}; const roles=[["setter","Setter (EOD seulement)
     <input class="lgCode" type="text" placeholder="code perso" value="${escapeHtml(it.code||"")}" style="flex:1;min-width:100px">
     <select class="lgRole" style="flex:1;min-width:130px">${roles.map(r=>`<option value="${r[0]}" ${r[0]===curRole?"selected":""}>${r[1]}</option>`).join("")}</select>
     <button type="button" class="xrow" onclick="this.closest('.lgrow').remove()">✕</button>
+    ${loginLinkBadges(it.name, curRole)}
   </div>`; }
+// 🔗 Sous chaque identifiant : est-il bien rattaché à l'équipe (donc à l'EOD) et à une fiche de rémunération ? (lecture seule)
+function loginLinkBadges(name, access){ name=(name||"").trim(); if(!name) return "";
+  const needs=["setter","closer","coach","hos"].indexOf(access)>=0; if(!needs) return `<div class="sub2" style="flex-basis:100%;font-size:11px;opacity:.7">Accès consultation seulement — pas d'EOD ni de paie liés.</div>`;
+  const tm=(CONFIG.TEAM||[]).find(m=>eqName(m.name,name));
+  const pe=(SETTINGS.payList||[]).map(normPay).find(p=>p&&p.name&&eqName(p.name,name));
+  const ok=t=>`<span style="color:#7ee2a3">${t}</span>`, ko=t=>`<span style="color:#ffcf7a">${t}</span>`;
+  const tB = (tm&&!tm.archived) ? ok("✅ Équipe + EOD : "+escapeHtml(tm.title||tm.role||"")) : ko(tm?"⚠️ archivé dans l'équipe (pas d'EOD)":"⚠️ pas encore dans l'équipe");
+  let pB;
+  if(pe && payActiveMonth(pe, monthStr())){ const er=effRate(pe, monthStr()); const ap=isAppelPerson(pe);
+    const rem=ap?"5% Optin · 1,5% Autobook":((er.pct?er.pct+"%":"")+(er.pct&&er.fixe?" + ":"")+(er.fixe?er.fixe+"€ fixe":"")+(!er.pct&&!er.fixe?"manuel":""));
+    pB=ok("💶 Rému : "+escapeHtml(rem)+(er.prime?" 🎁":"")); }
+  else pB=ko(pe?"⚠️ fiche de paie arrêtée":"⚠️ pas de fiche de paie");
+  return `<div class="sub2" style="flex-basis:100%;font-size:11px">${tB} &nbsp;·&nbsp; ${pB}</div>`; }
+/* ➕ NOUVELLE PERSONNE — TOUT EN UN : un seul formulaire crée l'identifiant + le membre d'équipe (donc son EOD) + sa fiche de rémunération.
+   N'écrit QUE des ajouts (ne modifie aucune fiche existante) → aucun chiffre existant ne bouge. La paie démarre au mois en cours. */
+const NP_POSTES={
+  setter_insta:{l:"Setter Insta",    access:"setter", role:"setter", title:"Setter Insta",    pct:5,  prime:true},
+  setter_link: {l:"Setter LinkedIn", access:"setter", role:"setter", title:"Setter Linkedin", pct:5,  prime:true},
+  setter_appel:{l:"Setter Appel (5% Optin · 1,5% Autobook auto)", access:"setter", role:"setter", title:"Setter Appel", pct:5, prime:true},
+  closer:      {l:"Closer",          access:"closer", role:"closer", title:"Closer",          pct:10, prime:true},
+  coach:       {l:"Coach",           access:"coach",  role:"coach",  title:"Coach",           pct:0,  prime:false},
+  hos:         {l:"Head of Sales (lecture seule + EOD closer)", access:"hos", role:"closer", title:"Closer", pct:10, prime:true},
+  finance:     {l:"Montants seuls (consultation — pas d'EOD, pas de paie)", access:"finance", role:"", title:"", pct:0, prime:false},
+};
+function npPosteChange(){ const P=NP_POSTES[$("npPoste").value]||{}; if($("npPct")) $("npPct").value=P.pct?P.pct:""; if($("npPrime")) $("npPrime").checked=!!P.prime;
+  const off=!P.role; ["npPct","npFixe","npPrime"].forEach(id=>{ if($(id)) $(id).disabled=off; }); }
+function newPersonCard(){
+  return `<div style="border:1px solid rgba(126,226,163,.4);background:rgba(52,199,89,.06);border-radius:14px;padding:14px;margin:0 0 14px">
+    <div style="font-weight:800;font-size:14px;margin-bottom:2px">➕ Nouvelle personne — tout en un</div>
+    <div class="sub2" style="margin-bottom:8px">Tu remplis une seule fois : ça crée son <b>identifiant</b>, l'ajoute à l'<b>équipe</b> (son EOD est prêt) et crée sa <b>fiche de rémunération</b>.</div>
+    <div class="payin">
+      <div><label>Prénom</label><input id="npName" type="text" placeholder="Ex : Sarah"></div>
+      <div><label>Poste</label><select id="npPoste" onchange="npPosteChange()">${Object.keys(NP_POSTES).map(k=>`<option value="${k}">${NP_POSTES[k].l}</option>`).join("")}</select></div>
+      <div><label>Email (connexion)</label><input id="npEmail" type="email" placeholder="email"></div>
+      <div><label>Code perso</label><input id="npCode" type="text" placeholder="code perso"></div>
+      <div><label>% commission</label><input id="npPct" type="text" inputmode="decimal" value="5" placeholder="%"></div>
+      <div><label>Fixe € / mois</label><input id="npFixe" type="text" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <label class="ck" style="margin-top:8px;display:inline-flex"><input id="npPrime" type="checkbox" checked>🎁 touche les primes paliers</label>
+    <button type="button" class="btn" style="margin-top:10px" onclick="createPerson()">Créer la personne (identifiant + équipe/EOD + rémunération)</button>
+    <div id="npMsg" class="msg" style="display:none;margin-top:8px"></div>
+  </div>`; }
+async function createPerson(){
+  if(!isAdmin()){ alert("Réservé à l'admin."); return; }
+  const g=id=>(($(id)&&$(id).value)||"").trim();
+  const say=(cls,t)=>{ const m=$("npMsg"); if(m){ m.className="msg "+cls; m.style.display="block"; m.innerHTML=t; } };
+  let name=g("npName"); const email=g("npEmail").toLowerCase(), code=g("npCode");
+  const P=NP_POSTES[g("npPoste")]; if(!P) return;
+  if(!name||!email||!code){ say("err","Il me faut le prénom, l'email et le code perso."); return; }
+  const num=v=>Number(String(v||"").replace(",",".").replace(/[^0-9.]/g,""))||0;
+  const pct=num(g("npPct")), fixe=num(g("npFixe")), prime=!!($("npPrime")&&$("npPrime").checked);
+  if(!fbReady()){ say("err","Backend non connecté."); return; } initFirebase();
+  say("","Création…");
+  try{
+    // On relit la base juste avant d'écrire → impossible d'écraser un identifiant ou une fiche de paie existants.
+    const ref=db.collection("setter_stats").doc(SETTINGS_DOC); const snap=await ref.get(); const x=snap.exists?snap.data():{};
+    const logins=Array.isArray(x.logins)?x.logins.slice():(SETTINGS.logins||[]).slice();
+    if(logins.some(l=>l&&String(l.email||"").trim().toLowerCase()===email)){ say("err","Cet email a déjà un identifiant."); return; }
+    if(logins.some(l=>l&&l.name&&eqName(l.name,name))){ say("err","« "+escapeHtml(name)+" » a déjà un identifiant (voir la liste plus bas)."); return; }
+    const done=[]; const payload={isSettings:true}; let teamChanged=false;
+    if(P.role){
+      await loadTeamCfg();
+      const ex=(CONFIG.TEAM||[]).find(m=>eqName(m.name,name));
+      if(ex){ name=ex.name; // même orthographe que dans l'équipe → son EOD se rattache bien à lui
+        if(ex.archived){ ex.archived=false; delete ex.hidden; ex.role=P.role; ex.title=P.title; teamChanged=true; done.push("👥 Équipe : réactivé ("+escapeHtml(P.title)+") — EOD prêt"); }
+        else done.push("👥 Équipe : déjà présent ("+escapeHtml(ex.title||"")+")"); }
+      else { CONFIG.TEAM.push({name, title:P.title, role:P.role}); teamChanged=true; done.push("👥 Équipe : ajouté ("+escapeHtml(P.title)+") — EOD prêt"); }
+      const pl=(Array.isArray(x.payList)&&x.payList.length)?x.payList.slice():(SETTINGS.payList||[]).slice();
+      const pe=pl.find(p=>p&&p.name&&eqName(p.name,name));
+      if(pe){ const np=normPay(pe)||{}; done.push(np.archived?"💶 Rému : ⚠️ une ancienne fiche de paie <b>arrêtée</b> existe déjà à ce prénom — je n'y ai pas touché (pour ne pas modifier le passé). Réactive-la ou renomme-la dans « Personnes à payer ».":"💶 Rému : fiche déjà existante (inchangée)"); }
+      else { pl.push({name, label:P.title, role:P.role, pct, fixe, prime, archived:false, archivedFrom:"", from:monthStr()}); payload.payList=pl; SETTINGS.payList=pl;
+        done.push("💶 Rému : "+(P.title==="Setter Appel"?"5% Optin · 1,5% Autobook":((pct?pct+"%":"")+(pct&&fixe?" + ":"")+(fixe?fixe+"€ fixe":"")+(!pct&&!fixe?"manuel":"")))+(prime?" 🎁":"")+" — à partir de "+escapeHtml(monthLabelFr(monthStr()))); }
+    }
+    logins.push({name, email, code, role:P.access}); payload.logins=logins;
+    await ref.set(payload,{merge:true}); SETTINGS.logins=logins;
+    if(teamChanged) await saveTeamCfg();
+    done.unshift("🔑 Identifiant créé ("+escapeHtml(email)+")");
+    renderSettings(); try{ rebuildMemberSelect(); }catch(e){} try{ if($("teamManage")) renderTeamManage(); }catch(e){}
+    say("ok","✅ <b>"+escapeHtml(name)+"</b> est créé·e :<br>"+done.join("<br>"));
+  }catch(e){ say("err","Erreur : "+escapeHtml(e.message)); }
+}
 function addLogin(){ const box=$("loginBox"); if(box){ box.insertAdjacentHTML("beforeend", loginRow({role:"team"})); const i=box.lastElementChild.querySelector(".lgName"); if(i) i.focus(); } }
 function renderSettings(){
   const box=$("settingsBox"); if(!box) return;
@@ -1413,9 +1522,11 @@ function renderSettings(){
     <div class="hint">Choisis <b>pour qui</b> (un setter précis, ou « Tous les setters » pour une cible commune). Chacun ne voit que SES objectifs dans son EOD, avec la progression du mois (fait / cible).</div></div>`;
   // Actifs affichés normalement ; archivés repliés (gardés DANS #payListBox pour que l'enregistrement ne les perde pas).
   const _pl=(SETTINGS.payList||[]);
-  const _plAct=_pl.filter(p=>!(normPay(p)||{}).archived), _plArch=_pl.filter(p=>(normPay(p)||{}).archived);
+  const _plHid=_pl.filter(p=>(normPay(p)||{}).hidden); // 🗑 supprimés : gardés en mémoire (historique intact) mais plus affichés
+  const _plAct=_pl.filter(p=>{ const n=normPay(p)||{}; return !n.archived&&!n.hidden; }), _plArch=_pl.filter(p=>{ const n=normPay(p)||{}; return n.archived&&!n.hidden; });
   const pr=_plAct.map(payRow).join("")
-    + (_plArch.length?`<details class="cdet" style="margin-top:8px"><summary style="font-weight:700;color:var(--muted)">📦 Archivés (${_plArch.length}) — gardés, masqués</summary>${_plArch.map(payRow).join("")}</details>`:"");
+    + (_plArch.length?`<details class="cdet" style="margin-top:8px"><summary style="font-weight:700;color:var(--muted)">📦 Archivés (${_plArch.length}) — gardés, masqués</summary>${_plArch.map(payRow).join("")}</details>`:"")
+    + _plHid.map(payRow).join("");
   const payHead=`<div class="drow" style="flex-wrap:wrap;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">
     <div style="flex:2;min-width:100px">Nom</div>
     <div style="flex:1.6;min-width:110px">Poste affiché</div>
@@ -1430,7 +1541,8 @@ function renderSettings(){
     ${payHead}
     <div id="payListBox">${pr}</div>
     <button type="button" class="addrow" onclick="addPy()">+ Ajouter une personne à payer</button>
-    <div class="hint">Les 2 petits carrés après le rôle = <b>1er : le % de commission</b> · <b>2e : le fixe € mensuel</b>. Un closer : mets <b>10</b> dans le % et laisse le fixe vide. Un setter : <b>5</b> dans le %.<br>
+    ${_plHid.length?`<div class="sub2" id="pyHidNote" style="margin-top:6px;font-size:11px;opacity:.6">🗑 ${_plHid.length} personne(s) supprimée(s) de la liste (gardées en mémoire pour ne pas toucher aux mois passés) · <a href="#" onclick="showHiddenPy();return false" style="color:inherit;text-decoration:underline">réafficher</a></div>`:""}
+    <div class="hint"><b>🗑</b> = supprimer quelqu'un de la liste : il disparaît complètement (les mois déjà payés ne bougent pas). <b>📦 Archiver</b> (via 📅) = il reste visible dans « Archivés ».<br>Les 2 petits carrés après le rôle = <b>1er : le % de commission</b> · <b>2e : le fixe € mensuel</b>. Un closer : mets <b>10</b> dans le % et laisse le fixe vide. Un setter : <b>5</b> dans le %.<br>
       Pour chacun : son <b>rôle</b>, puis son <b>%</b> et/ou son <b>fixe €</b>.<br>
       Le <b>%</b> s'applique toujours à l'encaissé de SES clients : <b>Closer</b> → ceux qu'il a closés (champ « Closer » de la fiche client) · <b>Setter</b> → ceux venant de ses leads (champ « Setter »).<br>
       Ex : Anthony = Closer + 10 % · Ilyas = Setter + 5 % · Lucas = Setter + 5 % + fixe 700 · Romain = Coach + fixe 2000 · Léa = Autre + fixe.<br>
@@ -1445,9 +1557,10 @@ function renderSettings(){
     <div class="hint">Ce sont les cases d'onboarding (WhatsApp, accès, etc.) qui apparaissent sur chaque fiche client. Mets un emoji + un texte court.</div></div>`;
   const lg=(SETTINGS.logins||[]).map(loginRow).join("");
   html+=`<div class="setblock"><h3>🔑 Identifiants (accès par personne)</h3>
+    ${newPersonCard()}
     <div id="loginBox">${lg}</div>
-    <button type="button" class="addrow" onclick="addLogin()">+ Ajouter une personne</button>
-    <div class="hint">Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son <b>rôle</b> :<br>
+    <button type="button" class="addrow" onclick="addLogin()">+ Ajouter un identifiant seul (à la main)</button>
+    <div class="hint"><b>Le plus simple : le cadre vert « Nouvelle personne »</b> — une seule saisie crée l'identifiant, l'ajoute à l'équipe (EOD) et crée sa rémunération. Sous chaque identifiant tu vois s'il est bien rattaché (✅ Équipe + EOD · 💶 Rému). Si tu ajoutes un identifiant à la main, il est rattaché à l'équipe et à la paie tout seul à l'enregistrement.<br>Chaque personne se connecte avec son <b>email + son code perso</b>. Choisis son <b>rôle</b> :<br>
       • <b>Setter</b> → EOD seulement.<br>
       • <b>Closer</b> → EOD + Clients.<br>
       • <b>Coach</b> → EOD + Clients + Coaching + Impayés + Immersive.<br>
@@ -1544,6 +1657,7 @@ async function saveSettings(){
     const archivedFrom=(function(){ const a=r.querySelector('.pyArch'), f=r.querySelector('.pyArchFrom'); if(!(a&&a.checked)) return ""; return (f&&f.value)?f.value:monthStr(); })();
     const from=(function(){ const f=r.querySelector('.pyFrom'); return (f&&f.value)?f.value:""; })();
     const out={name, label:(r.querySelector('.pyLabel').value||"").trim(), role:r.querySelector('.pyRole').value, pct, fixe, prime, archived, archivedFrom, from};
+    if(r.getAttribute('data-hidden')==="1" && archived) out.hidden=true; // 🗑 supprimé de la liste (gardé pour l'historique)
     // Historique REM (périodes {from,pct,fixe,prime}) — repris de l'ancienne config
     const old=_oldPay[name];
     let rates=(old&&Array.isArray(old.rates))?old.rates.map(p=>({from:p.from||"",pct:Number(p.pct)||0,fixe:Number(p.fixe)||0,prime:!!p.prime})):null;
@@ -1567,11 +1681,18 @@ async function saveSettings(){
     return out;
   }).filter(x=>x.name);
   SETTINGS.checks=[...document.querySelectorAll('#checkBox .chkrow')].map(r=>{ const label=r.querySelector('.chkLabel').value.trim(); const key=r.getAttribute('data-key')||slugKey(label); return {key,label}; }).filter(x=>x.label);
+  // 🔗 Rattachement auto : un identifiant Setter/Closer/Coach dont le prénom n'existe NULLE PART dans l'équipe → ajouté à l'équipe (EOD) + fiche de paie par défaut (dès ce mois).
+  // On ne touche à aucune personne déjà existante (active ou archivée) → aucun chiffre existant ne bouge.
+  const _linked=[];
+  if(!_loginsEmpty){ _gl.forEach(l=>{ if(!l.name || ["setter","closer","coach"].indexOf(l.role)<0) return;
+    if((CONFIG.TEAM||[]).some(t=>eqName(t.name,l.name))) return;
+    const title=ROLE_LABEL[l.role]||"Membre"; CONFIG.TEAM.push({name:l.name, title, role:l.role}); ensureInPayList(l.name, l.role, title); _linked.push(l.name); }); }
   const m=$("settingsMsg"); m.className="msg"; m.style.display="block"; m.textContent="Enregistrement…";
+  if(_linked.length){ await saveTeamCfg(); try{ rebuildMemberSelect(); }catch(e){} }
   const _payload={isSettings:true, ...SETTINGS};
   if(_loginsEmpty) delete _payload.logins; // liste vide → on NE touche PAS aux identifiants déjà en base (merge les conserve)
   try{ await db.collection("setter_stats").doc(SETTINGS_DOC).set(_payload,{merge:true});
-    m.className="msg ok"; m.textContent="Réglages enregistrés ✓"+(_loginsEmpty?" (identifiants existants conservés)":"")+" — visibles par toute l'équipe."; renderSettings(); }
+    m.className="msg ok"; m.textContent="Réglages enregistrés ✓"+(_loginsEmpty?" (identifiants existants conservés)":"")+" — visibles par toute l'équipe."+(_linked.length?" 🔗 Rattaché(s) automatiquement à l'équipe + paie : "+_linked.join(", ")+".":""); renderSettings(); }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
 }
 
@@ -2459,6 +2580,15 @@ function copyEodWhatsapp(){
       msg=`📅 EOD Setter — ${name} — ${d}\n\nNew followers : ${_fn("new_followers")}\nQualif : ${_fn("qualif")}\nContacté : ${_fn("contacted")}\nConv activ : ${_fn("conv_active")}\nRelances : ${_fn("relances")}\nProposition call : ${_fn("propositions")}\nCall booké : ${_fn("calls_booked")}`;
     }
   } else { msg=`EOD — ${name} — ${d}`; }
+  // 🔁 On recolle TOUT ce qui est écrit mais absent du gabarit (RDV pris, débrief, énergie) → le message copié = exactement l'EOD rempli, sans exception.
+  if(role==="setter"||role==="closer"){
+    const extra=[];
+    if(role==="setter"){ const bk=(typeof gatherBooked==="function")?gatherBooked():[];
+      if(bk.length) extra.push("RDV pris : "+bk.map(b=>b.name+(b.src?" ["+b.src+"]":"")+(b.kind?" ("+b.kind+")":"")+(b.verified?" ✓":"")).join(", ")); }
+    const deb=_fv("debrief"); if(deb) extra.push("Débrief : "+deb);
+    const en=_fv("mood"); if(en) extra.push("Énergie du jour : "+en);
+    if(extra.length) msg+="\n\n"+extra.join("\n");
+  }
   const box=$("eodWaBox"); if(box){ box.classList.remove("hide");
     box.innerHTML=`<textarea id="eodWaText" readonly rows="${Math.min(22,(msg.match(/\n/g)||[]).length+2)}" style="width:100%;font-family:monospace;font-size:12.5px;white-space:pre">${escapeHtml(msg)}</textarea><div class="sub2" id="eodWaMsg" style="margin-top:4px">Sélectionne le texte et copie-le, ou utilise le bouton Copier.</div><button type="button" class="btn ghost sm" style="width:auto;margin-top:6px" onclick="(function(){try{navigator.clipboard.writeText(document.getElementById('eodWaText').value);var m=document.getElementById('eodWaMsg');if(m){m.textContent='✅ Copié ! Colle dans WhatsApp.';m.style.color='#7ee2a3';}}catch(e){var t=document.getElementById('eodWaText');t.focus();t.select();}})()">📋 Copier</button>`;
     const t=$("eodWaText"); if(t){ t.focus(); t.select(); }
