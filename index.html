@@ -421,7 +421,7 @@
     <svg style="width:104px;height:104px;border-radius:28px;overflow:hidden;display:block;margin:0 auto 16px;box-shadow:0 0 0 1px var(--line),0 18px 50px rgba(255,122,61,.25)"><use href="#logoV"/></svg>
     <h1 style="margin:0; font-size:25px; font-weight:800" class="grad-text">Écosystème Viral</h1>
     <div style="color:var(--muted); font-size:13.5px; margin-top:6px">Pilotage — équipe, EOD &amp; clients</div>
-    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 25/11/2026</div>
+    <div style="margin-top:10px;display:inline-block;font-size:11px;font-weight:800;color:#7ee2a3;border:1px solid rgba(52,199,89,.4);background:rgba(52,199,89,.08);border-radius:999px;padding:3px 10px">✅ Version 26/11/2026 b</div>
   </div>
   <div class="card">
     <label>Email</label>
@@ -456,10 +456,11 @@
       <label>Date de l'EOD</label>
       <input id="rdate" type="date" />
       <div id="fields"></div>
-      <button class="btn" id="eodSubmitBtn" onclick="submitEod()">Envoyer mon EOD ✓</button>
+      <button class="btn" id="eodSubmitBtn" onclick="submitEod()">① Envoyer mon EOD ✓</button>
       <button class="btn ghost hide" id="eodCancelEdit" onclick="cancelEdit()">Annuler la modification</button>
       <div id="formMsg" class="msg"></div>
-      <button type="button" class="btn ghost" id="eodWaBtn" style="margin-top:10px" onclick="copyEodWhatsapp()">📋 Copier le récap pour WhatsApp</button>
+      <button type="button" class="btn ghost" id="eodWaBtn" style="margin-top:10px" onclick="copyEodWhatsapp()">② Copier mon EOD pour WhatsApp 📋</button>
+      <div class="hint" style="margin-top:4px">D'abord <b>① Envoyer</b>, ensuite <b>② Copier</b> : ça copie l'EOD que tu viens d'envoyer.</div>
       <div id="eodWaBox" class="hide" style="margin-top:8px"></div>
     </div>
     <div id="myEods" style="margin-top:14px"></div>
@@ -1061,7 +1062,9 @@ function guardDbForViewer(){ if(!db || db.__guarded || !isViewer()) return;
     if(name==="eod_reports" && ACCESS==="hos") return col;
     const realDoc=col.doc.bind(col);
     col.add=block;
-    col.doc=function(id){ const d=realDoc(id); d.set=block; d.update=block; d.delete=block; return d; };
+    col.doc=function(id){ const d=realDoc(id);
+      if(name==="setter_stats" && ACCESS==="hos" && LOGIN_NAME && id==="FU_"+LOGIN_NAME) return d; // 🟢 le HoS peut gérer SA liste de follow-ups (rien d'autre)
+      d.set=block; d.update=block; d.delete=block; return d; };
     return col; };
   db.__guarded=true;
 }
@@ -1731,6 +1734,86 @@ async function saveFollowups(name){
   try{ await db.collection("setter_stats").doc("FU_"+name).set({isFollowups:true, member:name, list},{merge:true});
     FUPS[name]=list; m.className="msg ok"; m.textContent="Relances enregistrées ✓"; }
   catch(e){ m.className="msg err"; m.textContent="Erreur : "+e.message; }
+}
+
+/* ===================== 📌 MES FOLLOW-UPS (en haut de l'EOD, à dérouler, avec calendrier des relances) =====================
+   Même liste que « Relances / Follow-up » de la fiche équipe (doc FU_<prénom>) → une seule source. Chaque action s'enregistre toute seule. */
+let FU_MINE={name:"",list:[],month:"",sel:"",open:false,doneOpen:false};
+function fuToday(){ return ymdLocal(new Date()); }
+async function loadFuMine(name){ if(!$("fuMineWrap")) return;
+  const keep=(FU_MINE.name===name);
+  FU_MINE={name, list:(keep?FU_MINE.list:(FUPS[name]||[])).slice(), month:(keep&&FU_MINE.month)||fuToday().slice(0,7), sel:"", open:keep?FU_MINE.open:false, doneOpen:false};
+  renderFuMine();
+  if(!fbReady()) return; initFirebase();
+  try{ const d=await db.collection("setter_stats").doc("FU_"+name).get();
+    if(FU_MINE.name!==name) return;
+    if(d.exists && Array.isArray(d.data().list)) FU_MINE.list=d.data().list.slice();
+    renderFuMine(); }catch(e){}
+}
+async function fuMineSave(){ const name=FU_MINE.name; if(!name) return;
+  FU_MINE.list=FU_MINE.list.filter(x=>x&&(x.prospect||x.note||x.date));
+  FUPS[name]=FU_MINE.list.slice(); renderFuMine();
+  if(!fbReady()) return; initFirebase();
+  try{ await db.collection("setter_stats").doc("FU_"+name).set({isFollowups:true, member:name, list:FU_MINE.list},{merge:true}); }
+  catch(e){ if(e&&e.message!=="lecture seule") alert("Relance non enregistrée : "+e.message); }
+}
+function fuMineAdd(){ const p=($("fuNewP").value||"").trim(), d=$("fuNewD").value||"", n=($("fuNewN").value||"").trim();
+  if(!p){ $("fuNewP").focus(); return; }
+  FU_MINE.list.push({prospect:p, date:d, note:n, done:false}); if(d) FU_MINE.month=d.slice(0,7); FU_MINE.open=true; fuMineSave(); }
+function fuMineDone(i,on){ const f=FU_MINE.list[i]; if(!f) return; f.done=!!on; fuMineSave(); }
+function fuMineDate(i,v){ const f=FU_MINE.list[i]; if(!f) return; f.date=v||""; fuMineSave(); }
+function fuMineDel(i){ const f=FU_MINE.list[i]; if(!f) return; if(!confirm("Supprimer la relance « "+(f.prospect||"")+" » ?")) return; FU_MINE.list.splice(i,1); fuMineSave(); }
+function fuMineMonth(dir){ const [y,m]=FU_MINE.month.split("-").map(Number); const d=new Date(y, m-1+dir, 1); FU_MINE.month=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); FU_MINE.sel=""; renderFuMine(); }
+function fuMineSel(day){ FU_MINE.sel=(FU_MINE.sel===day?"":day); renderFuMine(); }
+function renderFuMine(){ const w=$("fuMineWrap"); if(!w) return; const esc=escapeHtml, today=fuToday();
+  const L=FU_MINE.list.map((f,i)=>({...f,i}));
+  const pend=L.filter(f=>!f.done), late=pend.filter(f=>f.date&&f.date<today), due=pend.filter(f=>f.date===today);
+  // --- calendrier du mois (lundi → dimanche) ---
+  const [Y,Mo]=FU_MINE.month.split("-").map(Number); const first=new Date(Y,Mo-1,1); const nb=new Date(Y,Mo,0).getDate(); const off=(first.getDay()+6)%7;
+  const mLabel=first.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  let cells=""; for(let k=0;k<off;k++) cells+='<div></div>';
+  for(let dnum=1; dnum<=nb; dnum++){ const day=FU_MINE.month+"-"+String(dnum).padStart(2,"0");
+    const n=pend.filter(f=>f.date===day).length, nd=L.filter(f=>f.done&&f.date===day).length;
+    const isT=day===today, isSel=day===FU_MINE.sel, isLate=n&&day<today;
+    const bg=n?(isLate?"rgba(255,90,90,.22)":(isT?"rgba(255,160,60,.28)":"rgba(143,196,255,.2)")):"transparent";
+    const bd=isSel?"2px solid #fff":(isT?"2px solid #ffb27a":"1px solid var(--line)");
+    cells+=`<button type="button" onclick="fuMineSel('${day}')" style="aspect-ratio:1;min-height:38px;border-radius:9px;border:${bd};background:${bg};color:inherit;padding:2px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font:inherit;width:100%;margin:0">
+      <span style="font-size:12px;font-weight:${n||isT?800:500};opacity:${n||isT?1:.6}">${dnum}</span>
+      ${n?`<span style="font-size:9.5px;font-weight:800;color:${isLate?'#ff9a9a':(isT?'#ffb27a':'#8fc4ff')}">${n} 📌</span>`:(nd?'<span style="font-size:9px;opacity:.5">✓</span>':'')}</button>`; }
+  const cal=`<div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 6px">
+      <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:4px 12px" onclick="fuMineMonth(-1)">◀</button>
+      <b style="text-transform:capitalize;font-size:13.5px">${esc(mLabel)}</b>
+      <button type="button" class="btn ghost sm" style="width:auto;margin:0;padding:4px 12px" onclick="fuMineMonth(1)">▶</button></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;text-align:center;color:var(--muted);font-weight:800;margin-bottom:3px">${["L","M","M","J","V","S","D"].map(x=>`<div>${x}</div>`).join("")}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div>
+    <div class="sub2" style="font-size:10.5px;margin-top:5px"><span style="color:#ffb27a">■</span> aujourd'hui · <span style="color:#8fc4ff">■</span> à venir · <span style="color:#ff9a9a">■</span> en retard — touche un jour pour voir ses relances</div>`;
+  // --- liste ---
+  const frD=d=>{ try{ return new Date(d+"T12:00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}); }catch(e){ return d; } };
+  const item=f=>{ const st=f.done?"":(f.date&&f.date<today?"late":(f.date===today?"today":""));
+    const tag=f.done?'<span style="color:#7ee2a3;font-weight:700">✓ fait</span>':(st==="late"?'<span style="color:#ff9a9a;font-weight:800">en retard</span>':(st==="today"?'<span style="color:#ffb27a;font-weight:800">aujourd\'hui</span>':''));
+    return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-top:1px dashed var(--line);${f.done?'opacity:.55':''}">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;flex:1;min-width:150px;cursor:pointer"><input type="checkbox" ${f.done?'checked':''} onchange="fuMineDone(${f.i},this.checked)" style="width:auto;margin:0">
+        <span><b style="${f.done?'text-decoration:line-through':''}">${esc(f.prospect||"(sans nom)")}</b>${f.note?` <span class="sub2">— ${esc(f.note)}</span>`:""}<br><span class="sub2" style="font-size:11px">${f.date?esc(frD(f.date)):"sans date"} ${tag}</span></span></label>
+      <input type="date" value="${esc(f.date||"")}" title="Changer la date de relance" onchange="fuMineDate(${f.i},this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin:0">
+      <button type="button" class="xrow" title="Supprimer" onclick="fuMineDel(${f.i})">✕</button></div>`; };
+  const byDate=(a,b)=>String(a.date||"9999").localeCompare(String(b.date||"9999"));
+  let listHtml;
+  if(FU_MINE.sel){ const dayL=L.filter(f=>f.date===FU_MINE.sel).sort((a,b)=>(a.done?1:0)-(b.done?1:0));
+    listHtml=`<div style="font-weight:800;font-size:13px;margin-top:10px;text-transform:capitalize">${esc(frD(FU_MINE.sel))} <a href="#" onclick="fuMineSel('${FU_MINE.sel}');return false" class="sub2" style="font-weight:500;text-transform:none">· tout voir</a></div>`+(dayL.length?dayL.map(item).join(""):'<div class="sub2" style="padding:6px 0">Aucune relance ce jour-là.</div>');
+  } else { const dn=L.filter(f=>f.done);
+    listHtml=`<div style="font-weight:800;font-size:13px;margin-top:10px">À relancer (${pend.length})</div>`+(pend.length?pend.slice().sort(byDate).map(item).join(""):'<div class="sub2" style="padding:6px 0">Rien à relancer pour l\'instant 👌</div>')
+      +(dn.length?`<details class="cdet" style="margin-top:6px" ${FU_MINE.doneOpen?'open':''} ontoggle="FU_MINE.doneOpen=this.open"><summary class="sub2" style="cursor:pointer">✅ Faits (${dn.length})</summary>${dn.slice().sort(byDate).reverse().map(item).join("")}</details>`:""); }
+  const add=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:12.5px;margin-bottom:5px">➕ Follow-up à se souvenir</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <input id="fuNewP" type="text" placeholder="Prospect" style="flex:1.4;min-width:120px;margin:0">
+      <input id="fuNewD" type="date" value="${esc(FU_MINE.sel||today)}" title="Date de relance" style="flex:1;min-width:130px;margin:0">
+      <input id="fuNewN" type="text" placeholder="Note (optionnel)" style="flex:1.6;min-width:130px;margin:0" onkeydown="if(event.key==='Enter'){event.preventDefault();fuMineAdd();}">
+    </div>
+    <button type="button" class="addrow" onclick="fuMineAdd()">+ Ajouter la relance</button></div>`;
+  const badge=(n,t,c)=>n?`<span style="font-size:11px;font-weight:800;color:${c};border:1px solid ${c};border-radius:999px;padding:2px 8px;white-space:nowrap">${n} ${t}</span>`:"";
+  w.innerHTML=`<details class="card foldcard" style="margin:0 0 12px;${(late.length||due.length)?'border-color:rgba(255,160,60,.55)':''}" ${FU_MINE.open?'open':''} ontoggle="FU_MINE.open=this.open">
+    <summary style="cursor:pointer"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px"><b>📌 Mes follow-ups à relancer</b>${badge(due.length,"aujourd'hui","#ffb27a")}${badge(late.length,"en retard","#ff9a9a")}${(!due.length&&!late.length)?`<span class="sub2" style="font-size:11.5px">${pend.length?pend.length+" en cours":"aucun pour l'instant"}</span>`:""}</span><span class="chev">▸</span></summary>
+    ${cal}${listHtml}${add}</details>`;
 }
 
 /* ===================== COACHING (suivi par client) ===================== */
@@ -2418,6 +2501,7 @@ function eodRoleFor(){ const nm=($("member")&&$("member").value)||"";
   return member(nm).role; }
 function onMember(){
   const role=eodRoleFor(), box=$("fields"); box.innerHTML=""; _coachPick="";
+  if(role==="setter"||role==="closer") box.insertAdjacentHTML("beforeend",'<div id="fuMineWrap"></div>'); // 📌 follow-ups à relancer (tout en haut, à dérouler)
   if(role==="setter"||role==="closer"||role==="ads") box.insertAdjacentHTML("beforeend",'<div id="setterGoalsWrap"></div>');
   eodFields(role,$("member").value).forEach(f=>{
     let inp;
@@ -2443,6 +2527,7 @@ function onMember(){
   if($("callRows") && !$("callRows").children.length) addCallRow();
   if($("bookRows") && !$("bookRows").children.length) addBookRow();
   if($("srcRows") && !$("srcRows").children.length) seedSrcRows(null);
+  if($("fuMineWrap")) loadFuMine($("member").value);
   // Objectifs du setter (progression du mois) — charge les EOD si besoin
   if((role==="setter"||role==="closer"||role==="ads") && $("setterGoalsWrap")){ const nm=$("member").value; renderSetterGoals(nm);
     if(fbReady()){ initFirebase(); db.collection("eod_reports").orderBy("created_at","desc").limit(1000).get().then(s=>{ EODS=s.docs.map(d=>({id:d.id,...d.data()})); renderSetterGoals(nm); }).catch(()=>{}); } }
@@ -2556,48 +2641,72 @@ function editEod(id){
   editingEodId=id; show("form");
   $("member").value=x.member; onMember(); fillEodForm(x);
   $("rdate").value=x.report_date||todayStr();
-  $("formTitle").textContent="Modifier l'EOD"; $("eodSubmitBtn").textContent="Mettre à jour ✓"; $("eodCancelEdit").classList.remove("hide"); $("formMsg").style.display="none";
+  $("formTitle").textContent="Modifier l'EOD"; $("eodSubmitBtn").textContent="① Mettre à jour ✓"; $("eodCancelEdit").classList.remove("hide"); $("formMsg").style.display="none";
   window.scrollTo({top:0});
 }
-function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; const wb=$("eodWaBox"); if(wb){ wb.classList.add("hide"); wb.innerHTML=""; } }
-// 📋 Génère un récap WhatsApp depuis l'EOD en cours (format setter DM / setter appel / closer).
-function _fv(k){ const el=$("f_"+k); return el?String(el.value||"").trim():""; }
-function _fn(k){ const v=_fv(k); return v===""?0:(Number(v)||0); }
-function copyEodWhatsapp(){
-  const role=eodRoleFor(); const name=($("member")&&$("member").value)||""; const date=($("rdate")&&$("rdate").value)||todayStr();
+function cancelEdit(){ editingEodId=null; $("formTitle").textContent="Faire mon EOD"; $("eodSubmitBtn").textContent="① Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); onMember(); $("formMsg").style.display="none"; const wb=$("eodWaBox"); if(wb){ wb.classList.add("hide"); wb.innerHTML=""; } }
+// 📋 Récap WhatsApp. RÈGLE : on copie TOUJOURS un EOD ENVOYÉ (celui qu'on vient d'envoyer), jamais le formulaire en cours → fini le récap vide ou celui de la veille.
+let LAST_SENT_EOD=null; // {role,name,date,payload} du dernier EOD envoyé/mis à jour dans cette session
+function gatherEodPayload(role,name){ const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } }); return payload; }
+// Le formulaire contient-il quelque chose de saisi mais PAS encore envoyé ?
+function eodFormDirty(){ const box=$("fields"); if(!box) return false;
+  if([...box.querySelectorAll('input[id^="f_"],textarea[id^="f_"]')].some(el=>el.type==="checkbox"?el.checked:String(el.value||"").trim()!=="")) return true;
+  if(typeof gatherCalls==="function" && $("callRows") && gatherCalls().length) return true;
+  if(typeof gatherBooked==="function" && $("bookRows") && gatherBooked().length) return true;
+  return false; }
+function eodWaMessage(role,name,date,P){ P=P||{};
+  const fv=k=>String(P[k]==null?"":P[k]).trim(), fn=k=>{ const v=fv(k); return v===""?0:(Number(v)||0); };
   let d=date; try{ d=new Date(date+"T00:00:00").toLocaleDateString("fr-FR"); }catch(e){}
   let msg="";
   if(role==="closer"){
-    const calls=(typeof gatherCalls==="function")?gatherCalls():[];
+    const calls=Array.isArray(P.calls)?P.calls:[];
     const resa=calls.length, disq=calls.filter(c=>c.res==="Disqualifié").length, shows=calls.filter(c=>CALL_QUALIFIED.has(c.res)).length, vente=calls.filter(c=>c.res==="Closé").length;
-    const pitch=_fn("n_pitch")||shows;
-    msg=`📊 EOD Closer — ${name} — ${d}\n\n1) DATAS\nNombre résa : ${resa}\nNombre disqualifié : ${disq}\nNombre shows qualifiés : ${shows}\nNombre pitch : ${pitch}\nNombre vente : ${vente}\n\nCollecté : ${_fn("cash_day")} €\nGénéré : ${_fn("cash_gen_day")} €\n\n2) MARKETING\nProfils : ${_fv("profils")||"—"}\nRaisons disqualif + feedbacks : ${_fv("disqual_reasons")||"—"}\nÀ améliorer : ${_fv("improve")||"—"}\n\n3) SUIVI\nNo-shows de la veille rappelés : ${_fn("noshow_called")}\nRDV du lendemain confirmés (appel) : ${_fn("rdv_confirmed")}`;
+    const pitch=fn("n_pitch")||shows;
+    msg=`📊 EOD Closer — ${name} — ${d}\n\n1) DATAS\nNombre résa : ${resa}\nNombre disqualifié : ${disq}\nNombre shows qualifiés : ${shows}\nNombre pitch : ${pitch}\nNombre vente : ${vente}\n\nCollecté : ${fn("cash_day")} €\nGénéré : ${fn("cash_gen_day")} €\n\n2) MARKETING\nProfils : ${fv("profils")||"—"}\nRaisons disqualif + feedbacks : ${fv("disqual_reasons")||"—"}\nÀ améliorer : ${fv("improve")||"—"}\n\n3) SUIVI\nNo-shows de la veille rappelés : ${fn("noshow_called")}\nRDV du lendemain confirmés (appel) : ${fn("rdv_confirmed")}`;
   } else if(role==="setter"){
     const ch=memberChannel(member(name)||{});
     if(ch==="appel"){
-      msg=`📊 EOD Setter Appel — ${name} — ${d}\n\n1) AUTOBOOK\nNb appelés : ${_fn("ab_called")}\nNb réponses : ${_fn("ab_rep")}\nNb calls confirmés : ${_fn("ab_confirmed")}\nNb disqualifiés : ${_fn("ab_disqual")}\n\n2) OPTIN\nNb appelés : ${_fn("opt_called")}\nNb réponses : ${_fn("opt_rep")}\nNb calls confirmés : ${_fn("opt_confirmed")}\nNb disqualifiés : ${_fn("opt_disqual")}\n\nRaisons disqualif : ${_fv("disqual_reasons")||"—"}\nNb calls book : ${_fn("calls_booked")}`;
+      msg=`📊 EOD Setter Appel — ${name} — ${d}\n\n1) AUTOBOOK\nNb appelés : ${fn("ab_called")}\nNb réponses : ${fn("ab_rep")}\nNb calls confirmés : ${fn("ab_confirmed")}\nNb disqualifiés : ${fn("ab_disqual")}\n\n2) OPTIN\nNb appelés : ${fn("opt_called")}\nNb réponses : ${fn("opt_rep")}\nNb calls confirmés : ${fn("opt_confirmed")}\nNb disqualifiés : ${fn("opt_disqual")}\n\nRaisons disqualif : ${fv("disqual_reasons")||"—"}\nNb calls book : ${fn("calls_booked")}`;
     } else {
-      msg=`📅 EOD Setter — ${name} — ${d}\n\nNew followers : ${_fn("new_followers")}\nQualif : ${_fn("qualif")}\nContacté : ${_fn("contacted")}\nConv activ : ${_fn("conv_active")}\nRelances : ${_fn("relances")}\nProposition call : ${_fn("propositions")}\nCall booké : ${_fn("calls_booked")}`;
+      msg=`📅 EOD Setter — ${name} — ${d}\n\nNew followers : ${fn("new_followers")}\nQualif : ${fn("qualif")}\nContacté : ${fn("contacted")}\nConv activ : ${fn("conv_active")}\nRelances : ${fn("relances")}\nProposition call : ${fn("propositions")}\nCall booké : ${fn("calls_booked")}`;
     }
   } else { msg=`EOD — ${name} — ${d}`; }
-  // 🔁 On recolle TOUT ce qui est écrit mais absent du gabarit (RDV pris, débrief, énergie) → le message copié = exactement l'EOD rempli, sans exception.
+  // On recolle TOUT ce qui est écrit mais absent du gabarit (RDV pris, débrief, énergie) → le message = exactement l'EOD envoyé.
   if(role==="setter"||role==="closer"){
     const extra=[];
-    if(role==="setter"){ const bk=(typeof gatherBooked==="function")?gatherBooked():[];
+    if(role==="setter"){ const bk=Array.isArray(P.booked)?P.booked:[];
       if(bk.length) extra.push("RDV pris : "+bk.map(b=>b.name+(b.src?" ["+b.src+"]":"")+(b.kind?" ("+b.kind+")":"")+(b.verified?" ✓":"")).join(", ")); }
-    const deb=_fv("debrief"); if(deb) extra.push("Débrief : "+deb);
-    const en=_fv("mood"); if(en) extra.push("Énergie du jour : "+en);
+    const deb=fv("debrief"); if(deb) extra.push("Débrief : "+deb);
+    const en=fv("mood"); if(en) extra.push("Énergie du jour : "+en);
     if(extra.length) msg+="\n\n"+extra.join("\n");
   }
-  const box=$("eodWaBox"); if(box){ box.classList.remove("hide");
-    box.innerHTML=`<textarea id="eodWaText" readonly rows="${Math.min(22,(msg.match(/\n/g)||[]).length+2)}" style="width:100%;font-family:monospace;font-size:12.5px;white-space:pre">${escapeHtml(msg)}</textarea><div class="sub2" id="eodWaMsg" style="margin-top:4px">Sélectionne le texte et copie-le, ou utilise le bouton Copier.</div><button type="button" class="btn ghost sm" style="width:auto;margin-top:6px" onclick="(function(){try{navigator.clipboard.writeText(document.getElementById('eodWaText').value);var m=document.getElementById('eodWaMsg');if(m){m.textContent='✅ Copié ! Colle dans WhatsApp.';m.style.color='#7ee2a3';}}catch(e){var t=document.getElementById('eodWaText');t.focus();t.select();}})()">📋 Copier</button>`;
-    const t=$("eodWaText"); if(t){ t.focus(); t.select(); }
-  }
-  try{ navigator.clipboard.writeText(msg); const m=$("eodWaMsg"); if(m){ m.textContent="✅ Copié ! Colle dans WhatsApp."; m.style.color="#7ee2a3"; } }catch(e){}
+  return msg; }
+function _waSetMsg(t,ok){ const m=$("eodWaMsg"); if(m){ m.textContent=t; m.style.color=ok?"#7ee2a3":""; } }
+function _waCopyNow(){ const t=$("eodWaText"); if(!t) return; const done=()=>_waSetMsg("✅ Copié ! Colle dans WhatsApp.",true);
+  const fallback=()=>{ try{ t.focus(); t.select(); if(document.execCommand&&document.execCommand("copy")) done(); else _waSetMsg("Texte sélectionné — fais Copier.",false); }catch(e){ _waSetMsg("Sélectionne le texte et copie-le.",false); } };
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(done).catch(fallback); else fallback(); }catch(e){ fallback(); } }
+// Affiche le récap d'un EOD ENVOYÉ + bouton Copier. autoCopy = tente la copie directe (clic utilisateur).
+function showEodWa(sent, autoCopy){ const box=$("eodWaBox"); if(!box||!sent) return;
+  const msg=eodWaMessage(sent.role, sent.name, sent.date, sent.payload); let d=sent.date; try{ d=new Date(sent.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}); }catch(e){}
+  box.classList.remove("hide");
+  box.innerHTML=`<div class="sub2" style="margin-bottom:4px">Récap de l'EOD <b>envoyé</b> — ${escapeHtml(sent.name)} · ${escapeHtml(d)}</div><textarea id="eodWaText" readonly rows="${Math.min(22,(msg.match(/\n/g)||[]).length+2)}" style="width:100%;font-family:monospace;font-size:12.5px;white-space:pre">${escapeHtml(msg)}</textarea><div class="sub2" id="eodWaMsg" style="margin-top:4px">Clique sur « Copier » puis colle dans WhatsApp.</div><button type="button" class="btn" style="margin-top:6px" onclick="_waCopyNow()">📋 Copier</button>`;
+  if(autoCopy) _waCopyNow(); }
+function copyEodWhatsapp(){
+  const name=($("member")&&$("member").value)||""; const date=($("rdate")&&$("rdate").value)||todayStr();
+  const box=$("eodWaBox"); const warn=t=>{ if(box){ box.classList.remove("hide"); box.innerHTML=`<div class="msg err" style="display:block;margin:0">${t}</div>`; } };
+  // 1) Quelque chose est saisi mais pas envoyé → on n'invente rien : il faut d'abord envoyer.
+  if(eodFormDirty()){ warn("⚠️ Ton EOD n'est pas encore envoyé. Clique d'abord sur <b>① "+(editingEodId?"Mettre à jour":"Envoyer mon EOD")+"</b>, puis sur <b>② Copier</b> — comme ça tu copies exactement ce que tu viens d'envoyer."); return; }
+  // 2) L'EOD qu'on vient d'envoyer dans cette session (même personne)
+  if(LAST_SENT_EOD && eqName(LAST_SENT_EOD.name,name)){ showEodWa(LAST_SENT_EOD,true); return; }
+  // 3) Sinon : l'EOD déjà envoyé pour la date affichée (ex. page rechargée entre-temps)
+  const pool=(Array.isArray(MY_EODS)&&MY_EODS.length?MY_EODS:[]).concat(EODS||[]);
+  const x=pool.filter(e=>e&&eqName(e.member,name)&&e.report_date===date)[0];
+  if(x){ showEodWa({role:x.role||eodRoleFor(), name:x.member, date:x.report_date, payload:x.payload||{}}, true); return; }
+  warn("Aucun EOD envoyé pour cette date. Remplis ton EOD, clique sur <b>① Envoyer mon EOD</b>, puis sur <b>② Copier</b>.");
 }
 async function submitEod(){
   const name=$("member").value, role=eodRoleFor(), rdate=$("rdate").value, msg=$("formMsg");
-  const payload={}; eodFields(role,name).forEach(f=>{ if(f.type==="calls"){ payload.calls=gatherCalls(); } else if(f.type==="booked"){ payload.booked=gatherBooked(); } else if(f.type==="srccount"){ const arr=gatherSrcCount(); payload.contacts_src=arr; payload.contacted=arr.reduce((s,x)=>s+(Number(x.n)||0),0); } else if(f.type==="clientlog"){ payload.clientlog=gatherClientLog(); } else if(f.type==="check"){ const el=$("f_"+f.key); payload[f.key]=!!(el&&el.checked); } else { const el=$("f_"+f.key); payload[f.key]=el?(el.value||"").trim():""; } });
+  const payload=gatherEodPayload(role,name);
   if(!fbReady()){ msg.className="msg err"; msg.textContent="Backend non configuré."; return; }
   initFirebase(); msg.className="msg"; msg.style.display="block"; msg.textContent="Envoi…";
   try{
@@ -2615,12 +2724,15 @@ async function submitEod(){
     if(editingEodId){
       await db.collection("eod_reports").doc(editingEodId).update({ report_date:rdate, member:name, role:role, payload:payload });
       msg.className="msg ok"; msg.textContent="EOD mis à jour ✓";
-      editingEodId=null; $("eodSubmitBtn").textContent="Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); $("formTitle").textContent="Faire mon EOD";
+      editingEodId=null; $("eodSubmitBtn").textContent="① Envoyer mon EOD ✓"; $("eodCancelEdit").classList.add("hide"); $("formTitle").textContent="Faire mon EOD";
     } else {
       await db.collection("eod_reports").add({ report_date:rdate, member:name, role:role, payload:payload, created_at:firebase.firestore.FieldValue.serverTimestamp() });
       msg.className="msg ok"; msg.textContent=WINS[Math.floor(Math.random()*WINS.length)];
     }
-    eodFields(role,name).forEach(f=>{ const el=$("f_"+f.key); if(el) el.value=""; });
+    // 📋 On mémorise l'EOD qui VIENT d'être envoyé et on affiche son récap prêt à copier (étape ②).
+    LAST_SENT_EOD={role, name, date:rdate, payload:JSON.parse(JSON.stringify(payload))};
+    eodFields(role,name).forEach(f=>{ const el=$("f_"+f.key); if(el){ if(el.type==="checkbox") el.checked=false; else el.value=""; } });
+    try{ showEodWa(LAST_SENT_EOD,false); const wm=$("eodWaMsg"); if(wm) wm.innerHTML="👉 Étape ② : clique sur <b>Copier</b> puis colle dans WhatsApp."; }catch(e){}
     document.querySelectorAll("#fields .mood.sel").forEach(b=>b.classList.remove("sel"));
     if($("callRows")){ $("callRows").innerHTML=""; addCallRow(); }
     if($("bookRows")){ $("bookRows").innerHTML=""; addBookRow(); }
